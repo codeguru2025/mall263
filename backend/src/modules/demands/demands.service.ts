@@ -1,15 +1,19 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { WalletService } from '../wallet/wallet.service';
-import { DemandStatus, DemandUrgency, OfferStatus, Prisma } from '@prisma/client';
+import { DemandStatus, DemandUrgency, OfferStatus, WalletTransactionType, WalletTransactionStatus, WalletLockReason, WalletLockStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class DemandsService {
-  constructor(
-    private prisma: PrismaService,
-    private walletService: WalletService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
+  /**
+   * Create a buyer demand and atomically lock 10% of the max budget.
+   *
+   * ATOMICITY FIX: Previously the demand was created first, then the wallet lock
+   * was run as a separate operation. If the lock failed, an orphaned demand remained
+   * in OPEN state with no locked funds. Now both operations happen in one
+   * RepeatableRead transaction — either both succeed or neither does.
+   */
   async createDemand(buyerId: string, data: {
     title: string;
     description?: string;
@@ -23,45 +27,85 @@ export class DemandsService {
     mallId?: string;
     expiresInHours?: number;
   }) {
-    // Check buyer has funded wallet (FUNDED mode minimum)
-    const buyingPower = await this.walletService.getBuyingPowerTier(buyerId);
-    if (buyingPower.tier === 'FREE') {
-      throw new BadRequestException('You must fund your wallet to post demand requests');
-    }
+    const lockAmount = data.maxBudget * 0.10;
 
-    // Check 10% rule for ACTIVE BUYER
-    const bidCheck = await this.walletService.canPlaceBid(buyerId, data.maxBudget);
-    if (!bidCheck.allowed) {
-      throw new BadRequestException(
-        `Need $${bidCheck.required.toFixed(2)} (10% of $${data.maxBudget}) in wallet. Available: $${bidCheck.available.toFixed(2)}`
-      );
-    }
+    return this.prisma.$retryTransaction(
+      async (tx) => {
+        // --- Wallet checks (inside tx so reads are stable at RepeatableRead) ---
+        const wallet = await tx.wallet.findUnique({ where: { userId: buyerId } });
+        if (!wallet || parseFloat(wallet.availableBalance.toString()) <= 0) {
+          throw new BadRequestException('You must fund your wallet to post demand requests');
+        }
 
-    const expiresAt = new Date(Date.now() + (data.expiresInHours || 72) * 60 * 60 * 1000);
+        const available = parseFloat(wallet.availableBalance.toString());
+        if (available < lockAmount) {
+          throw new BadRequestException(
+            `Need $${lockAmount.toFixed(2)} (10% of $${data.maxBudget}) in wallet. Available: $${available.toFixed(2)}`,
+          );
+        }
 
-    const demand = await this.prisma.buyerDemand.create({
-      data: {
-        buyerId,
-        title: data.title,
-        description: data.description,
-        categoryId: data.categoryId,
-        preferredSize: data.preferredSize,
-        preferredColor: data.preferredColor,
-        preferredBrand: data.preferredBrand,
-        minBudget: data.minBudget,
-        maxBudget: data.maxBudget,
-        currency: 'USD',
-        urgency: data.urgency || DemandUrgency.MEDIUM,
-        status: DemandStatus.OPEN,
-        mallId: data.mallId,
-        expiresAt,
+        // --- Create the demand ---
+        const expiresAt = new Date(Date.now() + (data.expiresInHours || 72) * 60 * 60 * 1000);
+
+        const demand = await tx.buyerDemand.create({
+          data: {
+            buyerId,
+            title: data.title,
+            description: data.description,
+            categoryId: data.categoryId,
+            preferredSize: data.preferredSize,
+            preferredColor: data.preferredColor,
+            preferredBrand: data.preferredBrand,
+            minBudget: data.minBudget,
+            maxBudget: data.maxBudget,
+            currency: 'USD',
+            urgency: data.urgency || DemandUrgency.MEDIUM,
+            status: DemandStatus.OPEN,
+            mallId: data.mallId,
+            expiresAt,
+          },
+        });
+
+        // --- Lock 10% of max budget (inline using tx — atomic with demand creation) ---
+        const newAvailable = new Prisma.Decimal(available - lockAmount);
+        const newLocked = new Prisma.Decimal(parseFloat(wallet.lockedBalance.toString()) + lockAmount);
+
+        await tx.wallet.update({
+          where: { id: wallet.id },
+          data: { availableBalance: newAvailable, lockedBalance: newLocked, lastActivityAt: new Date() },
+        });
+
+        await tx.walletLock.create({
+          data: {
+            walletId: wallet.id,
+            amount: new Prisma.Decimal(lockAmount),
+            reason: WalletLockReason.BID,
+            status: WalletLockStatus.ACTIVE,
+            referenceId: demand.id,
+            referenceType: 'buyer_demand',
+            expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000), // 48 hours
+          },
+        });
+
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: WalletTransactionType.BID_LOCK,
+            amount: new Prisma.Decimal(lockAmount),
+            balanceBefore: wallet.availableBalance,
+            balanceAfter: newAvailable,
+            status: WalletTransactionStatus.COMPLETED,
+            description: `Bid lock for demand ${demand.id}`,
+            referenceId: demand.id,
+            referenceType: 'wallet_lock',
+            completedAt: new Date(),
+          },
+        });
+
+        return demand;
       },
-    });
-
-    // Lock 10% of max budget
-    await this.walletService.lockFundsForBid(buyerId, data.maxBudget, demand.id);
-
-    return demand;
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
   }
 
   async getOpenDemands(params: {

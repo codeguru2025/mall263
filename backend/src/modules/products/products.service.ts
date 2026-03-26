@@ -194,11 +194,8 @@ export class ProductsService {
 
     if (categoryId) where.categoryId = categoryId;
     if (mallId) where.stall = { mallId };
-    if (minPrice || maxPrice) {
-      where.minPrice = {};
-      if (minPrice) where.minPrice.gte = minPrice;
-      if (maxPrice) where.maxPrice = { lte: maxPrice };
-    }
+    if (minPrice !== undefined) where.minPrice = { gte: minPrice };
+    if (maxPrice !== undefined) where.maxPrice = { lte: maxPrice };
 
     let orderBy: any = { createdAt: 'desc' };
     if (sortBy === 'price_asc') orderBy = { minPrice: 'asc' };

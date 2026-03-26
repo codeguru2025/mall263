@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class InventoryService {
@@ -41,43 +42,89 @@ export class InventoryService {
   }
 
   async adjustStock(variantId: string, changeQty: number, reason: string, performedBy: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const inventory = await tx.inventory.findUnique({ where: { variantId } });
-      if (!inventory) throw new NotFoundException('Inventory not found');
+    return this.prisma.$retryTransaction(
+      async (tx) => {
+        const inventory = await tx.inventory.findUnique({ where: { variantId } });
+        if (!inventory) throw new NotFoundException('Inventory not found');
 
-      const newQty = inventory.quantity + changeQty;
-      if (newQty < 0) throw new BadRequestException('Stock cannot go below zero');
+        const newQty = inventory.quantity + changeQty;
+        if (newQty < 0) throw new BadRequestException('Stock cannot go below zero');
 
-      await tx.inventory.update({
-        where: { id: inventory.id },
-        data: {
-          quantity: newQty,
-          lastRestockedAt: changeQty > 0 ? new Date() : undefined,
-        },
-      });
+        await tx.inventory.update({
+          where: { id: inventory.id },
+          data: {
+            quantity: newQty,
+            lastRestockedAt: changeQty > 0 ? new Date() : undefined,
+          },
+        });
 
-      await tx.inventoryLog.create({
-        data: {
-          inventoryId: inventory.id,
-          changeQty,
-          previousQty: inventory.quantity,
-          newQty,
-          reason,
-          performedBy,
-        },
-      });
+        await tx.inventoryLog.create({
+          data: {
+            inventoryId: inventory.id,
+            changeQty,
+            previousQty: inventory.quantity,
+            newQty,
+            reason,
+            performedBy,
+          },
+        });
 
-      return { variantId, previousQty: inventory.quantity, newQty, changeQty };
-    });
+        return { variantId, previousQty: inventory.quantity, newQty, changeQty };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
   }
 
+  /**
+   * Atomically adjusts stock for multiple variants in a SINGLE transaction.
+   * If any adjustment fails (e.g. insufficient stock for one variant),
+   * ALL adjustments are rolled back — preventing partial inventory states.
+   */
   async bulkAdjust(adjustments: Array<{ variantId: string; quantity: number }>, performedBy: string) {
-    const results = [];
-    for (const adj of adjustments) {
-      const result = await this.adjustStock(adj.variantId, adj.quantity, 'BULK_ADJUST', performedBy);
-      results.push(result);
-    }
-    return results;
+    return this.prisma.$retryTransaction(
+      async (tx) => {
+        const results: Array<{ variantId: string; previousQty: number; newQty: number; changeQty: number }> = [];
+
+        for (const adj of adjustments) {
+          const inventory = await tx.inventory.findUnique({ where: { variantId: adj.variantId } });
+          if (!inventory) {
+            throw new NotFoundException(`Inventory not found for variant ${adj.variantId}`);
+          }
+
+          const newQty = inventory.quantity + adj.quantity;
+          if (newQty < 0) {
+            throw new BadRequestException(
+              `Stock cannot go below zero for variant ${adj.variantId}. ` +
+              `Current: ${inventory.quantity}, Requested change: ${adj.quantity}`,
+            );
+          }
+
+          await tx.inventory.update({
+            where: { id: inventory.id },
+            data: {
+              quantity: newQty,
+              lastRestockedAt: adj.quantity > 0 ? new Date() : undefined,
+            },
+          });
+
+          await tx.inventoryLog.create({
+            data: {
+              inventoryId: inventory.id,
+              changeQty: adj.quantity,
+              previousQty: inventory.quantity,
+              newQty,
+              reason: 'BULK_ADJUST',
+              performedBy,
+            },
+          });
+
+          results.push({ variantId: adj.variantId, previousQty: inventory.quantity, newQty, changeQty: adj.quantity });
+        }
+
+        return results;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
   }
 
   async setLowStockThreshold(variantId: string, threshold: number) {

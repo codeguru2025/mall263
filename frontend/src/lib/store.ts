@@ -26,14 +26,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
 
   login: async (phone, password) => {
-    const { data } = await api.post('/auth/login', { phone, password });
+    const { data } = await api.post('/api/v1/auth/login', { phone, password });
     localStorage.setItem('access_token', data.accessToken);
     localStorage.setItem('refresh_token', data.refreshToken);
     set({ user: data.user, isAuthenticated: true, isLoading: false });
   },
 
   register: async (regData) => {
-    const { data } = await api.post('/auth/register', regData);
+    const { data } = await api.post('/api/v1/auth/register', regData);
     localStorage.setItem('access_token', data.accessToken);
     localStorage.setItem('refresh_token', data.refreshToken);
     set({ user: data.user, isAuthenticated: true, isLoading: false });
@@ -41,7 +41,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () => {
     const refreshToken = localStorage.getItem('refresh_token');
-    if (refreshToken) api.post('/auth/logout', { refreshToken }).catch(() => {});
+    if (refreshToken) api.post('/api/v1/auth/logout', { refreshToken }).catch(() => {});
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     set({ user: null, isAuthenticated: false, isLoading: false });
@@ -51,7 +51,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const token = localStorage.getItem('access_token');
       if (!token) { set({ isLoading: false }); return; }
-      const { data } = await api.get('/users/me');
+      const { data } = await api.get('/api/v1/users/me');
       set({ user: data, isAuthenticated: true, isLoading: false });
     } catch {
       set({ user: null, isAuthenticated: false, isLoading: false });
