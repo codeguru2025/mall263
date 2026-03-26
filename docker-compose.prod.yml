@@ -1,0 +1,64 @@
+version: '3.8'
+
+# Production compose — uses DigitalOcean managed services
+# PostgreSQL, Redis, and Spaces are external (DO managed)
+# Only backend, frontend, and meilisearch run as containers
+
+services:
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    environment:
+      MEILI_MASTER_KEY: ${MEILISEARCH_API_KEY}
+      MEILI_ENV: production
+    ports:
+      - '7700:7700'
+    volumes:
+      - meilidata:/meili_data
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - '4000:4000'
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRATION: 15m
+      JWT_REFRESH_EXPIRATION: 7
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_API_KEY: ${MEILISEARCH_API_KEY}
+      DO_SPACES_ENDPOINT: ${DO_SPACES_ENDPOINT}
+      DO_SPACES_BUCKET: ${DO_SPACES_BUCKET}
+      DO_SPACES_REGION: ${DO_SPACES_REGION}
+      DO_SPACES_ACCESS_KEY: ${DO_SPACES_ACCESS_KEY}
+      DO_SPACES_SECRET_KEY: ${DO_SPACES_SECRET_KEY}
+      DO_SPACES_CDN_URL: ${DO_SPACES_CDN_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+      API_PREFIX: api/v1
+      COMMISSION_RATE: 0.025
+    depends_on:
+      - meilisearch
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - '3000:3000'
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  meilidata:

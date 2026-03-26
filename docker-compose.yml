@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mall263
+      POSTGRES_USER: mall263
+      POSTGRES_PASSWORD: mall263_secret
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.6
+    environment:
+      MEILI_MASTER_KEY: mall263_meili_key
+    ports:
+      - '7700:7700'
+    volumes:
+      - meilidata:/meili_data
+
+  backend:
+    build: ./backend
+    ports:
+      - '3001:3001'
+    environment:
+      DATABASE_URL: postgresql://mall263:mall263_secret@postgres:5432/mall263
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: mall263_jwt_secret_change_in_production
+      JWT_REFRESH_SECRET: mall263_refresh_secret_change_in_production
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_API_KEY: mall263_meili_key
+      PORT: 3001
+    depends_on:
+      - postgres
+      - redis
+      - meilisearch
+
+  frontend:
+    build: ./frontend
+    ports:
+      - '3000:3000'
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  meilidata:

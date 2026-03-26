@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-navy-700 antialiased;
+  }
+}
+
+@layer components {
+  /* Buttons */
+  .btn-primary {
+    @apply bg-brand-orange hover:bg-orange-500 text-white font-bold py-3 px-6 rounded-xl transition-all duration-200 focus:ring-4 focus:ring-orange-200 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-[0.98];
+  }
+  .btn-secondary {
+    @apply bg-white hover:bg-gray-50 text-navy-700 font-semibold py-3 px-6 rounded-xl border-2 border-gray-200 transition-all duration-200 focus:ring-4 focus:ring-gray-100 focus:outline-none hover:border-gray-300;
+  }
+  .btn-danger {
+    @apply bg-brand-red hover:bg-red-500 text-white font-bold py-3 px-6 rounded-xl transition-all duration-200 focus:ring-4 focus:ring-red-200 focus:outline-none shadow-md;
+  }
+  .btn-bid {
+    @apply bg-brand-green hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl transition-all duration-200 focus:ring-4 focus:ring-green-200 focus:outline-none shadow-md hover:shadow-lg active:scale-[0.98];
+  }
+  .btn-navy {
+    @apply bg-navy-700 hover:bg-navy-600 text-white font-bold py-3 px-6 rounded-xl transition-all duration-200 focus:ring-4 focus:ring-navy-200 focus:outline-none shadow-md;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-shadow;
+  }
+  .card-bid {
+    @apply bg-white rounded-2xl border-2 border-green-200 p-5 shadow-sm relative overflow-hidden;
+  }
+  .card-live {
+    @apply bg-white rounded-2xl border-2 border-orange-300 p-5 shadow-md relative overflow-hidden animate-slide-up;
+  }
+
+  /* Form */
+  .input {
+    @apply w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 text-navy-700 placeholder-gray-400 focus:ring-2 focus:ring-brand-blue focus:border-brand-blue outline-none transition-all bg-gray-50 focus:bg-white;
+  }
+  .label {
+    @apply block text-sm font-semibold text-navy-700 mb-1.5;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold tracking-wide;
+  }
+  .badge-success {
+    @apply badge bg-green-50 text-green-700 border border-green-200;
+  }
+  .badge-warning {
+    @apply badge bg-orange-50 text-orange-700 border border-orange-200;
+  }
+  .badge-danger {
+    @apply badge bg-red-50 text-red-700 border border-red-200;
+  }
+  .badge-live {
+    @apply badge bg-brand-red text-white animate-pulse-bid;
+  }
+  .badge-bid {
+    @apply badge bg-brand-green text-white;
+  }
+
+  /* Auction/Ride-hailing specifics */
+  .timer-pill {
+    @apply inline-flex items-center gap-1.5 bg-navy-700 text-white text-xs font-bold px-3 py-1.5 rounded-full;
+  }
+  .price-tag {
+    @apply text-2xl font-black text-navy-700;
+  }
+  .price-tag-sm {
+    @apply text-lg font-bold text-navy-700;
+  }
+  .bid-count {
+    @apply inline-flex items-center gap-1 text-sm font-bold text-brand-green;
+  }
+  .location-pill {
+    @apply inline-flex items-center gap-1.5 bg-blue-50 text-brand-blue text-xs font-semibold px-3 py-1.5 rounded-full border border-blue-100;
+  }
+  .status-dot {
+    @apply w-2 h-2 rounded-full inline-block;
+  }
+  .bottom-sheet {
+    @apply fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl border-t border-gray-100 p-6 z-50;
+  }
+  .map-overlay-card {
+    @apply absolute bottom-24 left-4 right-4 bg-white rounded-2xl shadow-2xl p-4 z-40 border border-gray-100;
+  }
+}
