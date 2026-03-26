@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "prebuild": "npx prisma generate",
-    "build": "nest build",
+    "build": "tsc -p tsconfig.json",
+    "postbuild": "node -e \"require('fs').existsSync('dist/main.js') || (console.error('BUILD FAILED: dist/main.js not found'), process.exit(1))\"",
     "dev": "nest start --watch",
     "start": "node dist/main",
     "start:prod": "node dist/main",
