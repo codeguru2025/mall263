@@ -38,8 +38,10 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);
 
-  const port = config.get('PORT', 4000);
-  await app.listen(port);
+  // DO App Platform injects PORT at runtime — it must take priority over config defaults.
+  // Bind to 0.0.0.0 so the platform's health-check router can reach the app.
+  const port = parseInt(process.env.PORT || config.get('PORT', '4000'), 10);
+  await app.listen(port, '0.0.0.0');
   console.log(`Mall263 API running on port ${port}`);
   console.log(`Swagger docs: http://localhost:${port}/docs`);
 }
