@@ -2,7 +2,7 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuid } from 'uuid';
-import * as sharp from 'sharp';
+import sharp from 'sharp';
 
 export interface UploadResult {
   key: string;
