@@ -1,14 +1,20 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: 'standalone',
   images: {
-    domains: ['localhost', 'mall263.nyc3.digitaloceanspaces.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'mall263.nyc3.digitaloceanspaces.com',
+      },
+    ],
   },
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/:path*`,
+        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/:path*`,
       },
     ];
   },

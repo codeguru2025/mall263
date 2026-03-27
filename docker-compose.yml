@@ -29,7 +29,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - '3001:3001'
+      - '4000:4000'
     environment:
       DATABASE_URL: postgresql://mall263:mall263_secret@postgres:5432/mall263
       REDIS_HOST: redis
@@ -38,7 +38,7 @@ services:
       JWT_REFRESH_SECRET: mall263_refresh_secret_change_in_production
       MEILISEARCH_HOST: http://meilisearch:7700
       MEILISEARCH_API_KEY: mall263_meili_key
-      PORT: 3001
+      PORT: 4000
     depends_on:
       - postgres
       - redis
@@ -49,7 +49,7 @@ services:
     ports:
       - '3000:3000'
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://backend:4000
     depends_on:
       - backend
 
