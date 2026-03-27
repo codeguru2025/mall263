@@ -1,6 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class TrustService {
@@ -28,7 +27,7 @@ export class TrustService {
     let completionScore = 50;
     let cancellationScore = 50;
     let responseScore = 50;
-    let accuracyScore = 50;
+    const accuracyScore = 50;
     let totalTransactions = 0;
     let totalCancellations = 0;
 

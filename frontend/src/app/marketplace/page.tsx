@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Search, MapPin, Star, Gavel, SlidersHorizontal, ArrowLeft, ShoppingBag } from 'lucide-react';
+import Image from 'next/image';
+import { Search, MapPin, Star, Gavel, ShoppingBag } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -79,7 +80,14 @@ export default function MarketplacePage() {
                 <Link key={product.id} href={`/marketplace/${product.id}`} className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden hover:border-brand-blue hover:shadow-lg transition-all group">
                   <div className="bg-gradient-to-br from-gray-50 to-gray-100 h-48 flex items-center justify-center overflow-hidden relative">
                     {product.imageUrl ? (
-                      <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <Image
+                        src={product.imageUrl}
+                        alt={product.name}
+                        fill
+                        sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
+                        className="object-cover group-hover:scale-105 transition-transform"
+                        priority={product.trustScore >= 70}
+                      />
                     ) : (
                       <ShoppingBag className="w-12 h-12 text-gray-300" />
                     )}

@@ -8,6 +8,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'mall263.nyc3.digitaloceanspaces.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'mall263-uploads.nyc3.cdn.digitaloceanspaces.com',
+      },
     ],
   },
   async rewrites() {
