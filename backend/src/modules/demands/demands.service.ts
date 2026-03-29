@@ -164,35 +164,46 @@ export class DemandsService {
     return demand;
   }
 
+  /**
+   * ATOMICITY FIX: demand status check and offer creation are now in one
+   * RepeatableRead transaction. Previously the check happened outside any
+   * transaction — a concurrent acceptOffer could match the demand between
+   * the check and the create, leaving an orphaned PENDING offer on a MATCHED demand.
+   */
   async submitOffer(stallId: string, demandId: string, data: {
     message?: string;
     totalPrice: number;
     items: Array<{ variantId: string; quantity: number; price: number }>;
     expiresInHours?: number;
   }) {
-    const demand = await this.prisma.buyerDemand.findUnique({ where: { id: demandId } });
-    if (!demand) throw new NotFoundException('Demand not found');
-    if (demand.status !== DemandStatus.OPEN) throw new BadRequestException('Demand is no longer open');
+    return this.prisma.$retryTransaction(
+      async (tx) => {
+        const demand = await tx.buyerDemand.findUnique({ where: { id: demandId } });
+        if (!demand) throw new NotFoundException('Demand not found');
+        if (demand.status !== DemandStatus.OPEN) throw new BadRequestException('Demand is no longer open');
 
-    return this.prisma.sellerOffer.create({
-      data: {
-        demandId,
-        stallId,
-        message: data.message,
-        totalPrice: data.totalPrice,
-        currency: 'USD',
-        status: OfferStatus.PENDING,
-        expiresAt: new Date(Date.now() + (data.expiresInHours || 48) * 60 * 60 * 1000),
-        items: {
-          create: data.items.map(item => ({
-            variantId: item.variantId,
-            quantity: item.quantity,
-            price: item.price,
-          })),
-        },
+        return tx.sellerOffer.create({
+          data: {
+            demandId,
+            stallId,
+            message: data.message,
+            totalPrice: data.totalPrice,
+            currency: 'USD',
+            status: OfferStatus.PENDING,
+            expiresAt: new Date(Date.now() + (data.expiresInHours || 48) * 60 * 60 * 1000),
+            items: {
+              create: data.items.map(item => ({
+                variantId: item.variantId,
+                quantity: item.quantity,
+                price: item.price,
+              })),
+            },
+          },
+          include: { items: true },
+        });
       },
-      include: { items: true },
-    });
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
   }
 
   async acceptOffer(buyerId: string, offerId: string) {

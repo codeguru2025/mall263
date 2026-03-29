@@ -78,7 +78,20 @@ export class TrustService {
   }
 
   async recalculateAll() {
-    const users = await this.prisma.user.findMany({ where: { status: UserStatus.ACTIVE }, select: { id: true } });
+    // Only recalculate users whose score hasn't been updated in the last 5 minutes.
+    // This prevents double-processing if two concurrent recalculateAll() calls run
+    // at the same time (e.g. two admin triggers or overlapping cron runs).
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const users = await this.prisma.user.findMany({
+      where: {
+        status: UserStatus.ACTIVE,
+        OR: [
+          { trustScore: null },
+          { trustScore: { lastCalculatedAt: { lt: fiveMinutesAgo } } },
+        ],
+      },
+      select: { id: true },
+    });
     let processed = 0;
     for (const user of users) {
       try {

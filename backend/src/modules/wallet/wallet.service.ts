@@ -198,8 +198,11 @@ export class WalletService {
   }
 
   /**
-   * Check if seller has sufficient commission balance for a sale.
-   * Seller MUST have >= 2.5% of sale amount in wallet.
+   * UI-ONLY balance preview — NOT used for business logic enforcement.
+   * This is a stale read (no transaction) and is intentionally non-blocking.
+   * The real balance check happens INSIDE the Serializable transaction in
+   * pos.service.ts processSale() — that is the ACID-safe enforcement point.
+   * Never use this result to gate a write operation.
    */
   async checkCommissionBalance(sellerUserId: string, saleAmount: number): Promise<{ sufficient: boolean; required: number; available: number }> {
     const wallet = await this.prisma.wallet.findUnique({ where: { userId: sellerUserId } });
