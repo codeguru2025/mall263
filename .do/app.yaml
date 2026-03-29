@@ -67,7 +67,7 @@ services:
 
   - name: frontend
     source_dir: frontend
-    build_command: npm ci && npm run build && cp -r .next/static .next/standalone/.next/static && cp -r public .next/standalone/public
+    build_command: npm ci && npm run build && cp -r .next/static .next/standalone/.next/static
     run_command: node .next/standalone/server.js
     http_port: 3000
     instance_size_slug: basic-xxs
