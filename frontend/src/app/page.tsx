@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { Search, MapPin, Gavel, ArrowRight, Zap, Shield, Users, Navigation, Star, TrendingUp } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -169,9 +170,9 @@ export default function HomePage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {products.map((p) => (
                 <Link key={p.id} href={`/marketplace?q=${encodeURIComponent(p.name)}`} className="card group cursor-pointer border-2 border-transparent hover:border-brand-orange">
-                  <div className="w-full h-40 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl mb-3 overflow-hidden">
+                  <div className="w-full h-40 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl mb-3 overflow-hidden relative">
                     {p.images[0] ? (
-                      <img src={p.images[0].url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <Image src={p.images[0].url} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform" sizes="(max-width: 768px) 50vw, 25vw" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-300">
                         <Search className="w-8 h-8" />
@@ -219,9 +220,9 @@ export default function HomePage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {malls.map((m) => (
                 <Link key={m.id} href={`/marketplace?mall=${m.id}`} className="card group cursor-pointer border-2 border-transparent hover:border-brand-blue">
-                  <div className="w-full h-32 bg-gradient-to-br from-blue-100 to-green-50 rounded-xl mb-3 overflow-hidden flex items-center justify-center relative">
+                  <div className="w-full h-32 bg-gradient-to-br from-blue-100 to-green-50 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center">
                     {m.imageUrl ? (
-                      <img src={m.imageUrl} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <Image src={m.imageUrl} alt={m.name} fill className="object-cover group-hover:scale-105 transition-transform" sizes="(max-width: 768px) 50vw, 25vw" />
                     ) : (
                       <MapPin className="w-8 h-8 text-brand-orange" />
                     )}

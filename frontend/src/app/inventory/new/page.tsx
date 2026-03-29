@@ -99,7 +99,8 @@ export default function NewProductPage() {
     e.preventDefault();
     if (!selectedStall) { toast.error('Select a stall first'); return; }
     if (!form.name.trim()) { toast.error('Product name is required'); return; }
-    for (const [i, v] of variants.entries()) {
+    for (let i = 0; i < variants.length; i++) {
+      const v = variants[i];
       if (!v.sellingPrice || isNaN(parseFloat(v.sellingPrice))) {
         toast.error(`Variant ${i + 1}: selling price is required`); return;
       }
