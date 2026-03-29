@@ -7,7 +7,9 @@ import compression from 'compression';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // urlencoded must be enabled before NestFactory bootstraps so Paynow webhook
+  // bodies (application/x-www-form-urlencoded) are parsed into req.body
+  const app = await NestFactory.create(AppModule, { bodyParser: true });
   const config = app.get(ConfigService);
 
   app.use(helmet());

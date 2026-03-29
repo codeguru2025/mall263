@@ -21,6 +21,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { HealthModule } from './modules/health/health.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { UploadModule } from './modules/upload/upload.module';
     ReportsModule,
     HealthModule,
     UploadModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}
