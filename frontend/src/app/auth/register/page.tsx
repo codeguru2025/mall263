@@ -79,7 +79,7 @@ export default function RegisterPage() {
               <label className="label">Phone Number</label>
               <div className="relative">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input type="tel" className="input pl-12" placeholder="+263 77 123 4567" value={form.phone} onChange={(e) => update('phone', e.target.value)} required />
+                <input type="tel" className="input pl-12" placeholder="+263 77 366 5350" value={form.phone} onChange={(e) => update('phone', e.target.value)} required />
               </div>
             </div>
             <div>

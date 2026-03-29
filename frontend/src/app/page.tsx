@@ -269,8 +269,10 @@ export default function HomePage() {
           <div>
             <div className="font-bold text-white mb-3 text-sm">Connect</div>
             <div className="space-y-2 text-sm">
-              <div>WhatsApp: +263 77 123 4567</div>
-              <div>Email: support@mall263.co.zw</div>
+              <div>WhatsApp: +263 71 217 1267</div>
+              <div>Calls: +263 77 366 5350</div>
+              <div>Email: info@mall263.com</div>
+              <div>Web: www.mall263.com</div>
             </div>
           </div>
         </div>
