@@ -1,9 +1,15 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DemandStatus, DemandUrgency, OfferStatus, WalletTransactionType, WalletTransactionStatus, WalletLockReason, WalletLockStatus, Prisma } from '@prisma/client';
 
+const BUYER_FEE_RATE = 0.025; // 2.5% platform fee charged to buyer on purchase
+const BID_LOCK_HOURS = 1;     // BID lock released after 1 hour if demand not matched
+
 @Injectable()
 export class DemandsService {
+  private readonly logger = new Logger(DemandsService.name);
+
   constructor(private prisma: PrismaService) {}
 
   /**
@@ -83,7 +89,7 @@ export class DemandsService {
             status: WalletLockStatus.ACTIVE,
             referenceId: demand.id,
             referenceType: 'buyer_demand',
-            expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000), // 48 hours
+            expiresAt: new Date(Date.now() + BID_LOCK_HOURS * 60 * 60 * 1000), // 1 hour
           },
         });
 
@@ -240,6 +246,40 @@ export class DemandsService {
           }
         }
 
+        // Deduct 2.5% platform fee from buyer wallet on purchase
+        const feeAmount = parseFloat((offer.totalPrice as any).toString()) * BUYER_FEE_RATE;
+        const buyerWalletFresh = await tx.wallet.findUnique({ where: { userId: buyerId } });
+        if (!buyerWalletFresh) throw new NotFoundException('Buyer wallet not found');
+
+        const buyerAvailable = parseFloat(buyerWalletFresh.availableBalance.toString());
+        if (buyerAvailable < feeAmount) {
+          throw new BadRequestException(
+            `Insufficient wallet balance for platform fee. ` +
+            `Fee: $${feeAmount.toFixed(2)} (2.5% of $${parseFloat((offer.totalPrice as any).toString()).toFixed(2)}). ` +
+            `Available: $${buyerAvailable.toFixed(2)}. Please fund your wallet.`,
+          );
+        }
+
+        const buyerNewBalance = new Prisma.Decimal(buyerAvailable - feeAmount);
+        await tx.wallet.update({
+          where: { id: buyerWalletFresh.id },
+          data: { availableBalance: buyerNewBalance, lastActivityAt: now },
+        });
+        await tx.walletTransaction.create({
+          data: {
+            walletId: buyerWalletFresh.id,
+            type: WalletTransactionType.COMMISSION_DEDUCTION,
+            amount: new Prisma.Decimal(feeAmount),
+            balanceBefore: buyerWalletFresh.availableBalance,
+            balanceAfter: buyerNewBalance,
+            status: WalletTransactionStatus.COMPLETED,
+            description: `Platform fee (2.5%) for accepted offer ${offerId}`,
+            referenceId: offerId,
+            referenceType: 'seller_offer',
+            completedAt: now,
+          },
+        });
+
         // Accept this offer
         await tx.sellerOffer.update({
           where: { id: offerId },
@@ -258,7 +298,7 @@ export class DemandsService {
           data: { status: DemandStatus.MATCHED },
         });
 
-        return { accepted: true, offerId };
+        return { accepted: true, offerId, feeCharged: feeAmount };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -283,5 +323,80 @@ export class DemandsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * Runs every 5 minutes. Finds all expired BID locks and atomically:
+   * 1. Returns locked funds to buyer's availableBalance
+   * 2. Marks the WalletLock as RELEASED
+   * 3. Records a BID_UNLOCK wallet transaction
+   * 4. Marks the demand as EXPIRED if still OPEN
+   */
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async releaseExpiredBidLocks() {
+    const expiredLocks = await this.prisma.walletLock.findMany({
+      where: {
+        status: WalletLockStatus.ACTIVE,
+        reason: WalletLockReason.BID,
+        expiresAt: { lt: new Date() },
+      },
+      include: { wallet: true },
+    });
+
+    if (expiredLocks.length === 0) return;
+
+    this.logger.log(`Releasing ${expiredLocks.length} expired BID lock(s)`);
+
+    for (const lock of expiredLocks) {
+      try {
+        await this.prisma.$retryTransaction(
+          async (tx) => {
+            const now = new Date();
+            const lockAmount = parseFloat(lock.amount.toString());
+            const wallet = await tx.wallet.findUnique({ where: { id: lock.walletId } });
+            if (!wallet) return;
+
+            const newAvailable = new Prisma.Decimal(parseFloat(wallet.availableBalance.toString()) + lockAmount);
+            const newLocked = new Prisma.Decimal(Math.max(0, parseFloat(wallet.lockedBalance.toString()) - lockAmount));
+
+            await tx.walletLock.update({
+              where: { id: lock.id },
+              data: { status: WalletLockStatus.RELEASED, releasedAt: now },
+            });
+
+            await tx.wallet.update({
+              where: { id: wallet.id },
+              data: { availableBalance: newAvailable, lockedBalance: newLocked, lastActivityAt: now },
+            });
+
+            await tx.walletTransaction.create({
+              data: {
+                walletId: wallet.id,
+                type: WalletTransactionType.BID_UNLOCK,
+                amount: lock.amount,
+                balanceBefore: wallet.availableBalance,
+                balanceAfter: newAvailable,
+                status: WalletTransactionStatus.COMPLETED,
+                description: `BID lock expired — funds returned (demand ${lock.referenceId})`,
+                referenceId: lock.referenceId,
+                referenceType: 'buyer_demand',
+                completedAt: now,
+              },
+            });
+
+            // Mark the demand as EXPIRED if still OPEN
+            if (lock.referenceId) {
+              await tx.buyerDemand.updateMany({
+                where: { id: lock.referenceId, status: DemandStatus.OPEN },
+                data: { status: DemandStatus.EXPIRED },
+              });
+            }
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+        );
+      } catch (err) {
+        this.logger.error(`Failed to release BID lock ${lock.id}:`, err);
+      }
+    }
   }
 }
