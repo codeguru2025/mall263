@@ -10,12 +10,12 @@ import { Logo } from '@/components/Logo';
 export default function AdminPage() {
   const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['admin-stats'],
-    queryFn: () => api.get('/admin/dashboard').then((r) => r.data),
+    queryFn: () => api.get('/api/v1/admin/dashboard').then((r) => r.data),
   });
 
   const { data: activity } = useQuery({
     queryKey: ['admin-activity'],
-    queryFn: () => api.get('/admin/activity').then((r) => r.data),
+    queryFn: () => api.get('/api/v1/admin/activity').then((r) => r.data),
   });
 
   if (isLoading) {

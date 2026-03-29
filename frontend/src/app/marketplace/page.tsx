@@ -16,7 +16,7 @@ export default function MarketplacePage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['search', query, sortBy, page],
-    queryFn: () => api.get('/search', { params: { q: query, sortBy, page, limit: 20 } }).then((r) => r.data),
+    queryFn: () => api.get('/api/v1/search', { params: { q: query, sortBy, page, limit: 20 } }).then((r) => r.data),
     placeholderData: (prev: any) => prev,
   });
 

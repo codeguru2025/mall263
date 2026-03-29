@@ -13,7 +13,7 @@ export default function DemandsPage() {
 
   const { data: demands, isLoading } = useQuery({
     queryKey: ['demands', tab],
-    queryFn: () => api.get(tab === 'my' ? '/demands/my' : '/demands/open', { params: tab === 'open' ? { limit: 20 } : { limit: 20 } }).then((r) => r.data),
+    queryFn: () => api.get(tab === 'my' ? '/api/v1/demands/my' : '/api/v1/demands/open', { params: { limit: 20 } }).then((r) => r.data),
   });
 
   const statusConfig: Record<string, { badge: string; label: string }> = {

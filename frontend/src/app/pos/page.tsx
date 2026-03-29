@@ -16,19 +16,25 @@ export default function POSPage() {
   const cart = useCartStore();
   const queryClient = useQueryClient();
 
+  const { data: merchant } = useQuery({
+    queryKey: ['my-merchant'],
+    queryFn: () => api.get('/api/v1/merchants/me').then((r) => r.data),
+  });
+
   const { data: stalls } = useQuery({
-    queryKey: ['my-stalls'],
-    queryFn: () => api.get('/stalls/my').then((r) => r.data),
+    queryKey: ['my-stalls', merchant?.id],
+    queryFn: () => api.get(`/api/v1/stalls/merchant/${merchant.id}`).then((r) => r.data),
+    enabled: !!merchant?.id,
   });
 
   const { data: products, isLoading: loadingProducts } = useQuery({
     queryKey: ['stall-products', stallId, search],
-    queryFn: () => api.get(`/products/stall/${stallId}`, { params: { search } }).then((r) => r.data),
+    queryFn: () => api.get(`/api/v1/products/stall/${stallId}`, { params: { search } }).then((r) => r.data),
     enabled: !!stallId,
   });
 
   const saleMutation = useMutation({
-    mutationFn: (saleData: any) => api.post('/pos/sale', saleData).then((r) => r.data),
+    mutationFn: (saleData: any) => api.post('/api/v1/pos/sales', saleData).then((r) => r.data),
     onSuccess: (data) => {
       toast.success(`Sale #${data.receiptNumber} completed!`);
       cart.clearCart();

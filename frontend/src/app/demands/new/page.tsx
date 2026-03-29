@@ -1,0 +1,168 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useMutation } from '@tanstack/react-query';
+import api from '@/lib/api';
+import { Logo } from '@/components/Logo';
+import { ArrowLeft, Gavel } from 'lucide-react';
+import toast from 'react-hot-toast';
+
+export default function NewDemandPage() {
+  const router = useRouter();
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    budgetMin: '',
+    budgetMax: '',
+    urgency: 'MEDIUM',
+  });
+
+  const update = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.post('/api/v1/demands', {
+        title: form.title,
+        description: form.description,
+        budgetMin: parseFloat(form.budgetMin),
+        budgetMax: parseFloat(form.budgetMax),
+        urgency: form.urgency,
+      }).then((r) => r.data),
+    onSuccess: () => {
+      toast.success('Demand posted! Sellers will start responding shortly.');
+      router.push('/demands');
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to post demand'),
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title || !form.budgetMin || !form.budgetMax) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+    if (parseFloat(form.budgetMin) > parseFloat(form.budgetMax)) {
+      toast.error('Min budget cannot exceed max budget');
+      return;
+    }
+    mutation.mutate();
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+          <Link href="/demands" className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+            <ArrowLeft className="w-5 h-5 text-navy-700" />
+          </Link>
+          <Logo size={30} />
+          <div>
+            <h1 className="text-lg font-black text-navy-700">Post a Demand</h1>
+            <p className="text-xs text-gray-500">Tell sellers what you need</p>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-2xl mx-auto px-4 py-8">
+        <div className="bg-white rounded-2xl border-2 border-gray-100 p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center">
+              <Gavel className="w-6 h-6 text-brand-orange" />
+            </div>
+            <div>
+              <h2 className="font-black text-navy-700">New Demand</h2>
+              <p className="text-sm text-gray-500">You need 10% of your max budget locked in your wallet</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="label">What do you need? <span className="text-brand-red">*</span></label>
+              <input
+                type="text"
+                className="input"
+                placeholder="e.g. Nike Air Max 90, Size 42, Black"
+                value={form.title}
+                onChange={(e) => update('title', e.target.value)}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="label">Description</label>
+              <textarea
+                className="input min-h-[100px] resize-none"
+                placeholder="Add more details — colour, condition, brand, quantity..."
+                value={form.description}
+                onChange={(e) => update('description', e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="label">Min Budget ($) <span className="text-brand-red">*</span></label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  value={form.budgetMin}
+                  onChange={(e) => update('budgetMin', e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">Max Budget ($) <span className="text-brand-red">*</span></label>
+                <input
+                  type="number"
+                  className="input"
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  value={form.budgetMax}
+                  onChange={(e) => update('budgetMax', e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Urgency</label>
+              <div className="grid grid-cols-3 gap-3">
+                {(['LOW', 'MEDIUM', 'HIGH'] as const).map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => update('urgency', u)}
+                    className={`py-2.5 px-4 rounded-xl border-2 text-sm font-bold transition-all ${
+                      form.urgency === u
+                        ? u === 'HIGH' ? 'border-brand-red bg-red-50 text-brand-red'
+                          : u === 'MEDIUM' ? 'border-brand-orange bg-orange-50 text-brand-orange'
+                          : 'border-brand-blue bg-blue-50 text-brand-blue'
+                        : 'border-gray-100 text-gray-500 hover:border-gray-200'
+                    }`}
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={mutation.isPending}
+              className="btn-primary w-full py-4 text-base flex items-center justify-center gap-2"
+            >
+              <Gavel className="w-5 h-5" />
+              {mutation.isPending ? 'Posting...' : 'Post Demand'}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

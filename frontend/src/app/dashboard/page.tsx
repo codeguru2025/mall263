@@ -21,13 +21,13 @@ export default function DashboardPage() {
 
   const { data: wallet } = useQuery({
     queryKey: ['wallet'],
-    queryFn: () => api.get('/wallet/balance').then((r) => r.data),
+    queryFn: () => api.get('/api/v1/wallets/me/balance').then((r) => r.data),
     enabled: isAuthenticated,
   });
 
   const { data: notifications } = useQuery({
     queryKey: ['notifications'],
-    queryFn: () => api.get('/notifications', { params: { limit: 5 } }).then((r) => r.data),
+    queryFn: () => api.get('/api/v1/notifications', { params: { limit: 5 } }).then((r) => r.data),
     enabled: isAuthenticated,
   });
 
