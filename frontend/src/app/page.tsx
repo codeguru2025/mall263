@@ -1,14 +1,39 @@
 'use client';
 
 import Link from 'next/link';
-import { Search, MapPin, Clock, Gavel, ArrowRight, Zap, Shield, Users, Navigation, ChevronRight, Star, TrendingUp } from 'lucide-react';
-import { useState } from 'react';
+import { Search, MapPin, Gavel, ArrowRight, Zap, Shield, Users, Navigation, Star, TrendingUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/Logo';
+import api from '@/lib/api';
+
+interface Mall {
+  id: string;
+  name: string;
+  city: string;
+  imageUrl?: string;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  minPrice: string;
+  maxPrice: string;
+  images: { url: string }[];
+  stall: { name: string; mall: { name: string; city: string } };
+  category?: { name: string };
+}
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [malls, setMalls] = useState<Mall[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const router = useRouter();
+
+  useEffect(() => {
+    api.get('/api/v1/stalls/malls').then((r) => setMalls(r.data)).catch(() => {});
+    api.get('/api/v1/products/browse?limit=8&sortBy=popular').then((r) => setProducts(r.data.data || [])).catch(() => {});
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -17,7 +42,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header — ride-hailing style minimal */}
+      {/* Header */}
       <header className="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <Logo size={36} />
@@ -33,7 +58,7 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Hero — ride-hailing inspired with search + location */}
+      {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-navy-700 via-navy-800 to-navy-900" />
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #3B9AE1 0%, transparent 50%), radial-gradient(circle at 80% 50%, #F7941D 0%, transparent 50%)' }} />
@@ -53,7 +78,6 @@ export default function HomePage() {
                 Post what you need. Sellers compete with live offers. Like ride-hailing, but for shopping across Zimbabwe&apos;s markets.
               </p>
 
-              {/* Search bar — Uber-style */}
               <form onSubmit={handleSearch} className="relative mb-6">
                 <div className="bg-white rounded-2xl shadow-2xl p-2 flex items-center gap-2">
                   <div className="flex items-center gap-3 flex-1 pl-4">
@@ -82,40 +106,23 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Right side — Live demand preview cards */}
+            {/* Right side — Live demand CTA */}
             <div className="hidden md:block space-y-4">
               <div className="text-white/50 text-xs font-bold uppercase tracking-wider mb-2">Live Demands Right Now</div>
-              {[
-                { title: 'Nike Air Max 90, Size 42', budget: '$25-40', bids: 3, time: '2h left', urgent: true },
-                { title: 'Samsung Galaxy A54 128GB', budget: '$180-220', bids: 7, time: '5h left', urgent: false },
-                { title: 'Ladies Handbag, Brown Leather', budget: '$15-30', bids: 1, time: '12h left', urgent: false },
-              ].map((d, i) => (
-                <div key={i} className={`bg-white/10 backdrop-blur-sm rounded-2xl p-4 border ${d.urgent ? 'border-brand-orange/50' : 'border-white/10'} hover:bg-white/15 transition-all cursor-pointer`}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        {d.urgent && <span className="badge-live text-[10px] py-0.5">URGENT</span>}
-                        <span className="text-white font-bold text-sm">{d.title}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-white/60">
-                        <span className="font-bold text-brand-green">{d.budget}</span>
-                        <span className="flex items-center gap-1"><Gavel className="w-3 h-3" /> {d.bids} offers</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {d.time}</span>
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-white/30" />
-                  </div>
-                </div>
-              ))}
-              <Link href="/demands" className="flex items-center justify-center gap-2 text-brand-orange text-sm font-bold hover:underline">
-                View all live demands <ArrowRight className="w-4 h-4" />
-              </Link>
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-center">
+                <Gavel className="w-8 h-8 text-brand-orange mx-auto mb-3" />
+                <div className="text-white font-bold mb-1">Be the first to post a demand</div>
+                <div className="text-white/60 text-sm mb-4">Tell sellers what you need and get offers</div>
+                <Link href="/demands" className="btn-primary text-sm py-2 px-4 inline-flex items-center gap-2">
+                  Post a Demand <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* How It Works — 3-step ride-hailing flow */}
+      {/* How It Works */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-14">
@@ -139,39 +146,94 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Nearby Stalls — Map-like section */}
+      {/* Featured Products */}
       <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-3xl font-black text-navy-700">Nearby Stalls</h2>
-              <p className="text-gray-500 text-sm mt-1">Browse stalls in markets across Zimbabwe</p>
+              <h2 className="text-3xl font-black text-navy-700">Featured Products</h2>
+              <p className="text-gray-500 text-sm mt-1">Browse what&apos;s available across our markets</p>
+            </div>
+            <Link href="/marketplace" className="btn-secondary text-sm py-2.5 px-5 flex items-center gap-2">
+              View All <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          {products.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <Search className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <div className="font-semibold">No products yet</div>
+              <div className="text-sm mt-1">Products added by sellers will appear here</div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {products.map((p) => (
+                <Link key={p.id} href={`/marketplace?q=${encodeURIComponent(p.name)}`} className="card group cursor-pointer border-2 border-transparent hover:border-brand-orange">
+                  <div className="w-full h-40 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl mb-3 overflow-hidden">
+                    {p.images[0] ? (
+                      <img src={p.images[0].url} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-300">
+                        <Search className="w-8 h-8" />
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="font-bold text-navy-700 text-sm group-hover:text-brand-orange transition-colors line-clamp-2">{p.name}</h3>
+                  <div className="mt-1 text-brand-green font-bold text-sm">${p.minPrice}{p.maxPrice !== p.minPrice ? ` – $${p.maxPrice}` : ''}</div>
+                  <div className="text-xs text-gray-400 mt-0.5">{p.stall?.mall?.name}</div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Malls */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-3xl font-black text-navy-700">Our Markets</h2>
+              <p className="text-gray-500 text-sm mt-1">Browse stalls across Zimbabwe&apos;s top markets</p>
             </div>
             <Link href="/marketplace" className="btn-secondary text-sm py-2.5 px-5 flex items-center gap-2">
               View Map <MapPin className="w-4 h-4" />
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { name: 'Mbare Musika', stalls: 245, city: 'Harare', hot: true },
-              { name: 'Gulf Complex', stalls: 89, city: 'Harare', hot: false },
-              { name: 'Renkini Market', stalls: 156, city: 'Bulawayo', hot: true },
-              { name: 'Magaba', stalls: 67, city: 'Harare', hot: false },
-            ].map((m) => (
-              <Link key={m.name} href={`/marketplace?mall=${m.name}`} className="card group cursor-pointer border-2 border-transparent hover:border-brand-blue">
-                <div className="w-full h-32 bg-gradient-to-br from-blue-100 to-green-50 rounded-xl mb-3 flex items-center justify-center relative">
-                  <MapPin className="w-8 h-8 text-brand-orange" />
-                  {m.hot && <span className="absolute top-2 right-2 badge-live text-[10px] py-0.5 px-2">HOT</span>}
+          {malls.length === 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {['Imbali Mall', 'Mutize', 'Meikles Market', 'Amaya Mall'].map((name) => (
+                <div key={name} className="card border-2 border-transparent">
+                  <div className="w-full h-32 bg-gradient-to-br from-blue-100 to-green-50 rounded-xl mb-3 flex items-center justify-center">
+                    <MapPin className="w-8 h-8 text-brand-orange" />
+                  </div>
+                  <h3 className="font-bold text-navy-700">{name}</h3>
+                  <div className="flex items-center mt-1">
+                    <span className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> Harare</span>
+                  </div>
                 </div>
-                <h3 className="font-bold text-navy-700 group-hover:text-brand-blue transition-colors">{m.name}</h3>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> {m.city}</span>
-                  <span className="text-xs font-bold text-brand-green">{m.stalls} stalls</span>
-                </div>
-              </Link>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {malls.map((m) => (
+                <Link key={m.id} href={`/marketplace?mall=${m.id}`} className="card group cursor-pointer border-2 border-transparent hover:border-brand-blue">
+                  <div className="w-full h-32 bg-gradient-to-br from-blue-100 to-green-50 rounded-xl mb-3 overflow-hidden flex items-center justify-center relative">
+                    {m.imageUrl ? (
+                      <img src={m.imageUrl} alt={m.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                    ) : (
+                      <MapPin className="w-8 h-8 text-brand-orange" />
+                    )}
+                  </div>
+                  <h3 className="font-bold text-navy-700 group-hover:text-brand-blue transition-colors">{m.name}</h3>
+                  <div className="flex items-center mt-1">
+                    <span className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> {m.city}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -180,8 +242,8 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           {[
             { num: '2,500+', label: 'Active Sellers', color: 'text-brand-orange' },
-            { num: '15,000+', label: 'Products Listed', color: 'text-brand-green' },
-            { num: '8,000+', label: 'Demands Fulfilled', color: 'text-brand-blue' },
+            { num: '4', label: 'Partner Malls', color: 'text-brand-green' },
+            { num: '2.5%', label: 'Commission Rate', color: 'text-brand-blue' },
             { num: '4.8/5', label: 'Trust Score Avg', color: 'text-brand-yellow' },
           ].map((s) => (
             <div key={s.label}>
@@ -192,7 +254,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Dual CTA — Buyer / Seller */}
+      {/* Dual CTA */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4">
           <h2 className="text-3xl font-black text-navy-700 text-center mb-10">Start in 60 Seconds</h2>
