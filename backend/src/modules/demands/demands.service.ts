@@ -200,16 +200,105 @@ export class DemandsService {
 
     return this.prisma.$retryTransaction(
       async (tx) => {
+        const offerPrice = parseFloat(offer.totalPrice.toString());
+
+        // --- Buyer wallet ---
+        const buyerWallet = await tx.wallet.findUnique({ where: { userId: buyerId } });
+        if (!buyerWallet) throw new BadRequestException('Buyer wallet not found');
+
+        // Find the active BID lock for this demand
+        const bidLock = await tx.walletLock.findFirst({
+          where: { walletId: buyerWallet.id, referenceId: offer.demandId, status: WalletLockStatus.ACTIVE },
+        });
+        const lockAmount = bidLock ? parseFloat(bidLock.amount.toString()) : 0;
+
+        // After releasing lock, buyer needs enough for full offer price
+        const buyerAvailable = parseFloat(buyerWallet.availableBalance.toString());
+        const buyerLocked = parseFloat(buyerWallet.lockedBalance.toString());
+        const availableAfterLockRelease = buyerAvailable + lockAmount;
+
+        if (availableAfterLockRelease < offerPrice) {
+          throw new BadRequestException(
+            `Insufficient balance. Need $${offerPrice.toFixed(2)}, have $${availableAfterLockRelease.toFixed(2)} after releasing bid lock`,
+          );
+        }
+
+        // --- Seller wallet (stall -> merchant -> user -> wallet) ---
+        const stall = await tx.stall.findUnique({ where: { id: offer.stallId }, include: { merchant: true } });
+        if (!stall?.merchant) throw new BadRequestException('Seller stall or merchant not found');
+        const sellerWallet = await tx.wallet.findUnique({ where: { userId: stall.merchant.userId } });
+        if (!sellerWallet) throw new BadRequestException('Seller wallet not found');
+
+        const now = new Date();
+
+        // Release bid lock
+        if (bidLock) {
+          await tx.walletLock.update({
+            where: { id: bidLock.id },
+            data: { status: WalletLockStatus.CONVERTED, releasedAt: now },
+          });
+        }
+
+        // Debit buyer full offer price (lock is released first, then full amount deducted)
+        const buyerNewAvailable = new Prisma.Decimal(availableAfterLockRelease - offerPrice);
+        const buyerNewLocked = new Prisma.Decimal(Math.max(0, buyerLocked - lockAmount));
+
+        await tx.wallet.update({
+          where: { id: buyerWallet.id },
+          data: { availableBalance: buyerNewAvailable, lockedBalance: buyerNewLocked, lastActivityAt: now },
+        });
+
+        await tx.walletTransaction.create({
+          data: {
+            walletId: buyerWallet.id,
+            type: WalletTransactionType.PURCHASE_DEBIT,
+            amount: new Prisma.Decimal(offerPrice),
+            balanceBefore: buyerWallet.availableBalance,
+            balanceAfter: buyerNewAvailable,
+            status: WalletTransactionStatus.COMPLETED,
+            description: `Payment for demand offer ${offerId}`,
+            referenceId: offerId,
+            referenceType: 'seller_offer',
+            counterpartyId: sellerWallet.userId,
+            completedAt: now,
+          },
+        });
+
+        // Credit seller
+        const sellerAvailable = parseFloat(sellerWallet.availableBalance.toString());
+        const sellerNewAvailable = new Prisma.Decimal(sellerAvailable + offerPrice);
+
+        await tx.wallet.update({
+          where: { id: sellerWallet.id },
+          data: { availableBalance: sellerNewAvailable, lastActivityAt: now },
+        });
+
+        await tx.walletTransaction.create({
+          data: {
+            walletId: sellerWallet.id,
+            type: WalletTransactionType.SALE_CREDIT,
+            amount: new Prisma.Decimal(offerPrice),
+            balanceBefore: sellerWallet.availableBalance,
+            balanceAfter: sellerNewAvailable,
+            status: WalletTransactionStatus.COMPLETED,
+            description: `Sale credit for demand offer ${offerId}`,
+            referenceId: offerId,
+            referenceType: 'seller_offer',
+            counterpartyId: buyerWallet.userId,
+            completedAt: now,
+          },
+        });
+
         // Accept this offer
         await tx.sellerOffer.update({
           where: { id: offerId },
-          data: { status: OfferStatus.ACCEPTED, respondedAt: new Date() },
+          data: { status: OfferStatus.ACCEPTED, respondedAt: now },
         });
 
-        // Reject all other offers
+        // Reject all other pending offers
         await tx.sellerOffer.updateMany({
           where: { demandId: offer.demandId, id: { not: offerId }, status: OfferStatus.PENDING },
-          data: { status: OfferStatus.REJECTED, respondedAt: new Date() },
+          data: { status: OfferStatus.REJECTED, respondedAt: now },
         });
 
         // Close the demand
@@ -218,7 +307,7 @@ export class DemandsService {
           data: { status: DemandStatus.MATCHED },
         });
 
-        return { accepted: true, offerId };
+        return { accepted: true, offerId, amountPaid: offerPrice };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
