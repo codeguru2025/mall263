@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import api from '@/lib/api';
@@ -23,10 +23,11 @@ export default function InventoryPage() {
     queryKey: ['my-stalls', merchant?.id],
     queryFn: () => api.get(`/api/v1/stalls/merchant/${merchant.id}`).then((r) => r.data),
     enabled: !!merchant?.id,
-    onSuccess: (data: any[]) => {
-      if (data?.length && !stallId) setStallId(data[0].id);
-    },
   });
+
+  useEffect(() => {
+    if (stalls?.length && !stallId) setStallId(stalls[0].id);
+  }, [stalls, stallId]);
 
   const { data: productsRes, isLoading } = useQuery({
     queryKey: ['inventory-products', stallId],
