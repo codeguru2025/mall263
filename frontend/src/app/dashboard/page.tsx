@@ -150,12 +150,20 @@ export default function DashboardPage() {
           )}
 
           {isAgent && (
-            <Link href="/agent" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-blue hover:shadow-md transition-all group">
-              <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-blue group-hover:text-white transition-colors">
-                <Users className="w-6 h-6 text-brand-blue group-hover:text-white transition-colors" />
-              </div>
-              <span className="text-sm font-bold text-navy-700">Agent Tasks</span>
-            </Link>
+            <>
+              <Link href="/agent" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-blue hover:shadow-md transition-all group">
+                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-blue group-hover:text-white transition-colors">
+                  <Users className="w-6 h-6 text-brand-blue group-hover:text-white transition-colors" />
+                </div>
+                <span className="text-sm font-bold text-navy-700">Agent Tasks</span>
+              </Link>
+              <Link href="/inventory" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-yellow hover:shadow-md transition-all group">
+                <div className="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-yellow transition-colors">
+                  <Package className="w-6 h-6 text-brand-yellow" />
+                </div>
+                <span className="text-sm font-bold text-navy-700">Stock</span>
+              </Link>
+            </>
           )}
 
           {!isSeller && !isAdmin && !isAgent && (
