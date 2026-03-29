@@ -1,0 +1,90 @@
+name: mall263
+region: lon
+
+services:
+  - name: backend
+    source_dir: backend
+    build_command: npm ci && npm run build
+    run_command: node dist/main.js
+    http_port: 4000
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+      - key: API_PREFIX
+        value: api/v1
+      - key: DATABASE_URL
+        type: SECRET
+        value: your_database_url
+      - key: JWT_SECRET
+        type: SECRET
+        value: your_jwt_secret
+      - key: JWT_REFRESH_SECRET
+        type: SECRET
+        value: your_jwt_refresh_secret
+      - key: JWT_EXPIRATION
+        value: 15m
+      - key: JWT_REFRESH_EXPIRATION
+        value: "7"
+      - key: REDIS_HOST
+        type: SECRET
+        value: your_redis_host
+      - key: REDIS_PORT
+        value: "25061"
+      - key: REDIS_PASSWORD
+        type: SECRET
+        value: your_redis_password
+      - key: REDIS_TLS
+        value: "true"
+      - key: MEILISEARCH_HOST
+        value: http://localhost:7700
+      - key: MEILISEARCH_API_KEY
+        type: SECRET
+        value: your_meili_key
+      - key: DO_SPACES_ENDPOINT
+        value: https://lon1.digitaloceanspaces.com
+      - key: DO_SPACES_BUCKET
+        value: mall263-uploads
+      - key: DO_SPACES_REGION
+        value: lon1
+      - key: DO_SPACES_ACCESS_KEY
+        type: SECRET
+        value: your_spaces_access_key
+      - key: DO_SPACES_SECRET_KEY
+        type: SECRET
+        value: your_spaces_secret_key
+      - key: DO_SPACES_CDN_URL
+        value: https://mall263-uploads.lon1.cdn.digitaloceanspaces.com
+      - key: FRONTEND_URL
+        value: https://mall263-r99jz.ondigitalocean.app
+      - key: COMMISSION_RATE
+        value: "0.025"
+      - key: AT_SENDER_ID
+        value: Mall263
+
+  - name: frontend
+    source_dir: frontend
+    build_command: npm ci && npm run build
+    run_command: node server.js
+    http_port: 3000
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    envs:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://mall263-r99jz.ondigitalocean.app/api/v1
+
+ingress:
+  rules:
+    - match:
+        path:
+          prefix: /api
+      component:
+        name: backend
+    - match:
+        path:
+          prefix: /
+      component:
+        name: frontend
