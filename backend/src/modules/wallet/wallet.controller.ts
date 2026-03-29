@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Query, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { WalletService } from './wallet.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -75,5 +75,23 @@ export class WalletController {
     @Query('saleAmount') saleAmount: string,
   ) {
     return this.walletService.checkCommissionBalance(userId, parseFloat(saleAmount));
+  }
+
+  @Patch('transactions/:id/complete')
+  @ApiOperation({ summary: 'Mark a pending withdrawal as completed (payment processor webhook)' })
+  async completeWithdrawal(
+    @Param('id') id: string,
+    @Body() data: { externalRef?: string },
+  ) {
+    return this.walletService.completeWithdrawal(id, data.externalRef);
+  }
+
+  @Patch('transactions/:id/fail')
+  @ApiOperation({ summary: 'Reverse a failed withdrawal — returns funds to wallet (payment processor webhook)' })
+  async failWithdrawal(
+    @Param('id') id: string,
+    @Body() data: { reason: string },
+  ) {
+    return this.walletService.failWithdrawal(id, data.reason);
   }
 }

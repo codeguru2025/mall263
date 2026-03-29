@@ -37,18 +37,41 @@ export class WalletService {
 
   /**
    * Deposit funds into wallet.
-   * Uses REPEATABLE READ to prevent lost-update: two concurrent deposits both
-   * reading the same balance and one overwriting the other.
-   * Retries automatically on write conflicts (P2034).
+   *
+   * IDEMPOTENCY: If externalRef is provided (payment gateway webhook), we first
+   * check whether a transaction with that ref already exists. If it does, we
+   * return the original transaction without double-crediting. This means it is
+   * safe to retry or replay the webhook — the second call is a no-op.
+   *
+   * ATOMICITY: Balance update and transaction record are in one RepeatableRead
+   * transaction. Retries automatically on write conflicts (P2034/P2002).
    */
   async deposit(userId: string, amount: number, externalRef?: string, description?: string) {
     if (amount <= 0) throw new BadRequestException('Deposit amount must be positive');
+
+    // Idempotency check for payment gateway webhooks
+    if (externalRef) {
+      const existing = await this.prisma.walletTransaction.findFirst({
+        where: { externalRef, type: WalletTransactionType.DEPOSIT },
+      });
+      if (existing) {
+        return { transaction: existing, newBalance: null, idempotent: true };
+      }
+    }
 
     return this.prisma.$retryTransaction(
       async (tx) => {
         const wallet = await tx.wallet.findUnique({ where: { userId } });
         if (!wallet) throw new NotFoundException('Wallet not found');
         if (!wallet.isActive) throw new BadRequestException('Wallet is inactive');
+
+        // Second idempotency check inside the transaction (race-safe)
+        if (externalRef) {
+          const existing = await tx.walletTransaction.findFirst({
+            where: { externalRef, type: WalletTransactionType.DEPOSIT },
+          });
+          if (existing) return { transaction: existing, newBalance: null, idempotent: true };
+        }
 
         const balanceBefore = wallet.availableBalance;
         const balanceAfter = new Prisma.Decimal(balanceBefore.toString()).add(amount);
@@ -113,7 +136,7 @@ export class WalletService {
             status: WalletLockStatus.ACTIVE,
             referenceId,
             referenceType: 'buyer_demand',
-            expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000), // 48 hours
+            expiresAt: new Date(Date.now() + 1 * 60 * 60 * 1000), // 1 hour — matches BID_LOCK_HOURS in demands.service
           },
         });
 
@@ -330,7 +353,14 @@ export class WalletService {
 
   /**
    * Process withdrawal request.
-   * REPEATABLE READ ensures the balance check and deduction are atomic.
+   *
+   * Balance is deducted immediately and the transaction is set to PENDING.
+   * The payment processor then either calls completeWithdrawal() on success
+   * or failWithdrawal() on failure (which reverses the deduction).
+   * This two-phase approach means the user cannot spend funds that are
+   * in-flight to their bank account.
+   *
+   * ATOMICITY: Balance deduction and PENDING record are in one transaction.
    */
   async requestWithdrawal(userId: string, amount: number, description?: string) {
     if (amount <= 0) throw new BadRequestException('Withdrawal amount must be positive');
@@ -365,6 +395,84 @@ export class WalletService {
             completedAt: null,
           },
         });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
+  }
+
+  /**
+   * Mark a PENDING withdrawal as COMPLETED (called by payment processor webhook).
+   */
+  async completeWithdrawal(transactionId: string, externalRef?: string) {
+    const tx = await this.prisma.walletTransaction.findUnique({ where: { id: transactionId } });
+    if (!tx) throw new NotFoundException('Transaction not found');
+    if (tx.status !== WalletTransactionStatus.PENDING) {
+      throw new BadRequestException('Transaction is not pending');
+    }
+    if (tx.type !== WalletTransactionType.WITHDRAWAL) {
+      throw new BadRequestException('Transaction is not a withdrawal');
+    }
+
+    return this.prisma.walletTransaction.update({
+      where: { id: transactionId },
+      data: { status: WalletTransactionStatus.COMPLETED, completedAt: new Date(), externalRef },
+    });
+  }
+
+  /**
+   * Reverse a FAILED withdrawal — atomically returns funds to availableBalance
+   * and marks the transaction FAILED. Called when the payment processor reports
+   * a failure (e.g. invalid bank account, insufficient bank funds).
+   *
+   * ATOMICITY: Balance restore and status update are in one RepeatableRead
+   * transaction so a crash mid-way does not leave the user short-changed.
+   */
+  async failWithdrawal(transactionId: string, reason: string) {
+    return this.prisma.$retryTransaction(
+      async (tx) => {
+        const wtx = await tx.walletTransaction.findUnique({ where: { id: transactionId } });
+        if (!wtx) throw new NotFoundException('Transaction not found');
+        if (wtx.status !== WalletTransactionStatus.PENDING) {
+          throw new BadRequestException('Transaction is not pending');
+        }
+        if (wtx.type !== WalletTransactionType.WITHDRAWAL) {
+          throw new BadRequestException('Transaction is not a withdrawal');
+        }
+
+        const wallet = await tx.wallet.findUnique({ where: { id: wtx.walletId } });
+        if (!wallet) throw new NotFoundException('Wallet not found');
+
+        const refundedBalance = new Prisma.Decimal(
+          parseFloat(wallet.availableBalance.toString()) + parseFloat(wtx.amount.toString()),
+        );
+
+        await tx.wallet.update({
+          where: { id: wallet.id },
+          data: { availableBalance: refundedBalance, lastActivityAt: new Date() },
+        });
+
+        await tx.walletTransaction.update({
+          where: { id: transactionId },
+          data: { status: WalletTransactionStatus.FAILED, metadata: { failureReason: reason } },
+        });
+
+        // Record the reversal as a separate credit entry for the audit trail
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: WalletTransactionType.ADJUSTMENT,
+            amount: wtx.amount,
+            balanceBefore: wallet.availableBalance,
+            balanceAfter: refundedBalance,
+            status: WalletTransactionStatus.COMPLETED,
+            description: `Withdrawal reversal — payment failed: ${reason}`,
+            referenceId: transactionId,
+            referenceType: 'wallet_transaction',
+            completedAt: new Date(),
+          },
+        });
+
+        return { reversed: true, refundedAmount: wtx.amount };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
