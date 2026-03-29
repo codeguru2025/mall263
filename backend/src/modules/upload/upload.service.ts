@@ -23,8 +23,8 @@ export class UploadService {
   constructor(private config: ConfigService) {
     this.bucket = this.config.get('DO_SPACES_BUCKET', 'mall263-uploads');
     this.cdnUrl = this.config.get('DO_SPACES_CDN_URL', '');
-    this.endpoint = this.config.get('DO_SPACES_ENDPOINT', 'https://nyc3.digitaloceanspaces.com');
-    this.region = this.config.get('DO_SPACES_REGION', 'nyc3');
+    this.endpoint = this.config.get('DO_SPACES_ENDPOINT', 'https://lon1.digitaloceanspaces.com');
+    this.region = this.config.get('DO_SPACES_REGION', 'lon1');
 
     this.s3 = new S3Client({
       endpoint: this.endpoint,

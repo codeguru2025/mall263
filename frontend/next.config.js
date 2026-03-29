@@ -5,11 +5,11 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'mall263.nyc3.digitaloceanspaces.com',
+        hostname: 'mall263-uploads.lon1.digitaloceanspaces.com',
       },
       {
         protocol: 'https',
-        hostname: 'mall263-uploads.nyc3.cdn.digitaloceanspaces.com',
+        hostname: 'mall263-uploads.lon1.cdn.digitaloceanspaces.com',
       },
     ],
   },
