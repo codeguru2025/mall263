@@ -96,7 +96,7 @@ export default function POSPage() {
           </div>
         </div>
       ) : (
-        <div className="max-w-7xl mx-auto px-4 py-4 grid lg:grid-cols-3 gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-4 pb-safe grid lg:grid-cols-3 gap-4">
           {/* Products */}
           <div className="lg:col-span-2">
             <div className="relative mb-4">

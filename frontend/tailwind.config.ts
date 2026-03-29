@@ -25,13 +25,15 @@ const config: Config = {
       fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
       animation: {
         'pulse-bid': 'pulseBid 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'slide-up': 'slideUp 0.3s ease-out',
+        'slide-up': 'slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         'count-down': 'countDown 1s ease-in-out infinite',
+        'fade-in': 'fadeIn 0.5s ease-out',
       },
       keyframes: {
         pulseBid: { '0%, 100%': { opacity: '1' }, '50%': { opacity: '0.7' } },
-        slideUp: { '0%': { transform: 'translateY(10px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+        slideUp: { '0%': { transform: 'translateY(24px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
         countDown: { '0%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.05)' }, '100%': { transform: 'scale(1)' } },
+        fadeIn: { '0%': { opacity: '0', transform: 'scale(0.96)' }, '100%': { opacity: '1', transform: 'scale(1)' } },
       },
     },
   },

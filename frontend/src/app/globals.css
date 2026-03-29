@@ -3,8 +3,35 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    /* Smooth momentum scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply bg-gray-50 text-navy-700 antialiased;
+    /* Prevent text size adjustment on orientation change */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Prevent pull-to-refresh hijacking scroll */
+    overscroll-behavior-y: none;
+  }
+
+  /* Native-feel tap highlight */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Safe area utilities */
+  .safe-area-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 8px);
+  }
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 5rem);
   }
 }
 

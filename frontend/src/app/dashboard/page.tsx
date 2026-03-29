@@ -65,7 +65,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 py-6 pb-safe">
         {/* Greeting */}
         <div className="mb-6">
           <h1 className="text-2xl font-black text-navy-700">Hi, {user.firstName}</h1>
