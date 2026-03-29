@@ -1,9 +1,10 @@
 'use client';
 
 import './globals.css';
+import { Inter } from 'next/font/google';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAuthStore } from '@/lib/store';
 
 const queryClient = new QueryClient({
@@ -32,6 +33,12 @@ function AuthLoader({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800', '900'],
+  display: 'swap',
+});
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -39,9 +46,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <title>Mall263 - Find it. Bid on it. Get it.</title>
         <meta name="description" content="Mall263 - Zimbabwe's demand-driven marketplace. Like ride-hailing, but for shopping." />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-sans">
+      <body className={`${inter.className} font-sans`}>
         <QueryClientProvider client={queryClient}>
           <AuthLoader>{children}</AuthLoader>
           <Toaster position="top-right" toastOptions={{ duration: 4000 }} />

@@ -46,7 +46,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-4">
             <Link href="/notifications" className="relative p-2 rounded-xl hover:bg-gray-50 transition-colors">
               <Bell className="w-5 h-5 text-navy-600" />
-              {notifications?.unreadCount > 0 && (
+              {(notifications?.unreadCount ?? 0) > 0 && (
                 <span className="absolute top-1 right-1 w-4 h-4 bg-brand-red text-white text-[10px] rounded-full flex items-center justify-center font-bold">
                   {notifications.unreadCount}
                 </span>
@@ -79,13 +79,13 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <p className="text-sm text-white/60 font-medium">Available Balance</p>
-                <p className="text-4xl font-black mt-1">{formatCurrency(parseFloat(wallet?.availableBalance || wallet?.balance || '0'))}</p>
+                <p className="text-4xl font-black mt-1">{formatCurrency(parseFloat(wallet?.availableBalance ?? wallet?.balance ?? '0'))}</p>
               </div>
               <Wallet className="w-10 h-10 text-white/20" />
             </div>
-            {(wallet?.lockedBalance || wallet?.lockedAmount) > 0 && (
+            {parseFloat(wallet?.lockedBalance ?? wallet?.lockedAmount ?? '0') > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-white/50 mb-4">
-                <Lock className="w-3 h-3" /> Locked: {formatCurrency(parseFloat(wallet?.lockedBalance || wallet?.lockedAmount || '0'))}
+                <Lock className="w-3 h-3" /> Locked: {formatCurrency(parseFloat(wallet?.lockedBalance ?? wallet?.lockedAmount ?? '0'))}
               </div>
             )}
             <div className="flex gap-3">

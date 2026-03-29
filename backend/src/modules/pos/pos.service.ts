@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { InventoryService } from '../inventory/inventory.service';
-import { POSSaleStatus, PaymentMethod, Prisma } from '@prisma/client';
+import { POSSaleStatus, PaymentMethod, Prisma, WalletTransactionType, WalletTransactionStatus } from '@prisma/client';
 
 interface CartItem {
   variantId: string;
@@ -213,11 +213,11 @@ export class POSService {
         await tx.walletTransaction.create({
           data: {
             walletId: sellerWallet.id,
-            type: 'COMMISSION_DEDUCTION',
+            type: WalletTransactionType.COMMISSION_DEDUCTION,
             amount: commissionAmount,
             balanceBefore: sellerWallet.availableBalance,
             balanceAfter: sellerNewBalance,
-            status: 'COMPLETED',
+            status: WalletTransactionStatus.COMPLETED,
             description: `Commission for sale ${sale.id} (2.5% of $${totalAmount.toFixed(2)})`,
             referenceId: sale.id,
             referenceType: 'pos_sale',
@@ -392,11 +392,11 @@ export class POSService {
           await tx.walletTransaction.create({
             data: {
               walletId: sellerWallet.id,
-              type: 'REFUND_CREDIT',
+              type: WalletTransactionType.REFUND_CREDIT,
               amount: sale.commissionAmount,
               balanceBefore: sellerWallet.availableBalance,
               balanceAfter: refundedBalance,
-              status: 'COMPLETED',
+              status: WalletTransactionStatus.COMPLETED,
               description: `Commission refund for refunded sale ${saleId}`,
               referenceId: saleId,
               referenceType: 'pos_sale',

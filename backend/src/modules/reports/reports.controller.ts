@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -21,7 +21,12 @@ export class ReportsController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
   ) {
-    return this.reportsService.getStallReport(stallId, new Date(startDate), new Date(endDate));
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid date format. Use ISO 8601 (e.g. 2024-01-01)');
+    }
+    return this.reportsService.getStallReport(stallId, start, end);
   }
 
   @Get('platform')
@@ -31,6 +36,11 @@ export class ReportsController {
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
   ) {
-    return this.reportsService.getPlatformReport(new Date(startDate), new Date(endDate));
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid date format. Use ISO 8601 (e.g. 2024-01-01)');
+    }
+    return this.reportsService.getPlatformReport(start, end);
   }
 }

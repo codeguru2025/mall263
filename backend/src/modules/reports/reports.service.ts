@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { POSSaleStatus, WalletTransactionType, WalletTransactionStatus } from '@prisma/client';
 
 @Injectable()
 export class ReportsService {
@@ -7,7 +8,7 @@ export class ReportsService {
 
   async getStallReport(stallId: string, startDate: Date, endDate: Date) {
     const sales = await this.prisma.pOSSale.findMany({
-      where: { stallId, status: 'COMPLETED', createdAt: { gte: startDate, lte: endDate } },
+      where: { stallId, status: POSSaleStatus.COMPLETED, createdAt: { gte: startDate, lte: endDate } },
       include: { items: true },
     });
 
@@ -27,7 +28,7 @@ export class ReportsService {
 
     const topProducts = await this.prisma.pOSSaleItem.groupBy({
       by: ['productName'],
-      where: { sale: { stallId, status: 'COMPLETED', createdAt: { gte: startDate, lte: endDate } } },
+      where: { sale: { stallId, status: POSSaleStatus.COMPLETED, createdAt: { gte: startDate, lte: endDate } } },
       _sum: { quantity: true, totalPrice: true },
       orderBy: { _sum: { totalPrice: 'desc' } },
       take: 10,
@@ -51,14 +52,14 @@ export class ReportsService {
 
   async getPlatformReport(startDate: Date, endDate: Date) {
     const [totalSales, totalMerchants, totalProducts, newUsers] = await Promise.all([
-      this.prisma.pOSSale.count({ where: { status: 'COMPLETED', createdAt: { gte: startDate, lte: endDate } } }),
+      this.prisma.pOSSale.count({ where: { status: POSSaleStatus.COMPLETED, createdAt: { gte: startDate, lte: endDate } } }),
       this.prisma.merchant.count({ where: { createdAt: { gte: startDate, lte: endDate } } }),
       this.prisma.product.count({ where: { createdAt: { gte: startDate, lte: endDate } } }),
       this.prisma.user.count({ where: { createdAt: { gte: startDate, lte: endDate } } }),
     ]);
 
     const commissionRevenue = await this.prisma.walletTransaction.aggregate({
-      where: { type: 'COMMISSION_DEDUCTION', status: 'COMPLETED', createdAt: { gte: startDate, lte: endDate } },
+      where: { type: WalletTransactionType.COMMISSION_DEDUCTION, status: WalletTransactionStatus.COMPLETED, createdAt: { gte: startDate, lte: endDate } },
       _sum: { amount: true },
     });
 

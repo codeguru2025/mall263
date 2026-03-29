@@ -72,8 +72,8 @@ export class WalletController {
   @ApiOperation({ summary: 'Check commission balance for a sale amount (seller)' })
   async checkCommission(
     @CurrentUser('id') userId: string,
-    @Query('saleAmount') saleAmount: number,
+    @Query('saleAmount') saleAmount: string,
   ) {
-    return this.walletService.checkCommissionBalance(userId, saleAmount);
+    return this.walletService.checkCommissionBalance(userId, parseFloat(saleAmount));
   }
 }

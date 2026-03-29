@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { UserRole, UserStatus, WalletTransactionType, WalletTransactionStatus } from '@prisma/client';
 
 @Injectable()
 export class TrustService {
@@ -18,7 +18,7 @@ export class TrustService {
 
     const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
     const deposits = await this.prisma.walletTransaction.count({
-      where: { walletId: wallet?.id, type: 'DEPOSIT', status: 'COMPLETED' },
+      where: { walletId: wallet?.id, type: WalletTransactionType.DEPOSIT, status: WalletTransactionStatus.COMPLETED },
     });
 
     // Calculate funding score (0-100) based on deposit history
@@ -28,11 +28,11 @@ export class TrustService {
     let completionScore = 50;
     let cancellationScore = 50;
     let responseScore = 50;
-    let accuracyScore = 50;
+    const accuracyScore = 50;
     let totalTransactions = 0;
     let totalCancellations = 0;
 
-    if (user.role === 'BUYER') {
+    if (user.role === UserRole.BUYER) {
       const demands = await this.prisma.buyerDemand.findMany({ where: { buyerId: userId } });
       const matched = demands.filter(d => d.status === 'MATCHED').length;
       const cancelled = demands.filter(d => d.status === 'CANCELLED').length;
@@ -40,7 +40,7 @@ export class TrustService {
       totalCancellations = cancelled;
       completionScore = totalTransactions > 0 ? Math.round((matched / totalTransactions) * 100) : 50;
       cancellationScore = totalTransactions > 0 ? Math.round(100 - (cancelled / totalTransactions) * 100) : 50;
-    } else if (user.role === 'STALL_OWNER') {
+    } else if (user.role === UserRole.STALL_OWNER) {
       const merchant = await this.prisma.merchant.findUnique({ where: { userId } });
       if (merchant) {
         const stalls = await this.prisma.stall.findMany({ where: { merchantId: merchant.id } });
@@ -98,13 +98,13 @@ export class TrustService {
   }
 
   async recalculateAll() {
-    const users = await this.prisma.user.findMany({ where: { status: 'ACTIVE' }, select: { id: true } });
+    const users = await this.prisma.user.findMany({ where: { status: UserStatus.ACTIVE }, select: { id: true } });
     let processed = 0;
     for (const user of users) {
       try {
         await this.recalculate(user.id);
         processed++;
-      } catch { /* skip errors */ }
+      } catch (err) { console.error(`Failed to recalculate trust score for user ${user.id}:`, err); }
     }
     return { processed, total: users.length };
   }

@@ -49,9 +49,8 @@ export class StallsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER)
   @ApiOperation({ summary: 'Update stall' })
-  async update(@Param('id') id: string, @CurrentUser() user: any, @Body() data: any) {
-    const merchant = await this.stallsService.findById(id);
-    return this.stallsService.update(id, merchant.merchantId, data);
+  async update(@Param('id') id: string, @CurrentUser('id') userId: string, @Body() data: any) {
+    return this.stallsService.update(id, userId, data);
   }
 
   @Post(':id/attendants')
