@@ -8,14 +8,14 @@ import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, Bar
 import { Logo } from '@/components/Logo';
 
 export default function AdminPage() {
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['admin-stats'],
-    queryFn: () => api.get('/admin/stats').then((r) => r.data),
+    queryFn: () => api.get('/admin/dashboard').then((r) => r.data),
   });
 
   const { data: activity } = useQuery({
     queryKey: ['admin-activity'],
-    queryFn: () => api.get('/admin/recent-activity').then((r) => r.data),
+    queryFn: () => api.get('/admin/activity').then((r) => r.data),
   });
 
   if (isLoading) {
@@ -26,13 +26,21 @@ export default function AdminPage() {
     );
   }
 
+  if (isError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-red-500 font-semibold">Failed to load admin dashboard. Check your permissions.</p>
+      </div>
+    );
+  }
+
   const statCards = [
-    { label: 'Total Users', value: stats?.totalUsers || 0, icon: Users, iconColor: 'text-brand-blue', bg: 'bg-blue-50' },
-    { label: 'Merchants', value: stats?.totalMerchants || 0, icon: Store, iconColor: 'text-brand-green', bg: 'bg-green-50' },
-    { label: 'Products', value: stats?.totalProducts || 0, icon: Package, iconColor: 'text-brand-orange', bg: 'bg-orange-50' },
-    { label: 'Total Sales', value: stats?.totalSales || 0, icon: TrendingUp, iconColor: 'text-brand-green', bg: 'bg-green-50' },
-    { label: 'Commission', value: formatCurrency(stats?.commissionRevenue || 0), icon: DollarSign, iconColor: 'text-brand-red', bg: 'bg-red-50' },
-    { label: 'Live Demands', value: stats?.activeDemands || 0, icon: Gavel, iconColor: 'text-brand-orange', bg: 'bg-orange-50' },
+    { label: 'Total Users', value: stats?.users || 0, icon: Users, iconColor: 'text-brand-blue', bg: 'bg-blue-50' },
+    { label: 'Merchants', value: stats?.merchants || 0, icon: Store, iconColor: 'text-brand-green', bg: 'bg-green-50' },
+    { label: 'Products', value: stats?.products || 0, icon: Package, iconColor: 'text-brand-orange', bg: 'bg-orange-50' },
+    { label: 'Total Sales', value: stats?.sales || 0, icon: TrendingUp, iconColor: 'text-brand-green', bg: 'bg-green-50' },
+    { label: 'Commission', value: formatCurrency(parseFloat(stats?.totalCommissionRevenue || '0')), icon: DollarSign, iconColor: 'text-brand-red', bg: 'bg-red-50' },
+    { label: 'Live Demands', value: stats?.openDemands || 0, icon: Gavel, iconColor: 'text-brand-orange', bg: 'bg-orange-50' },
   ];
 
   const quickActions = [
@@ -78,22 +86,22 @@ export default function AdminPage() {
           {/* Recent Activity */}
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100">
-              <h2 className="font-black text-lg text-navy-700">Recent Sales</h2>
+              <h2 className="font-black text-lg text-navy-700">Recent Activity</h2>
             </div>
             <div className="divide-y divide-gray-50">
-              {(activity?.recentSales || []).slice(0, 5).map((sale: any) => (
-                <div key={sale.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
+              {(activity || []).slice(0, 5).map((log: any) => (
+                <div key={log.id} className="px-5 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
                   <div>
-                    <span className="text-sm font-bold text-navy-700">#{sale.receiptNumber}</span>
-                    <p className="text-xs text-gray-500 mt-0.5">{sale.stall?.name}</p>
+                    <span className="text-sm font-bold text-navy-700">{log.action}</span>
+                    <p className="text-xs text-gray-500 mt-0.5">{log.user ? `${log.user.firstName} ${log.user.lastName}` : 'System'}</p>
                   </div>
-                  <span className="text-sm font-black text-brand-green">{formatCurrency(parseFloat(sale.totalAmount))}</span>
+                  <span className="text-xs text-gray-400">{new Date(log.createdAt).toLocaleDateString()}</span>
                 </div>
               ))}
-              {(!activity?.recentSales || activity.recentSales.length === 0) && (
+              {(!activity || activity.length === 0) && (
                 <div className="text-center py-8">
                   <TrendingUp className="w-10 h-10 text-gray-200 mx-auto mb-2" />
-                  <p className="text-gray-400 text-sm">No recent sales</p>
+                  <p className="text-gray-400 text-sm">No recent activity</p>
                 </div>
               )}
             </div>

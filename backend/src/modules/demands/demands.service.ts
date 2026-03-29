@@ -198,27 +198,30 @@ export class DemandsService {
     if (offer.demand.buyerId !== buyerId) throw new ForbiddenException('Not your demand');
     if (offer.status !== OfferStatus.PENDING) throw new BadRequestException('Offer is no longer pending');
 
-    return this.prisma.$transaction(async (tx) => {
-      // Accept this offer
-      await tx.sellerOffer.update({
-        where: { id: offerId },
-        data: { status: OfferStatus.ACCEPTED, respondedAt: new Date() },
-      });
+    return this.prisma.$retryTransaction(
+      async (tx) => {
+        // Accept this offer
+        await tx.sellerOffer.update({
+          where: { id: offerId },
+          data: { status: OfferStatus.ACCEPTED, respondedAt: new Date() },
+        });
 
-      // Reject all other offers
-      await tx.sellerOffer.updateMany({
-        where: { demandId: offer.demandId, id: { not: offerId }, status: OfferStatus.PENDING },
-        data: { status: OfferStatus.REJECTED, respondedAt: new Date() },
-      });
+        // Reject all other offers
+        await tx.sellerOffer.updateMany({
+          where: { demandId: offer.demandId, id: { not: offerId }, status: OfferStatus.PENDING },
+          data: { status: OfferStatus.REJECTED, respondedAt: new Date() },
+        });
 
-      // Close the demand
-      await tx.buyerDemand.update({
-        where: { id: offer.demandId },
-        data: { status: DemandStatus.MATCHED },
-      });
+        // Close the demand
+        await tx.buyerDemand.update({
+          where: { id: offer.demandId },
+          data: { status: DemandStatus.MATCHED },
+        });
 
-      return { accepted: true, offerId };
-    });
+        return { accepted: true, offerId };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   async getMyDemands(buyerId: string, status?: DemandStatus) {

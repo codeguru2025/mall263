@@ -66,13 +66,16 @@ export class StallsService {
     });
   }
 
-  async update(stallId: string, merchantId: string, data: Partial<{
+  async update(stallId: string, userId: string, data: Partial<{
     name: string; description: string; phone: string;
     openTime: string; closeTime: string; operatingDays: string[];
   }>) {
-    const stall = await this.prisma.stall.findUnique({ where: { id: stallId } });
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: stallId },
+      include: { merchant: { select: { userId: true } } },
+    });
     if (!stall) throw new NotFoundException('Stall not found');
-    if (stall.merchantId !== merchantId) throw new ForbiddenException('Not your stall');
+    if (stall.merchant.userId !== userId) throw new ForbiddenException('Not your stall');
 
     return this.prisma.stall.update({ where: { id: stallId }, data });
   }

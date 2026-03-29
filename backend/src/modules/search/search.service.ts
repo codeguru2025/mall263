@@ -2,6 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MeiliSearch, Index } from 'meilisearch';
+import { ProductStatus } from '@prisma/client';
 
 interface ProductSearchDoc {
   id: string;
@@ -171,7 +172,7 @@ export class SearchService implements OnModuleInit {
 
   async reindexAll() {
     const products = await this.prisma.product.findMany({
-      where: { status: 'ACTIVE' },
+      where: { status: ProductStatus.ACTIVE },
       select: { id: true },
     });
 
@@ -213,7 +214,7 @@ export class SearchService implements OnModuleInit {
   private async dbFallbackSearch(query: string, params: any) {
     const { categoryId, mallId, minPrice, maxPrice, page = 1, limit = 20 } = params;
     const where: any = {
-      status: 'ACTIVE',
+      status: ProductStatus.ACTIVE,
       OR: [
         { name: { contains: query, mode: 'insensitive' } },
         { description: { contains: query, mode: 'insensitive' } },

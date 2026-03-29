@@ -10,7 +10,7 @@ export class RedisService implements OnModuleDestroy {
     const tlsEnabled = this.config.get('REDIS_TLS', 'false') === 'true';
     this.client = new Redis({
       host: this.config.get('REDIS_HOST', 'localhost'),
-      port: this.config.get('REDIS_PORT', 6379),
+      port: parseInt(this.config.get('REDIS_PORT', '6379'), 10),
       password: this.config.get('REDIS_PASSWORD', '') || undefined,
       maxRetriesPerRequest: 3,
       // Required for DigitalOcean Valkey / Redis managed clusters

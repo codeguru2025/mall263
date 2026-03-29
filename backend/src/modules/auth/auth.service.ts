@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { v4 as uuid } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterDto, LoginDto, AuthResponseDto } from './dto/auth.dto';
-import { UserRole } from '@prisma/client';
+import { UserRole, UserStatus } from '@prisma/client';
 
 @Injectable()
 export class AuthService {
@@ -36,7 +36,7 @@ export class AuthService {
           firstName: dto.firstName,
           lastName: dto.lastName,
           role,
-          status: 'ACTIVE',
+          status: UserStatus.ACTIVE,
         },
       });
 
@@ -88,10 +88,10 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
-    if (user.status === 'SUSPENDED') {
+    if (user.status === UserStatus.SUSPENDED) {
       throw new UnauthorizedException('Account suspended. Contact support.');
     }
-    if (user.status === 'DEACTIVATED') {
+    if (user.status === UserStatus.DEACTIVATED) {
       throw new UnauthorizedException('Account deactivated.');
     }
 

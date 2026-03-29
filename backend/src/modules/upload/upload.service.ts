@@ -112,7 +112,11 @@ export class UploadService {
       throw new BadRequestException('File size must be under 10MB');
     }
 
-    const ext = file.originalname.split('.').pop() || 'bin';
+    const allowedDocumentExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt'];
+    const ext = (file.originalname.split('.').pop() || 'bin').toLowerCase();
+    if (!allowedDocumentExts.includes(ext)) {
+      throw new BadRequestException(`File type .${ext} is not allowed. Allowed types: ${allowedDocumentExts.join(', ')}`);
+    }
     const key = `${folder}/${uuid()}.${ext}`;
 
     await this.s3.send(

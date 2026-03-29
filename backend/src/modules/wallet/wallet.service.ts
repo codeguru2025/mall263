@@ -303,6 +303,12 @@ export class WalletService {
 
     const balance = parseFloat(wallet.availableBalance.toString());
     if (balance <= 0) return { tier: 'FREE', balance: 0 };
+
+    // ACTIVE_BUYER: funded AND has at least one completed transaction (i.e., has actually used the platform)
+    const completedTxCount = await this.prisma.walletTransaction.count({
+      where: { walletId: wallet.id, status: WalletTransactionStatus.COMPLETED },
+    });
+    if (completedTxCount > 0) return { tier: 'ACTIVE_BUYER', balance };
     return { tier: 'FUNDED', balance };
   }
 
@@ -330,6 +336,7 @@ export class WalletService {
       async (tx) => {
         const wallet = await tx.wallet.findUnique({ where: { userId } });
         if (!wallet) throw new NotFoundException('Wallet not found');
+        if (!wallet.isActive) throw new BadRequestException('Wallet is inactive');
 
         const available = parseFloat(wallet.availableBalance.toString());
         if (available < amount) {
