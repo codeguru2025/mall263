@@ -5,15 +5,26 @@ import { useAuthStore } from '@/lib/store';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight } from 'lucide-react';
+import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Logo } from '@/components/Logo';
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const logout = useAuthStore((s) => s.logout);
   const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) router.push('/auth/login');
@@ -52,14 +63,29 @@ export default function DashboardPage() {
                 </span>
               )}
             </Link>
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-green rounded-full flex items-center justify-center text-white font-bold text-sm">
-                {user.firstName?.[0]}{user.lastName?.[0]}
-              </div>
-              <div className="text-sm text-right hidden sm:block">
-                <div className="font-bold text-navy-700">{user.firstName} {user.lastName}</div>
-                <div className="text-xs text-gray-500 capitalize">{user.role.replace('_', ' ').toLowerCase()}</div>
-              </div>
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen((o) => !o)}
+                className="flex items-center gap-3 rounded-xl p-1 hover:bg-gray-50 transition-colors"
+              >
+                <div className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-green rounded-full flex items-center justify-center text-white font-bold text-sm">
+                  {user.firstName?.[0]}{user.lastName?.[0]}
+                </div>
+                <div className="text-sm text-right hidden sm:block">
+                  <div className="font-bold text-navy-700">{user.firstName} {user.lastName}</div>
+                  <div className="text-xs text-gray-500 capitalize">{user.role.replace('_', ' ').toLowerCase()}</div>
+                </div>
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 mt-2 w-44 bg-white rounded-2xl shadow-lg border border-gray-100 py-1 z-50">
+                  <button
+                    onClick={() => { logout(); router.push('/auth/login'); }}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-brand-red font-semibold hover:bg-red-50 transition-colors rounded-2xl"
+                  >
+                    <LogOut className="w-4 h-4" /> Sign out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
