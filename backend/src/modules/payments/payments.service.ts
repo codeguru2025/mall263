@@ -10,7 +10,6 @@ export type PaymentMethod = 'ecocash' | 'onemoney' | 'telecash' | 'web';
 interface PendingPayment {
   userId: string;
   amount: number;
-  email: string;
   pollUrl: string;
   method: PaymentMethod;
 }
@@ -19,6 +18,7 @@ interface PendingPayment {
 export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
   private paynow: any;
+  private merchantEmail: string;
 
   constructor(
     private config: ConfigService,
@@ -30,6 +30,10 @@ export class PaymentsService {
     this.paynow = new Paynow(integrationId, integrationKey);
     this.paynow.resultUrl = this.config.get('PAYNOW_RESULT_URL'); // backend webhook
     this.paynow.returnUrl = this.config.get('PAYNOW_RETURN_URL'); // frontend return page
+    this.merchantEmail = this.config.get('PAYNOW_MERCHANT_EMAIL', '');
+    if (!this.merchantEmail) {
+      this.logger.warn('PAYNOW_MERCHANT_EMAIL is not set — payments will fail');
+    }
   }
 
   /**
@@ -37,11 +41,11 @@ export class PaymentsService {
    * Returns a redirectUrl — frontend redirects the user there.
    * Paynow calls the resultUrl webhook on completion.
    */
-  async initiateWebPayment(userId: string, amount: number, email: string) {
+  async initiateWebPayment(userId: string, amount: number) {
     if (amount < 1) throw new BadRequestException('Minimum deposit is $1.00');
 
     const reference = `M263-${userId.slice(0, 8)}-${Date.now()}`;
-    const payment = this.paynow.createPayment(reference, email);
+    const payment = this.paynow.createPayment(reference, this.merchantEmail);
     payment.add('Wallet Deposit — Mall263', amount);
 
     let response: any;
@@ -60,7 +64,6 @@ export class PaymentsService {
     await this.storePending(reference, {
       userId,
       amount,
-      email,
       pollUrl: response.pollUrl,
       method: 'web',
     });
@@ -76,7 +79,6 @@ export class PaymentsService {
   async initiateMobilePayment(
     userId: string,
     amount: number,
-    email: string,
     phone: string,
     method: 'ecocash' | 'onemoney' | 'telecash',
   ) {
@@ -84,7 +86,7 @@ export class PaymentsService {
 
     const normalised = this.normalisePhone(phone);
     const reference = `M263-${userId.slice(0, 8)}-${Date.now()}`;
-    const payment = this.paynow.createPayment(reference, email);
+    const payment = this.paynow.createPayment(reference, this.merchantEmail);
     payment.add('Wallet Deposit — Mall263', amount);
 
     let response: any;
@@ -102,7 +104,6 @@ export class PaymentsService {
     await this.storePending(reference, {
       userId,
       amount,
-      email,
       pollUrl: response.pollUrl,
       method,
     });

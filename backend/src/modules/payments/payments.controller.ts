@@ -16,12 +16,9 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Initiate a web (card/Zipit) payment — returns redirectUrl' })
   async initiateWeb(
     @CurrentUser('id') userId: string,
-    @CurrentUser('email') rawEmail: string | null,
-    @CurrentUser('phone') phone: string,
     @Body() data: { amount: number },
   ) {
-    const email = rawEmail || `${phone.replace(/\D/g, '')}@mall263.co.zw`;
-    return this.paymentsService.initiateWebPayment(userId, data.amount, email);
+    return this.paymentsService.initiateWebPayment(userId, data.amount);
   }
 
   @Post('initiate/mobile')
@@ -30,15 +27,11 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Initiate a mobile money payment (EcoCash / OneMoney / Telecash)' })
   async initiateMobile(
     @CurrentUser('id') userId: string,
-    @CurrentUser('email') rawEmail: string | null,
-    @CurrentUser('phone') phone: string,
     @Body() data: { amount: number; phone: string; method: 'ecocash' | 'onemoney' | 'telecash' },
   ) {
-    const email = rawEmail || `${phone.replace(/\D/g, '')}@mall263.co.zw`;
     return this.paymentsService.initiateMobilePayment(
       userId,
       data.amount,
-      email,
       data.phone,
       data.method,
     );
