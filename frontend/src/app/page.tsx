@@ -73,10 +73,10 @@ export default function HomePage() {
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight mb-5">
                 Find it. <span className="text-brand-orange">Bid on it.</span><br />
-                <span className="text-brand-green">Get it.</span>
+                <span className="text-brand-green">Collect it.</span>
               </h1>
               <p className="text-lg text-white/70 mb-8 max-w-lg">
-                Post what you need. Sellers across Zimbabwe&apos;s markets send you their best offers. Pick the deal that works for you.
+                Post what you need. Sellers across Zimbabwe&apos;s markets respond with their best offers. Pick the one you want and collect it in person.
               </p>
 
               <form onSubmit={handleSearch} className="relative mb-6">
@@ -134,7 +134,7 @@ export default function HomePage() {
             {[
               { step: '1', icon: Search, title: 'Post Your Demand', desc: 'Tell us what you want — product, size, color, budget. Your request goes out to all relevant sellers.', color: 'bg-blue-50 text-brand-blue border-blue-200' },
               { step: '2', icon: Gavel, title: 'Sellers Respond', desc: 'Sellers across the market see your request and send their best offers in real time.', color: 'bg-orange-50 text-brand-orange border-orange-200' },
-              { step: '3', icon: Star, title: 'Pick & Collect', desc: 'Choose the best offer, pay securely through your wallet, and collect your item.', color: 'bg-green-50 text-brand-green border-green-200' },
+              { step: '3', icon: Star, title: 'Pick & Collect', desc: 'Choose the best offer and head to the stall. Pay the seller directly and take your item.', color: 'bg-green-50 text-brand-green border-green-200' },
             ].map((s) => (
               <div key={s.step} className={`rounded-2xl border-2 ${s.color} p-8 relative`}>
                 <div className="absolute -top-4 -left-2 w-10 h-10 rounded-full bg-navy-700 text-white flex items-center justify-center font-black text-lg shadow-lg">{s.step}</div>
@@ -265,7 +265,7 @@ export default function HomePage() {
                 <Search className="w-6 h-6" />
               </div>
               <h3 className="text-2xl font-black mb-2">I Want to Buy</h3>
-              <p className="text-white/80 mb-6">Post what you need. Get offers from sellers. Pick the best deal. Your wallet protects every transaction.</p>
+              <p className="text-white/80 mb-6">Post what you need. Get live offers from sellers. Pick the best deal and collect it in person. Top up your wallet to get started.</p>
               <Link href="/auth/register" className="inline-flex items-center gap-2 bg-white text-brand-blue font-bold py-3 px-6 rounded-xl hover:bg-blue-50 transition-colors shadow-lg">
                 Start Buying <ArrowRight className="w-5 h-5" />
               </Link>
@@ -275,7 +275,7 @@ export default function HomePage() {
                 <TrendingUp className="w-6 h-6" />
               </div>
               <h3 className="text-2xl font-black mb-2">I Want to Sell</h3>
-              <p className="text-white/80 mb-6">Free POS system. Manage inventory. Get buyer demands pushed to you. Only 2.5% commission per sale.</p>
+              <p className="text-white/80 mb-6">Free POS system. Manage your inventory. Respond to buyer demands. Top up your wallet to cover the 2.5% commission per sale.</p>
               <Link href="/auth/register" className="inline-flex items-center gap-2 bg-white text-brand-green font-bold py-3 px-6 rounded-xl hover:bg-green-50 transition-colors shadow-lg">
                 Start Selling <ArrowRight className="w-5 h-5" />
               </Link>
@@ -290,7 +290,7 @@ export default function HomePage() {
           <h2 className="text-3xl font-black text-navy-700 mb-10">Built on Trust</h2>
           <div className="grid grid-cols-3 gap-6">
             {[
-              { icon: Shield, title: 'Secure Transactions', desc: 'Every payment goes through your wallet — no cash, no risk' },
+              { icon: Shield, title: 'Wallet-Backed Commitments', desc: 'Buyers top up to post demands. Sellers top up to cover commission. No ghost bids.' },
               { icon: Users, title: 'Verified Sellers', desc: 'Field agents verify merchants in person before they go live' },
               { icon: Star, title: 'Trust Scores', desc: 'Transparent ratings on every buyer and seller' },
             ].map((f) => (

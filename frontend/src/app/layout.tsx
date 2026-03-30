@@ -40,7 +40,7 @@ function SplashScreen() {
               <span className="text-brand-red">3</span>
             </span>
           </div>
-          <p className="text-white/60 text-sm mt-1 font-medium">Find it. Bid on it. Get it.</p>
+          <p className="text-white/60 text-sm mt-1 font-medium">Find it. Bid on it. Collect it.</p>
         </div>
         <div className="flex gap-1.5 mt-4">
           {[0, 1, 2].map((i) => (
@@ -79,7 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <title>Mall263 — Find it. Bid on it. Get it.</title>
+        <title>Mall263 — Find it. Bid on it. Collect it.</title>
         <meta name="description" content="Zimbabwe's marketplace connecting buyers with sellers across the country. Post demands, get live offers, pay securely." />
 
         {/* Viewport — cover extends into notch/Dynamic Island */}
