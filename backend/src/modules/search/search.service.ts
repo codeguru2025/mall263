@@ -80,9 +80,16 @@ export class SearchService implements OnModuleInit {
     page?: number;
     limit?: number;
   }) {
-    const { categoryId, mallId, city, minPrice, maxPrice, inStock, sortBy, page = 1, limit = 20 } = params;
+    const { categoryId, mallId, city, sortBy } = params;
+    const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
+    const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
+    const minPrice = Number.isFinite(params.minPrice) ? params.minPrice : undefined;
+    const maxPrice = Number.isFinite(params.maxPrice) ? params.maxPrice : undefined;
+    const inStock = params.inStock;
 
     try {
+      if (!this.productsIndex) throw new Error('Meilisearch index not initialised');
+
       // Build filter array
       const filters: string[] = [];
       if (categoryId) filters.push(`categoryId = "${categoryId}"`);
@@ -117,7 +124,7 @@ export class SearchService implements OnModuleInit {
       };
     } catch {
       // Fallback to database search if Meilisearch is unavailable
-      return this.dbFallbackSearch(query, params);
+      return this.dbFallbackSearch(query, { ...params, page, limit, minPrice, maxPrice });
     }
   }
 
@@ -212,7 +219,11 @@ export class SearchService implements OnModuleInit {
   }
 
   private async dbFallbackSearch(query: string, params: any) {
-    const { categoryId, mallId, minPrice, maxPrice, page = 1, limit = 20 } = params;
+    const { categoryId, mallId } = params;
+    const page = Number.isFinite(params.page) ? Math.max(1, params.page) : 1;
+    const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit) : 20;
+    const minPrice = Number.isFinite(params.minPrice) ? params.minPrice : undefined;
+    const maxPrice = Number.isFinite(params.maxPrice) ? params.maxPrice : undefined;
     const where: any = {
       status: ProductStatus.ACTIVE,
       OR: [
