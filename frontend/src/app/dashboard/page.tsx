@@ -85,7 +85,7 @@ export default function DashboardPage() {
             </div>
             {parseFloat(wallet?.locked ?? '0') > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-white/50 mb-4">
-                <Lock className="w-3 h-3" /> Locked: {formatCurrency(parseFloat(wallet?.lockedBalance ?? wallet?.lockedAmount ?? '0'))}
+                <Lock className="w-3 h-3" /> Locked: {formatCurrency(parseFloat(wallet?.locked ?? '0'))}
               </div>
             )}
             <div className="flex gap-3">
