@@ -37,6 +37,47 @@ export class MerchantsService {
     });
   }
 
+  async selfSetup(userId: string, data: {
+    businessName: string;
+    businessPhone?: string;
+    businessEmail?: string;
+    stallName: string;
+    stallNumber: string;
+    mallId?: string;
+    description?: string;
+    phone?: string;
+  }) {
+    const existing = await this.prisma.merchant.findUnique({ where: { userId } });
+    if (existing) throw new BadRequestException('Merchant profile already exists');
+
+    return this.prisma.$transaction(async (tx) => {
+      const merchant = await tx.merchant.create({
+        data: {
+          userId,
+          businessName: data.businessName,
+          businessPhone: data.businessPhone,
+          businessEmail: data.businessEmail,
+          status: MerchantStatus.PENDING,
+          subscriptionTier: 'basic',
+        },
+      });
+
+      const stall = await tx.stall.create({
+        data: {
+          merchantId: merchant.id,
+          mallId: data.mallId || null,
+          stallNumber: data.stallNumber,
+          name: data.stallName,
+          description: data.description,
+          phone: data.phone || data.businessPhone,
+          status: 'ACTIVE',
+        },
+      });
+
+      return { merchant, stall };
+    });
+  }
+
   async verifyMerchant(merchantId: string) {
     return this.prisma.merchant.update({
       where: { id: merchantId },

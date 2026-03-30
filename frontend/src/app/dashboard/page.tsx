@@ -42,9 +42,23 @@ export default function DashboardPage() {
     enabled: isAuthenticated,
   });
 
-  if (!user) return null;
+  const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
 
-  const isSeller = ['STALL_OWNER', 'ATTENDANT'].includes(user.role);
+  // Sellers with no merchant profile must complete setup first
+  const { data: merchant, isLoading: merchantLoading } = useQuery({
+    queryKey: ['my-merchant'],
+    queryFn: () => api.get('/api/v1/merchants/me').then((r) => r.data).catch(() => null),
+    enabled: isAuthenticated && isSeller,
+  });
+
+  useEffect(() => {
+    if (isSeller && !merchantLoading && merchant === null) {
+      router.push('/seller/setup');
+    }
+  }, [isSeller, merchant, merchantLoading, router]);
+
+  if (!user) return null;
+  if (isSeller && merchantLoading) return null;
   const isAdmin = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'].includes(user.role);
   const isAgent = user.role === 'FIELD_AGENT';
 

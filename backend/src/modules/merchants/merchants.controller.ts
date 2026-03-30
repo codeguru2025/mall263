@@ -24,6 +24,25 @@ export class MerchantsController {
     return this.merchantsService.onboardMerchant({ ...data, agentId });
   }
 
+  @Post('me/setup')
+  @Roles(UserRole.STALL_OWNER)
+  @ApiOperation({ summary: 'Self-serve merchant + stall setup for new sellers' })
+  async setup(
+    @CurrentUser('id') userId: string,
+    @Body() data: {
+      businessName: string;
+      businessPhone?: string;
+      businessEmail?: string;
+      stallName: string;
+      stallNumber: string;
+      mallId?: string;
+      description?: string;
+      phone?: string;
+    },
+  ) {
+    return this.merchantsService.selfSetup(userId, data);
+  }
+
   @Get('me')
   @Roles(UserRole.STALL_OWNER)
   @ApiOperation({ summary: 'Get current merchant profile' })
