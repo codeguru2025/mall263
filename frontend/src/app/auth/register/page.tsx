@@ -6,10 +6,11 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 import { Logo } from '@/components/Logo';
-import { Phone, Lock, User, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Phone, Lock, User, ArrowRight, ShoppingBag, Store } from 'lucide-react';
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', password: '', confirmPassword: '' });
+  const [role, setRole] = useState<'BUYER' | 'STALL_OWNER'>('BUYER');
   const [loading, setLoading] = useState(false);
   const register = useAuthStore((s) => s.register);
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function RegisterPage() {
     if (form.password !== form.confirmPassword) { toast.error('Passwords do not match'); return; }
     setLoading(true);
     try {
-      await register({ phone: form.phone, password: form.password, firstName: form.firstName, lastName: form.lastName });
+      await register({ phone: form.phone, password: form.password, firstName: form.firstName, lastName: form.lastName, role });
       toast.success('Account created!');
       router.push('/dashboard');
     } catch (err: any) {
@@ -42,7 +43,7 @@ export default function RegisterPage() {
           <div className="space-y-3 text-left max-w-xs mx-auto">
             {['Post demands & get live offers', 'Wallet-secured transactions', 'Free POS system for sellers'].map((t) => (
               <div key={t} className="flex items-center gap-3 text-white/70 text-sm">
-                <ShieldCheck className="w-5 h-5 text-brand-green flex-shrink-0" />
+                <Store className="w-5 h-5 text-brand-green flex-shrink-0" />
                 {t}
               </div>
             ))}
@@ -58,7 +59,45 @@ export default function RegisterPage() {
             <h1 className="text-2xl font-black text-navy-700 mt-6">Create your account</h1>
             <p className="text-gray-500 mt-1">Start buying or selling on Mall263</p>
           </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Role selection */}
+            <div>
+              <label className="label mb-2">I want to</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRole('BUYER')}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
+                    role === 'BUYER'
+                      ? 'border-brand-blue bg-blue-50'
+                      : 'border-gray-100 hover:border-gray-200'
+                  }`}
+                >
+                  <ShoppingBag className={`w-6 h-6 ${role === 'BUYER' ? 'text-brand-blue' : 'text-gray-400'}`} />
+                  <div className="text-center">
+                    <div className={`font-bold text-sm ${role === 'BUYER' ? 'text-brand-blue' : 'text-navy-700'}`}>Buy</div>
+                    <div className="text-xs text-gray-400">Shop & post demands</div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole('STALL_OWNER')}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
+                    role === 'STALL_OWNER'
+                      ? 'border-brand-green bg-green-50'
+                      : 'border-gray-100 hover:border-gray-200'
+                  }`}
+                >
+                  <Store className={`w-6 h-6 ${role === 'STALL_OWNER' ? 'text-brand-green' : 'text-gray-400'}`} />
+                  <div className="text-center">
+                    <div className={`font-bold text-sm ${role === 'STALL_OWNER' ? 'text-brand-green' : 'text-navy-700'}`}>Sell</div>
+                    <div className="text-xs text-gray-400">List products & use POS</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">First Name</label>
