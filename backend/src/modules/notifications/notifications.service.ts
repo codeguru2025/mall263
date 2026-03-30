@@ -13,7 +13,9 @@ export class NotificationsService {
   }
 
   async getMyNotifications(userId: string, params: { isRead?: boolean; page?: number; limit?: number }) {
-    const { isRead, page = 1, limit = 20 } = params;
+    const { isRead } = params;
+    const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
+    const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
     const where: any = { userId };
     if (isRead !== undefined) where.isRead = isRead;
 

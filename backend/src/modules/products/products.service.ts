@@ -132,7 +132,9 @@ export class ProductsService {
   }
 
   async findByStall(stallId: string, params: { status?: ProductStatus; page?: number; limit?: number }) {
-    const { status, page = 1, limit = 20 } = params;
+    const { status } = params;
+    const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
+    const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
     const where: any = { stallId };
     if (status) where.status = status;
 
@@ -189,13 +191,16 @@ export class ProductsService {
     limit?: number;
     sortBy?: string;
   }) {
-    const { categoryId, mallId, minPrice, maxPrice, page = 1, limit = 20, sortBy } = params;
+    const { categoryId, mallId, sortBy } = params;
+    // Guard against NaN — enableImplicitConversion can turn missing query params into NaN
+    const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
+    const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
     const where: any = { status: ProductStatus.ACTIVE };
 
     if (categoryId) where.categoryId = categoryId;
     if (mallId) where.stall = { mallId };
-    if (minPrice !== undefined) where.minPrice = { gte: minPrice };
-    if (maxPrice !== undefined) where.maxPrice = { lte: maxPrice };
+    if (Number.isFinite(params.minPrice)) where.minPrice = { gte: params.minPrice };
+    if (Number.isFinite(params.maxPrice)) where.maxPrice = { lte: params.maxPrice };
 
     let orderBy: any = { createdAt: 'desc' };
     if (sortBy === 'price_asc') orderBy = { minPrice: 'asc' };
