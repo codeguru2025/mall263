@@ -82,7 +82,10 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
-    const user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
+    if (!dto.phone && !dto.email) throw new UnauthorizedException('Phone or email is required');
+    const user = dto.email
+      ? await this.prisma.user.findUnique({ where: { email: dto.email } })
+      : await this.prisma.user.findUnique({ where: { phone: dto.phone } });
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);

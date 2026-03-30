@@ -79,7 +79,7 @@ export default function DemandsPage() {
                         <div className="flex items-center gap-4 flex-wrap">
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs text-gray-400">Budget:</span>
-                            <span className="text-sm font-black text-navy-700">{formatCurrency(parseFloat(d.budgetMin || d.minBudget || 0))} - {formatCurrency(parseFloat(d.budgetMax || d.maxBudget || 0))}</span>
+                            <span className="text-sm font-black text-navy-700">{formatCurrency(parseFloat(d.minBudget || 0))} - {formatCurrency(parseFloat(d.maxBudget || 0))}</span>
                           </div>
                           <div className="flex items-center gap-1 text-sm font-bold text-brand-green">
                             <Gavel className="w-3.5 h-3.5" /> {d._count?.offers || d.offersCount || 0} offers

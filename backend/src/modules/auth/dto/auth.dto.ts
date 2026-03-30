@@ -33,9 +33,15 @@ export class RegisterDto {
 }
 
 export class LoginDto {
-  @ApiProperty({ example: '+263771234567' })
+  @ApiProperty({ example: '+263771234567', required: false })
+  @IsOptional()
   @IsString()
-  phone: string;
+  phone?: string;
+
+  @ApiProperty({ example: 'user@example.com', required: false })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
   @ApiProperty()
   @IsString()

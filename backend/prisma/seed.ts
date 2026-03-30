@@ -1,12 +1,44 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { v4 as uuidv4 } from 'uuid';
+
+const SEED_MALL_ID    = '00000000-0000-0000-0000-000000000001';
+const SEED_STALL_ID   = '00000000-0000-0000-0000-000000000002';
+const SEED_PRODUCT_1  = '00000000-0000-0000-0000-000000000003';
+const SEED_PRODUCT_2  = '00000000-0000-0000-0000-000000000004';
+const SEED_VARIANT_1  = '00000000-0000-0000-0000-000000000005';
+const SEED_VARIANT_2  = '00000000-0000-0000-0000-000000000006';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('Seeding Mall263 database...');
 
-  // Create Super Admin
+  // Create owner superuser (ausiziba@gmail.com)
+  const ownerPassword = process.env.SUPERADMIN_PASSWORD;
+  if (!ownerPassword) throw new Error('SUPERADMIN_PASSWORD env var is required');
+  const ownerHash = await bcrypt.hash(ownerPassword, 12);
+  const owner = await prisma.user.upsert({
+    where: { email: 'ausiziba@gmail.com' },
+    update: { passwordHash: ownerHash, role: 'SUPER_ADMIN', status: 'ACTIVE', firstName: 'Augustus', lastName: 'Siziba', phone: '+263712171267' },
+    create: {
+      phone: '+263712171267',
+      email: 'ausiziba@gmail.com',
+      passwordHash: ownerHash,
+      firstName: 'Augustus',
+      lastName: 'Siziba',
+      role: 'SUPER_ADMIN',
+      status: 'ACTIVE',
+    },
+  });
+  console.log('Owner superuser:', owner.id);
+  await prisma.wallet.upsert({
+    where: { userId: owner.id },
+    update: {},
+    create: { userId: owner.id, availableBalance: 0, lockedBalance: 0, currency: 'USD' },
+  });
+
+  // Create System Admin (test account)
   const adminPassword = await bcrypt.hash('admin123456', 10);
   const admin = await prisma.user.upsert({
     where: { phone: '+263770000001' },
@@ -63,10 +95,10 @@ async function main() {
 
   // Create a mall
   const mall = await prisma.mall.upsert({
-    where: { id: 'seed-mall-1' },
+    where: { id: SEED_MALL_ID },
     update: {},
     create: {
-      id: 'seed-mall-1',
+      id: SEED_MALL_ID,
       name: 'Mbare Musika Market',
       city: 'Harare',
       address: 'Mbare, Harare',
@@ -77,10 +109,10 @@ async function main() {
 
   // Create a stall
   const stall = await prisma.stall.upsert({
-    where: { id: 'seed-stall-1' },
+    where: { id: SEED_STALL_ID },
     update: {},
     create: {
-      id: 'seed-stall-1',
+      id: SEED_STALL_ID,
       merchantId: merchant.id,
       mallId: mall.id,
       name: 'Jane\'s Corner Stall A1',
@@ -91,10 +123,10 @@ async function main() {
 
   // Create sample products
   const product1 = await prisma.product.upsert({
-    where: { id: 'seed-product-1' },
+    where: { id: SEED_PRODUCT_1 },
     update: {},
     create: {
-      id: 'seed-product-1',
+      id: SEED_PRODUCT_1,
       stallId: stall.id,
       name: 'Men\'s Casual Sneakers',
       slug: 'mens-casual-sneakers',
@@ -106,10 +138,10 @@ async function main() {
   });
 
   await prisma.productVariant.upsert({
-    where: { id: 'seed-variant-1' },
+    where: { id: SEED_VARIANT_1 },
     update: {},
     create: {
-      id: 'seed-variant-1',
+      id: SEED_VARIANT_1,
       productId: product1.id,
       name: 'Black Size 42',
       sku: 'SNK-BLK-42',
@@ -121,20 +153,20 @@ async function main() {
   });
 
   await prisma.inventory.upsert({
-    where: { variantId: 'seed-variant-1' },
+    where: { variantId: SEED_VARIANT_1 },
     update: {},
     create: {
-      variantId: 'seed-variant-1',
+      variantId: SEED_VARIANT_1,
       quantity: 25,
       lowStockThreshold: 5,
     },
   });
 
   const product2 = await prisma.product.upsert({
-    where: { id: 'seed-product-2' },
+    where: { id: SEED_PRODUCT_2 },
     update: {},
     create: {
-      id: 'seed-product-2',
+      id: SEED_PRODUCT_2,
       stallId: stall.id,
       name: 'Women\'s Ankara Dress',
       slug: 'womens-ankara-dress',
@@ -146,10 +178,10 @@ async function main() {
   });
 
   await prisma.productVariant.upsert({
-    where: { id: 'seed-variant-2' },
+    where: { id: SEED_VARIANT_2 },
     update: {},
     create: {
-      id: 'seed-variant-2',
+      id: SEED_VARIANT_2,
       productId: product2.id,
       name: 'Red Size M',
       sku: 'ANK-RED-M',
@@ -161,10 +193,10 @@ async function main() {
   });
 
   await prisma.inventory.upsert({
-    where: { variantId: 'seed-variant-2' },
+    where: { variantId: SEED_VARIANT_2 },
     update: {},
     create: {
-      variantId: 'seed-variant-2',
+      variantId: SEED_VARIANT_2,
       quantity: 15,
       lowStockThreshold: 3,
     },

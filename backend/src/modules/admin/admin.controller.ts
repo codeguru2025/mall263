@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -24,6 +24,22 @@ export class AdminController {
   @ApiOperation({ summary: 'Get recent activity' })
   async getActivity(@Query('limit') limit?: number) {
     return this.adminService.getRecentActivity(limit);
+  }
+
+  @Get('users')
+  @ApiOperation({ summary: 'List all users' })
+  async listUsers(
+    @Query('search') search?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.adminService.listUsers({ search, limit });
+  }
+
+  @Patch('users/:id/role')
+  @Roles(UserRole.SUPER_ADMIN)
+  @ApiOperation({ summary: 'Change a user role (super admin only)' })
+  async changeUserRole(@Param('id') id: string, @Body('role') role: UserRole) {
+    return this.adminService.changeUserRole(id, role);
   }
 
   @Patch('users/:id/suspend')

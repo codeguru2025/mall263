@@ -9,7 +9,7 @@ import { Logo } from '@/components/Logo';
 import { Phone, Lock, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
-  const [phone, setPhone] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
@@ -19,7 +19,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(phone, password);
+      await login(identifier, password);
       toast.success('Welcome back!');
       router.push('/dashboard');
     } catch (err: any) {
@@ -57,10 +57,10 @@ export default function LoginPage() {
           </div>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="label">Phone Number</label>
+              <label className="label">Phone or Email</label>
               <div className="relative">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input type="tel" className="input pl-12" placeholder="+263 77 366 5350" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+                <input type="text" className="input pl-12" placeholder="+263 77 ... or email@example.com" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
               </div>
             </div>
             <div>

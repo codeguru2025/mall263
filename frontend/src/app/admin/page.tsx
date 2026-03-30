@@ -1,13 +1,27 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
 import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 export default function AdminPage() {
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  useEffect(() => {
+    if (!isAuthenticated) { router.push('/auth/login'); return; }
+    if (user && !['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'].includes(user.role)) {
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, user, router]);
+
   const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: () => api.get('/api/v1/admin/dashboard').then((r) => r.data),

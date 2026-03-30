@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   StallStatus, ProductStatus, POSSaleStatus,
-  DemandStatus, WalletTransactionType, WalletTransactionStatus, UserStatus,
+  DemandStatus, WalletTransactionType, WalletTransactionStatus, UserStatus, UserRole,
 } from '@prisma/client';
 
 @Injectable()
@@ -36,6 +36,29 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
       include: { user: { select: { firstName: true, lastName: true, role: true } } },
     });
+  }
+
+  async listUsers(params: { search?: string; limit?: number }) {
+    const { search, limit = 50 } = params;
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search } },
+      ];
+    }
+    const data = await this.prisma.user.findMany({
+      where,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, firstName: true, lastName: true, phone: true, role: true, status: true, createdAt: true },
+    });
+    return { data };
+  }
+
+  async changeUserRole(userId: string, role: UserRole) {
+    return this.prisma.user.update({ where: { id: userId }, data: { role } });
   }
 
   async suspendUser(userId: string) {

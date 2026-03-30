@@ -1,23 +1,29 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 import { Logo } from '@/components/Logo';
 import { ArrowLeft, Gavel } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function NewDemandPage() {
   const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [form, setForm] = useState({
     title: '',
     description: '',
-    budgetMin: '',
-    budgetMax: '',
+    minBudget: '',
+    maxBudget: '',
     urgency: 'MEDIUM',
   });
+
+  useEffect(() => {
+    if (!isAuthenticated) router.push('/auth/login');
+  }, [isAuthenticated, router]);
 
   const update = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -26,8 +32,8 @@ export default function NewDemandPage() {
       api.post('/api/v1/demands', {
         title: form.title,
         description: form.description,
-        budgetMin: parseFloat(form.budgetMin),
-        budgetMax: parseFloat(form.budgetMax),
+        minBudget: parseFloat(form.minBudget),
+        maxBudget: parseFloat(form.maxBudget),
         urgency: form.urgency,
       }).then((r) => r.data),
     onSuccess: () => {
@@ -39,11 +45,11 @@ export default function NewDemandPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title || !form.budgetMin || !form.budgetMax) {
+    if (!form.title || !form.minBudget || !form.maxBudget) {
       toast.error('Please fill in all required fields');
       return;
     }
-    if (parseFloat(form.budgetMin) > parseFloat(form.budgetMax)) {
+    if (parseFloat(form.minBudget) > parseFloat(form.maxBudget)) {
       toast.error('Min budget cannot exceed max budget');
       return;
     }
@@ -110,8 +116,8 @@ export default function NewDemandPage() {
                   placeholder="0.00"
                   min="0"
                   step="0.01"
-                  value={form.budgetMin}
-                  onChange={(e) => update('budgetMin', e.target.value)}
+                  value={form.minBudget}
+                  onChange={(e) => update('minBudget', e.target.value)}
                   required
                 />
               </div>
@@ -123,8 +129,8 @@ export default function NewDemandPage() {
                   placeholder="0.00"
                   min="0"
                   step="0.01"
-                  value={form.budgetMax}
-                  onChange={(e) => update('budgetMax', e.target.value)}
+                  value={form.maxBudget}
+                  onChange={(e) => update('maxBudget', e.target.value)}
                   required
                 />
               </div>
