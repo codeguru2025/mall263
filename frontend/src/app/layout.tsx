@@ -11,7 +11,14 @@ import BottomNav from '@/components/BottomNav';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30000, retry: 1 } },
+  defaultOptions: {
+    queries: {
+      staleTime: 60000,
+      gcTime: 300000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
 });
 
 function SplashScreen() {
@@ -73,7 +80,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <title>Mall263 — Find it. Bid on it. Get it.</title>
-        <meta name="description" content="Zimbabwe's demand-driven marketplace. Like ride-hailing, but for shopping." />
+        <meta name="description" content="Zimbabwe's marketplace connecting buyers with sellers across the country. Post demands, get live offers, pay securely." />
 
         {/* Viewport — cover extends into notch/Dynamic Island */}
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />

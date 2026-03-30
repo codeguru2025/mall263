@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, MapPin, Gavel, ArrowRight, Zap, Shield, Users, Navigation, Star, TrendingUp } from 'lucide-react';
+import { Search, MapPin, Gavel, ArrowRight, Shield, Users, Star, TrendingUp, CheckCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/Logo';
@@ -68,15 +68,15 @@ export default function HomePage() {
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <div>
               <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm text-white/90 text-sm font-semibold px-4 py-2 rounded-full mb-6 border border-white/10">
-                <Zap className="w-4 h-4 text-brand-yellow" />
-                Live demand-driven marketplace
+                <CheckCircle className="w-4 h-4 text-brand-green" />
+                Zimbabwe&apos;s demand-driven marketplace
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight mb-5">
                 Find it. <span className="text-brand-orange">Bid on it.</span><br />
-                <span className="text-brand-green">Get it delivered.</span>
+                <span className="text-brand-green">Get it.</span>
               </h1>
               <p className="text-lg text-white/70 mb-8 max-w-lg">
-                Post what you need. Sellers compete with live offers. Like ride-hailing, but for shopping across Zimbabwe&apos;s markets.
+                Post what you need. Sellers across Zimbabwe&apos;s markets send you their best offers. Pick the deal that works for you.
               </p>
 
               <form onSubmit={handleSearch} className="relative mb-6">
@@ -107,13 +107,13 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Right side — Live demand CTA */}
+            {/* Right side — Demand CTA */}
             <div className="hidden md:block space-y-4">
-              <div className="text-white/50 text-xs font-bold uppercase tracking-wider mb-2">Live Demands Right Now</div>
+              <div className="text-white/50 text-xs font-bold uppercase tracking-wider mb-2">Post a Demand</div>
               <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-center">
                 <Gavel className="w-8 h-8 text-brand-orange mx-auto mb-3" />
-                <div className="text-white font-bold mb-1">Be the first to post a demand</div>
-                <div className="text-white/60 text-sm mb-4">Tell sellers what you need and get offers</div>
+                <div className="text-white font-bold mb-1">Tell sellers what you need</div>
+                <div className="text-white/60 text-sm mb-4">Sellers respond with live offers — you choose the best one</div>
                 <Link href="/demands" className="btn-primary text-sm py-2 px-4 inline-flex items-center gap-2">
                   Post a Demand <ArrowRight className="w-4 h-4" />
                 </Link>
@@ -127,13 +127,13 @@ export default function HomePage() {
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-black text-navy-700 mb-3">Like Uber, but for Shopping</h2>
-            <p className="text-gray-500 max-w-xl mx-auto">Post a demand for what you want. Sellers see it and compete to offer you the best price. Pick your favorite offer.</p>
+            <h2 className="text-3xl md:text-4xl font-black text-navy-700 mb-3">How It Works</h2>
+            <p className="text-gray-500 max-w-xl mx-auto">Post a demand for what you want. Sellers see it and compete to offer you the best price. Pick your preferred offer.</p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              { step: '1', icon: Navigation, title: 'Post Your Demand', desc: 'Tell us what you want — product, size, color, budget. Like requesting a ride.', color: 'bg-blue-50 text-brand-blue border-blue-200' },
-              { step: '2', icon: Gavel, title: 'Sellers Compete', desc: 'Nearby sellers see your request and send live offers with their best price.', color: 'bg-orange-50 text-brand-orange border-orange-200' },
+              { step: '1', icon: Search, title: 'Post Your Demand', desc: 'Tell us what you want — product, size, color, budget. Your request goes out to all relevant sellers.', color: 'bg-blue-50 text-brand-blue border-blue-200' },
+              { step: '2', icon: Gavel, title: 'Sellers Respond', desc: 'Sellers across the market see your request and send their best offers in real time.', color: 'bg-orange-50 text-brand-orange border-orange-200' },
               { step: '3', icon: Star, title: 'Pick & Collect', desc: 'Choose the best offer, pay securely through your wallet, and collect your item.', color: 'bg-green-50 text-brand-green border-green-200' },
             ].map((s) => (
               <div key={s.step} className={`rounded-2xl border-2 ${s.color} p-8 relative`}>
@@ -245,7 +245,7 @@ export default function HomePage() {
             { num: '2,500+', label: 'Active Sellers', color: 'text-brand-orange' },
             { num: '4', label: 'Partner Malls', color: 'text-brand-green' },
             { num: '2.5%', label: 'Commission Rate', color: 'text-brand-blue' },
-            { num: '4.8/5', label: 'Trust Score Avg', color: 'text-brand-yellow' },
+            { num: '4.8/5', label: 'Avg Trust Score', color: 'text-brand-yellow' },
           ].map((s) => (
             <div key={s.label}>
               <div className={`text-3xl md:text-4xl font-black ${s.color}`}>{s.num}</div>
@@ -258,7 +258,7 @@ export default function HomePage() {
       {/* Dual CTA */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-3xl font-black text-navy-700 text-center mb-10">Start in 60 Seconds</h2>
+          <h2 className="text-3xl font-black text-navy-700 text-center mb-10">Get Started Today</h2>
           <div className="grid md:grid-cols-2 gap-6">
             <div className="rounded-2xl bg-gradient-to-br from-brand-blue to-blue-600 p-8 text-white">
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
@@ -290,9 +290,9 @@ export default function HomePage() {
           <h2 className="text-3xl font-black text-navy-700 mb-10">Built on Trust</h2>
           <div className="grid grid-cols-3 gap-6">
             {[
-              { icon: Shield, title: 'Fraud Detection', desc: 'AI monitors every transaction for anomalies' },
-              { icon: Users, title: 'Verified Sellers', desc: 'Field agents verify merchants in person' },
-              { icon: Star, title: 'Trust Scores', desc: 'Transparent rating for every user' },
+              { icon: Shield, title: 'Secure Transactions', desc: 'Every payment goes through your wallet — no cash, no risk' },
+              { icon: Users, title: 'Verified Sellers', desc: 'Field agents verify merchants in person before they go live' },
+              { icon: Star, title: 'Trust Scores', desc: 'Transparent ratings on every buyer and seller' },
             ].map((f) => (
               <div key={f.title} className="text-center">
                 <div className="w-14 h-14 bg-navy-700 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
@@ -311,7 +311,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-4 gap-8">
           <div>
             <Logo size={32} />
-            <p className="text-sm mt-3">Zimbabwe&apos;s demand-driven marketplace. Like ride-hailing, but for shopping.</p>
+            <p className="text-sm mt-3">Zimbabwe&apos;s marketplace connecting buyers with sellers across the country.</p>
           </div>
           <div>
             <div className="font-bold text-white mb-3 text-sm">Platform</div>
