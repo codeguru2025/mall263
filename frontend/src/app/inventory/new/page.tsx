@@ -164,7 +164,7 @@ export default function NewProductPage() {
               <input
                 type="text"
                 className="input"
-                placeholder="e.g. Nike Air Max 90"
+                placeholder="e.g. Lobels Brown Bread / Nike Air Max 90"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 required
@@ -177,7 +177,7 @@ export default function NewProductPage() {
                 <input
                   type="text"
                   className="input"
-                  placeholder="e.g. Nike"
+                  placeholder="e.g. Lobels / Nike / Dairibord"
                   value={form.brand}
                   onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}
                 />

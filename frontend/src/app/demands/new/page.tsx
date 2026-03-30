@@ -83,7 +83,7 @@ export default function NewDemandPage() {
               <input
                 type="text"
                 className="input"
-                placeholder="e.g. Nike Air Max 90, Size 42, Black"
+                placeholder="e.g. Nike Air Max 90 Size 42, Mazoe Orange Crush 2L"
                 value={form.title}
                 onChange={(e) => update('title', e.target.value)}
                 required

@@ -64,14 +64,14 @@ export default function RegisterPage() {
                 <label className="label">First Name</label>
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input type="text" className="input pl-11 text-sm" placeholder="John" value={form.firstName} onChange={(e) => update('firstName', e.target.value)} required />
+                  <input type="text" className="input pl-11 text-sm" placeholder="Tendai" value={form.firstName} onChange={(e) => update('firstName', e.target.value)} required />
                 </div>
               </div>
               <div>
                 <label className="label">Last Name</label>
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input type="text" className="input pl-11 text-sm" placeholder="Doe" value={form.lastName} onChange={(e) => update('lastName', e.target.value)} required />
+                  <input type="text" className="input pl-11 text-sm" placeholder="Moyo" value={form.lastName} onChange={(e) => update('lastName', e.target.value)} required />
                 </div>
               </div>
             </div>
