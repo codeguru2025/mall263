@@ -1,7 +1,7 @@
 {
   "name": "Mall263",
   "short_name": "Mall263",
-  "description": "Zimbabwe's demand-driven marketplace. Find it. Bid on it. Get it.",
+  "description": "Zimbabwe's marketplace connecting buyers with sellers. Post demands, get live offers, collect in person.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",

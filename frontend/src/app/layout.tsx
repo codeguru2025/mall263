@@ -80,9 +80,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <title>Mall263 — Find it. Bid on it. Collect it.</title>
-        <meta name="description" content="Zimbabwe's marketplace connecting buyers with sellers across the country. Post demands, get live offers, pay securely." />
+        <meta name="description" content="Zimbabwe's marketplace connecting buyers with sellers across the country. Post demands, get live offers from sellers, and collect your items in person." />
+        <meta name="keywords" content="Zimbabwe marketplace, buy and sell Zimbabwe, Harare shopping, online market Zimbabwe, demands marketplace, Mall263" />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href="https://mall263.com" />
 
-        {/* Viewport — cover extends into notch/Dynamic Island */}
+        {/* Open Graph */}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Mall263" />
+        <meta property="og:title" content="Mall263 — Find it. Bid on it. Collect it." />
+        <meta property="og:description" content="Zimbabwe's marketplace connecting buyers with sellers. Post what you need, get live offers, collect in person." />
+        <meta property="og:url" content="https://mall263.com" />
+        <meta property="og:image" content="https://mall263.com/icons/icon-512.png" />
+        <meta property="og:image:width" content="512" />
+        <meta property="og:image:height" content="512" />
+        <meta property="og:locale" content="en_ZW" />
+
+        {/* Twitter / X */}
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="Mall263 — Find it. Bid on it. Collect it." />
+        <meta name="twitter:description" content="Zimbabwe's marketplace. Post demands, get live offers from sellers, collect in person." />
+        <meta name="twitter:image" content="https://mall263.com/icons/icon-512.png" />
+
+        {/* Viewport */}
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 
         {/* PWA */}
@@ -106,6 +126,44 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* MS Tiles */}
         <meta name="msapplication-TileColor" content="#1B2A4A" />
         <meta name="msapplication-TileImage" content="/icons/icon-144.png" />
+
+        {/* JSON-LD — Organization + WebSite */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify({
+            '@context': 'https://schema.org',
+            '@graph': [
+              {
+                '@type': 'Organization',
+                '@id': 'https://mall263.com/#organization',
+                name: 'Mall263',
+                url: 'https://mall263.com',
+                logo: 'https://mall263.com/icons/icon-512.png',
+                contactPoint: {
+                  '@type': 'ContactPoint',
+                  telephone: '+263-77-366-5350',
+                  contactType: 'customer service',
+                  areaServed: 'ZW',
+                  availableLanguage: 'English',
+                },
+                sameAs: [],
+              },
+              {
+                '@type': 'WebSite',
+                '@id': 'https://mall263.com/#website',
+                url: 'https://mall263.com',
+                name: 'Mall263',
+                description: "Zimbabwe's marketplace connecting buyers with sellers.",
+                publisher: { '@id': 'https://mall263.com/#organization' },
+                potentialAction: {
+                  '@type': 'SearchAction',
+                  target: 'https://mall263.com/marketplace?q={search_term_string}',
+                  'query-input': 'required name=search_term_string',
+                },
+              },
+            ],
+          })}}
+        />
       </head>
       <body className={`${inter.className} font-sans`}>
         <QueryClientProvider client={queryClient}>
