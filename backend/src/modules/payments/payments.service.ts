@@ -12,6 +12,7 @@ interface PendingPayment {
   amount: number;
   pollUrl: string;
   method: PaymentMethod;
+  credited?: boolean; // set to true by creditWallet so pollStatus can detect webhook-credited payments
 }
 
 @Injectable()
@@ -149,7 +150,12 @@ export class PaymentsService {
    */
   async pollStatus(reference: string) {
     const pending = await this.getPending(reference);
+
+    // Key was already deleted or is missing entirely
     if (!pending) return { paid: false, status: 'NOT_FOUND' };
+
+    // Webhook already credited the wallet — tell the frontend immediately
+    if (pending.credited) return { paid: true, status: 'PAID' };
 
     let statusResponse: any;
     try {
@@ -159,7 +165,8 @@ export class PaymentsService {
       return { paid: false, status: 'POLL_ERROR' };
     }
 
-    const paid = statusResponse.paid();
+    // Paynow library returns `paid` as a boolean property, not a function
+    const paid = statusResponse.paid === true || statusResponse.paid?.() === true;
     const status: string = statusResponse.status || 'UNKNOWN';
 
     if (paid) {
@@ -182,8 +189,15 @@ export class PaymentsService {
       if (!result.idempotent) {
         this.logger.log(`Wallet credited $${pending.amount} for user ${pending.userId} ref ${reference}`);
       }
-      // Clean up Redis after crediting
-      await this.redis.getClient().del(`paynow:pending:${reference}`);
+      // Mark as credited (don't delete) so concurrent polls can still detect success.
+      // Deleting immediately causes a race: webhook credits then poll returns NOT_FOUND
+      // and the frontend gets stuck in the loading state even though the wallet was funded.
+      await this.redis.getClient().set(
+        `paynow:pending:${reference}`,
+        JSON.stringify({ ...pending, credited: true }),
+        'EX',
+        3600, // keep for 1 hour, enough for any in-flight poll to resolve
+      );
     } catch (err) {
       this.logger.error(`Failed to credit wallet for ref ${reference}`, err);
       throw err;
