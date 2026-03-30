@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Strip any accidental /api/v1 suffix — the env var should be the base domain only.
+// DO dashboard may have it set with the suffix from a previous config.
+const _rawUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = _rawUrl.replace(/\/api\/v1\/?$/, '');
 
 export const api = axios.create({
   baseURL: API_URL,

@@ -20,7 +20,11 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.setGlobalPrefix(config.get('API_PREFIX', 'api/v1'));
+  // DO App Platform ingress (prefix: /api) strips /api before forwarding here,
+  // so in production the effective prefix is v1, not api/v1.
+  // Locally (NODE_ENV != production) the backend is hit directly, so api/v1 is correct.
+  const defaultPrefix = process.env.NODE_ENV === 'production' ? 'v1' : 'api/v1';
+  app.setGlobalPrefix(config.get('API_PREFIX', defaultPrefix));
 
   app.useGlobalPipes(
     new ValidationPipe({
