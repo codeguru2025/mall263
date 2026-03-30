@@ -79,11 +79,11 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <p className="text-sm text-white/60 font-medium">Available Balance</p>
-                <p className="text-4xl font-black mt-1">{formatCurrency(parseFloat(wallet?.availableBalance ?? wallet?.balance ?? '0'))}</p>
+                <p className="text-4xl font-black mt-1">{formatCurrency(parseFloat(wallet?.available ?? '0'))}</p>
               </div>
               <Wallet className="w-10 h-10 text-white/20" />
             </div>
-            {parseFloat(wallet?.lockedBalance ?? wallet?.lockedAmount ?? '0') > 0 && (
+            {parseFloat(wallet?.locked ?? '0') > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-white/50 mb-4">
                 <Lock className="w-3 h-3" /> Locked: {formatCurrency(parseFloat(wallet?.lockedBalance ?? wallet?.lockedAmount ?? '0'))}
               </div>
