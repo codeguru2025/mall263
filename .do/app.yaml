@@ -74,7 +74,7 @@ services:
     instance_count: 1
     envs:
       - key: NEXT_PUBLIC_API_URL
-        value: https://mall263-r99jz.ondigitalocean.app/api/v1
+        value: https://mall263-r99jz.ondigitalocean.app
 
 ingress:
   rules:
