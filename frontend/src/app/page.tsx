@@ -98,12 +98,9 @@ export default function HomePage() {
               </form>
 
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-white/50 text-sm">Trending:</span>
-                {['Sneakers', 'iPhone', 'Ankara', 'Bags'].map((tag) => (
-                  <Link key={tag} href={`/marketplace?q=${tag}`} className="text-sm text-white/80 bg-white/10 hover:bg-white/20 px-3.5 py-1.5 rounded-full transition-colors border border-white/10">
-                    {tag}
-                  </Link>
-                ))}
+                <Link href="/marketplace" className="text-sm text-white/70 hover:text-white transition-colors flex items-center gap-1">
+                  Browse all products <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
             </div>
 
@@ -203,18 +200,10 @@ export default function HomePage() {
           </div>
 
           {malls.length === 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {['Imbali Mall', 'Mutize', 'Meikles Market', 'Amaya Mall'].map((name) => (
-                <div key={name} className="card border-2 border-transparent">
-                  <div className="w-full h-32 bg-gradient-to-br from-blue-100 to-green-50 rounded-xl mb-3 flex items-center justify-center">
-                    <MapPin className="w-8 h-8 text-brand-orange" />
-                  </div>
-                  <h3 className="font-bold text-navy-700">{name}</h3>
-                  <div className="flex items-center mt-1">
-                    <span className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> Harare</span>
-                  </div>
-                </div>
-              ))}
+            <div className="text-center py-16 text-gray-400">
+              <MapPin className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <div className="font-semibold">No markets listed yet</div>
+              <div className="text-sm mt-1">Markets will appear here once added</div>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -238,22 +227,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Stats Bar */}
-      <section className="py-12 bg-navy-700">
-        <div className="max-w-7xl mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          {[
-            { num: '2,500+', label: 'Active Sellers', color: 'text-brand-orange' },
-            { num: '4', label: 'Partner Malls', color: 'text-brand-green' },
-            { num: '2.5%', label: 'Commission Rate', color: 'text-brand-blue' },
-            { num: '4.8/5', label: 'Avg Trust Score', color: 'text-brand-yellow' },
-          ].map((s) => (
-            <div key={s.label}>
-              <div className={`text-3xl md:text-4xl font-black ${s.color}`}>{s.num}</div>
-              <div className="text-white/60 text-sm font-medium mt-1">{s.label}</div>
-            </div>
-          ))}
-        </div>
-      </section>
 
       {/* Dual CTA */}
       <section className="py-20 bg-white">
@@ -275,7 +248,7 @@ export default function HomePage() {
                 <TrendingUp className="w-6 h-6" />
               </div>
               <h3 className="text-2xl font-black mb-2">I Want to Sell</h3>
-              <p className="text-white/80 mb-6">Free POS system. Manage your inventory. Respond to buyer demands. Top up your wallet to cover the 2.5% commission per sale.</p>
+              <p className="text-white/80 mb-6">Free POS system. Manage your inventory. Respond to buyer demands and grow your sales across Zimbabwe.</p>
               <Link href="/auth/register" className="inline-flex items-center gap-2 bg-white text-brand-green font-bold py-3 px-6 rounded-xl hover:bg-green-50 transition-colors shadow-lg">
                 Start Selling <ArrowRight className="w-5 h-5" />
               </Link>
@@ -332,8 +305,6 @@ export default function HomePage() {
           <div>
             <div className="font-bold text-white mb-3 text-sm">Connect</div>
             <div className="space-y-2 text-sm">
-              <div>WhatsApp: +263 71 217 1267</div>
-              <div>Calls: +263 77 366 5350</div>
               <div>Email: info@mall263.com</div>
               <div>Web: www.mall263.com</div>
             </div>
