@@ -48,8 +48,9 @@ export default function LoginPage() {
       </div>
 
       {/* Right panel — form */}
-      <div className="flex-1 flex items-center justify-center bg-white px-6">
-        <div className="w-full max-w-md">
+      <div className="flex-1 overflow-y-auto bg-white">
+        <div className="min-h-full flex flex-col justify-center px-6 py-10">
+        <div className="w-full max-w-md mx-auto">
           <div className="mb-8">
             <Link href="/"><Logo size={40} /></Link>
             <h1 className="text-2xl font-black text-navy-700 mt-6">Welcome back</h1>
@@ -81,7 +82,9 @@ export default function LoginPage() {
               Don&apos;t have an account?{' '}
               <Link href="/auth/register" className="text-brand-orange font-bold hover:underline">Sign up</Link>
             </p>
+            <div className="pb-safe" />
           </form>
+        </div>
         </div>
       </div>
     </div>

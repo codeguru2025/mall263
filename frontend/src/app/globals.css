@@ -33,6 +33,24 @@
   .pb-safe {
     padding-bottom: calc(env(safe-area-inset-bottom) + 5rem);
   }
+
+  /* Keyboard-safe: ensure the page can scroll when the virtual keyboard opens */
+  html, body {
+    height: 100%;
+  }
+}
+
+@layer utilities {
+  /* Dynamic viewport height — shrinks when keyboard is visible */
+  .h-dvh {
+    height: 100dvh;
+  }
+  .min-h-dvh {
+    min-height: 100dvh;
+  }
+  .max-h-90dvh {
+    max-height: 90dvh;
+  }
 }
 
 @layer components {

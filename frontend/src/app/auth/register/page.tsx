@@ -52,8 +52,9 @@ export default function RegisterPage() {
       </div>
 
       {/* Right panel — form */}
-      <div className="flex-1 flex items-center justify-center bg-white px-6 py-8">
-        <div className="w-full max-w-md">
+      <div className="flex-1 overflow-y-auto bg-white">
+        <div className="min-h-full flex flex-col justify-center px-6 py-10">
+        <div className="w-full max-w-md mx-auto">
           <div className="mb-6">
             <Link href="/"><Logo size={40} /></Link>
             <h1 className="text-2xl font-black text-navy-700 mt-6">Create your account</h1>
@@ -146,7 +147,9 @@ export default function RegisterPage() {
               Already have an account?{' '}
               <Link href="/auth/login" className="text-brand-orange font-bold hover:underline">Sign in</Link>
             </p>
+            <div className="pb-safe" />
           </form>
+        </div>
         </div>
       </div>
     </div>
