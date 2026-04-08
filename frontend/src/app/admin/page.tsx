@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
-import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield, Tag } from 'lucide-react';
+import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield, Tag, Settings } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 export default function AdminPage() {
@@ -67,6 +67,7 @@ export default function AdminPage() {
     { href: '/admin/stalls', icon: Shield, label: 'Manage Stalls', desc: 'Approve, suspend, or manage market stalls', color: 'text-brand-orange', bg: 'bg-orange-50', border: 'hover:border-brand-orange' },
     { href: '/admin/categories', icon: Tag, label: 'Manage Categories', desc: 'Add, edit, or organize product categories', color: 'text-purple-600', bg: 'bg-purple-50', border: 'hover:border-purple-600' },
     { href: '/reports', icon: BarChart3, label: 'Platform Reports', desc: 'View sales, commission, and user reports', color: 'text-brand-red', bg: 'bg-red-50', border: 'hover:border-brand-red' },
+    { href: '/admin/settings', icon: Settings, label: 'App Settings', desc: 'Set delivery rate per km and platform configuration', color: 'text-gray-600', bg: 'bg-gray-50', border: 'hover:border-gray-400' },
   ];
 
   return (

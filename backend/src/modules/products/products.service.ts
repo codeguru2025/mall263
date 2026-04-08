@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SearchService } from '../search/search.service';
 import { ProductStatus } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private searchService: SearchService,
+  ) {}
 
   async create(stallId: string, data: {
     name: string;
@@ -85,6 +89,9 @@ export class ProductsService {
         },
       });
 
+      return product;
+    }).then(async (product) => {
+      await this.searchService.indexProduct(product.id);
       return product;
     });
   }

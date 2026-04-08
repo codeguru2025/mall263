@@ -150,9 +150,17 @@ export class DemandsService {
     const demand = await this.prisma.buyerDemand.findUnique({
       where: { id },
       include: {
-        buyer: { select: { id: true, firstName: true, lastName: true } },
+        buyer: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
         offers: {
           include: {
+            stall: {
+              select: {
+                id: true, name: true, stallNumber: true, latitude: true, longitude: true,
+                mall: { select: { name: true, city: true, address: true, latitude: true, longitude: true } },
+              },
+            },
+            chatRoom: { select: { id: true } },
+            deliveryRequest: { select: { id: true, status: true, deliveryFee: true, distanceKm: true } },
             items: { include: { variant: { include: { product: { select: { name: true } } } } } },
           },
           orderBy: { totalPrice: 'asc' },
@@ -162,6 +170,100 @@ export class DemandsService {
     if (!demand) throw new NotFoundException('Demand not found');
     return demand;
   }
+
+  async getDeliveryRate() {
+    const setting = await this.prisma.appSetting.findUnique({ where: { key: 'delivery_rate_per_km' } });
+    return { ratePerKm: parseFloat(setting?.value ?? '0.50') };
+  }
+
+  async requestDelivery(offerId: string, buyerId: string, data: {
+    buyerLat: number;
+    buyerLng: number;
+    buyerAddress?: string;
+  }) {
+    // Validate coordinates before any DB work
+    if (!Number.isFinite(data.buyerLat) || Math.abs(data.buyerLat) > 90)
+      throw new BadRequestException('Invalid latitude');
+    if (!Number.isFinite(data.buyerLng) || Math.abs(data.buyerLng) > 180)
+      throw new BadRequestException('Invalid longitude');
+    const offer = await this.prisma.sellerOffer.findUnique({
+      where: { id: offerId },
+      include: {
+        demand: { select: { buyerId: true } },
+        stall: { select: { latitude: true, longitude: true, mall: { select: { latitude: true, longitude: true } } } },
+        deliveryRequest: true,
+      },
+    });
+    if (!offer) throw new NotFoundException('Offer not found');
+    if (offer.demand.buyerId !== buyerId) throw new ForbiddenException('Not your offer');
+    if (offer.status !== 'ACCEPTED') throw new BadRequestException('Offer must be accepted before requesting delivery');
+    if (offer.deliveryRequest) throw new BadRequestException('Delivery already requested');
+
+    const stallLat = offer.stall.latitude ?? offer.stall.mall?.latitude;
+    const stallLng = offer.stall.longitude ?? offer.stall.mall?.longitude;
+    if (stallLat == null || stallLng == null) throw new BadRequestException('Stall location not available for delivery');
+
+    const rateSetting = await this.prisma.appSetting.findUnique({ where: { key: 'delivery_rate_per_km' } });
+    const ratePerKm = parseFloat(rateSetting?.value ?? '0.50');
+
+    const distanceKm = this.haversine(data.buyerLat, data.buyerLng, stallLat, stallLng);
+    const feeAmount = Math.ceil(distanceKm * ratePerKm * 100) / 100;
+    const feeDec = new Prisma.Decimal(feeAmount.toFixed(2));
+
+    const wallet = await this.prisma.wallet.findUnique({ where: { userId: buyerId } });
+    if (!wallet) throw new NotFoundException('Wallet not found');
+    if (wallet.availableBalance.lessThan(feeDec)) {
+      throw new BadRequestException(
+        `Insufficient balance for delivery fee of $${feeDec.toFixed(2)}. Available: $${wallet.availableBalance.toFixed(2)}`
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.deliveryRequest.create({
+        data: {
+          offerId,
+          buyerLat: data.buyerLat,
+          buyerLng: data.buyerLng,
+          buyerAddress: data.buyerAddress,
+          distanceKm,
+          deliveryFee: feeDec,
+          status: 'PENDING',
+        },
+      });
+      const newBalance = wallet.availableBalance.sub(feeDec);
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { availableBalance: newBalance, lastActivityAt: new Date() },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: WalletTransactionType.FEE,
+          amount: feeDec,
+          balanceBefore: wallet.availableBalance,
+          balanceAfter: newBalance,
+          status: WalletTransactionStatus.COMPLETED,
+          description: `Delivery fee for offer ${offerId} (${distanceKm.toFixed(1)}km × $${ratePerKm}/km)`,
+          referenceId: offerId,
+          referenceType: 'delivery_request',
+          completedAt: new Date(),
+        },
+      });
+    });
+
+    return { distanceKm, deliveryFee: feeAmount, status: 'PENDING' };
+  }
+
+  private haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371;
+    const dLat = this.toRad(lat2 - lat1);
+    const dLon = this.toRad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  private toRad(deg: number) { return deg * (Math.PI / 180); }
 
   /**
    * ATOMICITY FIX: demand status check and offer creation are now in one
@@ -180,6 +282,8 @@ export class DemandsService {
         const demand = await tx.buyerDemand.findUnique({ where: { id: demandId } });
         if (!demand) throw new NotFoundException('Demand not found');
         if (demand.status !== DemandStatus.OPEN) throw new BadRequestException('Demand is no longer open');
+        if (!Number.isFinite(data.totalPrice) || data.totalPrice <= 0)
+          throw new BadRequestException('Offer price must be a positive number');
 
         return tx.sellerOffer.create({
           data: {

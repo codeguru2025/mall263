@@ -47,6 +47,7 @@ export class SearchService implements OnModuleInit {
     try {
       this.productsIndex = this.client.index('products');
       await this.configureIndex();
+      await this.reindexAll();
     } catch (e) {
       console.warn('Meilisearch not available, search will use DB fallback:', (e as Error).message);
     }

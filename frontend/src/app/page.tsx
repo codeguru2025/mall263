@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, MapPin, Gavel, ArrowRight, Shield, Users, Star, TrendingUp, CheckCircle } from 'lucide-react';
-import { useState } from 'react';
+import { Search, MapPin, Gavel, ArrowRight, Shield, Users, Star, ChevronLeft, ChevronRight, LogOut, User, CheckCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Logo } from '@/components/Logo';
 import api from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 
 interface Mall {
   id: string;
@@ -28,7 +29,13 @@ interface Product {
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const logout = useAuthStore((s) => s.logout);
 
   const { data: malls = [] } = useQuery<Mall[]>({
     queryKey: ['malls'],
@@ -40,10 +47,30 @@ export default function HomePage() {
     queryFn: () => api.get('/api/v1/products/browse?limit=8&sortBy=popular').then((r) => r.data.data || []),
   });
 
+  // Auto-rotate hero carousel every 4 seconds
+  useEffect(() => {
+    if (products.length === 0) return;
+    const timer = setInterval(() => {
+      setHeroIndex((i) => (i + 1) % products.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [products.length]);
+
+  // Close account dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) router.push(`/marketplace?q=${encodeURIComponent(searchQuery)}`);
+    router.push(searchQuery.trim() ? `/marketplace?q=${encodeURIComponent(searchQuery)}` : '/marketplace');
   };
+
+  const heroProduct = products.length > 0 ? products[heroIndex] : null;
 
   return (
     <div className="min-h-screen bg-white">
@@ -53,12 +80,53 @@ export default function HomePage() {
           <Logo size={36} />
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-navy-600">
             <Link href="/marketplace" className="hover:text-brand-orange transition-colors">Browse</Link>
-            <Link href="/demands" className="flex items-center gap-1 hover:text-brand-orange transition-colors"><Gavel className="w-3.5 h-3.5" /> Demands</Link>
-            <Link href="/pos" className="hover:text-brand-orange transition-colors">Sell</Link>
+            <Link href="/demands" className="flex items-center gap-1 hover:text-brand-orange transition-colors">
+              <Gavel className="w-3.5 h-3.5" /> Demands
+            </Link>
           </nav>
           <div className="flex items-center gap-3">
-            <Link href="/auth/login" className="text-sm font-bold text-navy-700 hover:text-brand-blue py-2 px-4 transition-colors">Log In</Link>
-            <Link href="/auth/register" className="btn-primary text-sm py-2.5 px-5">Get Started</Link>
+            {isAuthenticated && user ? (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setMenuOpen((o) => !o)}
+                  className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-green rounded-full flex items-center justify-center text-white font-bold text-sm">
+                    {user.firstName?.[0]}{user.lastName?.[0]}
+                  </div>
+                  <div className="hidden sm:block text-left">
+                    <div className="text-sm font-bold text-navy-700">{user.firstName} {user.lastName}</div>
+                    <div className="text-xs text-gray-500 capitalize">{user.role.replace(/_/g, ' ').toLowerCase()}</div>
+                  </div>
+                </button>
+                {menuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-lg border border-gray-100 py-1 z-50">
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-navy-700 hover:bg-gray-50 transition-colors rounded-t-2xl"
+                    >
+                      <User className="w-4 h-4" /> My Dashboard
+                    </Link>
+                    <button
+                      onClick={() => { logout(); setMenuOpen(false); }}
+                      className="w-full flex items-center gap-2 px-4 py-3 text-sm font-semibold text-brand-red hover:bg-red-50 transition-colors rounded-b-2xl"
+                    >
+                      <LogOut className="w-4 h-4" /> Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <Link href="/auth/login" className="text-sm font-bold text-navy-700 hover:text-brand-blue py-2 px-4 transition-colors">
+                  Log In
+                </Link>
+                <Link href="/auth/register" className="btn-primary text-sm py-2.5 px-5">
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -86,7 +154,7 @@ export default function HomePage() {
               <form onSubmit={handleSearch} className="relative mb-6">
                 <div className="bg-white rounded-2xl shadow-2xl p-2 flex items-center gap-2">
                   <div className="flex items-center gap-3 flex-1 pl-4">
-                    <div className="w-3 h-3 rounded-full bg-brand-orange" />
+                    <div className="w-3 h-3 rounded-full bg-brand-orange flex-shrink-0" />
                     <input
                       type="text"
                       placeholder="What are you looking for?"
@@ -102,58 +170,92 @@ export default function HomePage() {
               </form>
 
               <div className="flex items-center gap-3 flex-wrap">
-                <Link href="/marketplace" className="text-sm text-white/70 hover:text-white transition-colors flex items-center gap-1">
-                  Browse all products <ArrowRight className="w-3.5 h-3.5" />
+                <Link href="/auth/register?role=buyer" className="inline-flex items-center gap-2 bg-brand-blue hover:bg-blue-600 text-white text-sm font-bold py-2.5 px-5 rounded-xl transition-all shadow-md">
+                  I want to Buy <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link href="/auth/register?role=seller" className="inline-flex items-center gap-2 bg-brand-green hover:bg-green-600 text-white text-sm font-bold py-2.5 px-5 rounded-xl transition-all shadow-md">
+                  I want to Sell <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
             </div>
 
-            {/* Right side — Demand CTA */}
-            <div className="hidden md:block space-y-4">
-              <div className="text-white/50 text-xs font-bold uppercase tracking-wider mb-2">Post a Demand</div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/10 text-center">
-                <Gavel className="w-8 h-8 text-brand-orange mx-auto mb-3" />
-                <div className="text-white font-bold mb-1">Tell sellers what you need</div>
-                <div className="text-white/60 text-sm mb-4">Sellers respond with live offers — you choose the best one</div>
-                <Link href="/demands" className="btn-primary text-sm py-2 px-4 inline-flex items-center gap-2">
-                  Post a Demand <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
+            {/* Rotating product carousel */}
+            <div className="hidden md:block">
+              {heroProduct ? (
+                <div className="relative rounded-3xl overflow-hidden shadow-2xl h-80 bg-white/10 border border-white/20">
+                  {heroProduct.images[0] ? (
+                    <Image
+                      key={heroProduct.id}
+                      src={heroProduct.images[0].url}
+                      alt={heroProduct.name}
+                      fill
+                      className="object-cover"
+                      sizes="50vw"
+                      priority
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Search className="w-16 h-16 text-white/20" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-t from-navy-900/85 via-transparent to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-5">
+                    <div className="text-white/70 text-xs mb-1 flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {heroProduct.stall?.mall?.name || heroProduct.stall?.name}
+                      {heroProduct.stall?.mall?.city ? ` · ${heroProduct.stall.mall.city}` : ''}
+                    </div>
+                    <div className="text-white font-bold text-lg leading-tight line-clamp-2 mb-1">
+                      {heroProduct.name}
+                    </div>
+                    <div className="text-brand-green font-black text-xl">
+                      ${heroProduct.minPrice}
+                      {heroProduct.maxPrice !== heroProduct.minPrice ? ` – $${heroProduct.maxPrice}` : ''}
+                    </div>
+                  </div>
+                  {/* Prev / Next */}
+                  <button
+                    onClick={() => setHeroIndex((i) => (i - 1 + products.length) % products.length)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center text-white transition-colors"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setHeroIndex((i) => (i + 1) % products.length)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center text-white transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  {/* Dots */}
+                  <div className="absolute bottom-4 right-16 flex items-center gap-1.5">
+                    {products.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setHeroIndex(i)}
+                        className={`h-2 rounded-full transition-all duration-300 ${i === heroIndex ? 'bg-white w-5' : 'bg-white/40 w-2'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="relative rounded-3xl h-80 bg-white/5 border border-white/10 flex items-center justify-center">
+                  <div className="text-center text-white/30">
+                    <Search className="w-12 h-12 mx-auto mb-2" />
+                    <div className="text-sm font-medium">Products will appear here</div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl md:text-4xl font-black text-navy-700 mb-3">How It Works</h2>
-            <p className="text-gray-500 max-w-xl mx-auto">Post a demand for what you want. Sellers see it and compete to offer you the best price. Pick your preferred offer.</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              { step: '1', icon: Search, title: 'Post Your Demand', desc: 'Tell us what you want — product, size, color, budget. Your request goes out to all relevant sellers.', color: 'bg-blue-50 text-brand-blue border-blue-200' },
-              { step: '2', icon: Gavel, title: 'Sellers Respond', desc: 'Sellers across the market see your request and send their best offers in real time.', color: 'bg-orange-50 text-brand-orange border-orange-200' },
-              { step: '3', icon: Star, title: 'Pick & Collect', desc: 'Choose the best offer and head to the stall. Pay the seller directly and take your item.', color: 'bg-green-50 text-brand-green border-green-200' },
-            ].map((s) => (
-              <div key={s.step} className={`rounded-2xl border-2 ${s.color} p-8 relative`}>
-                <div className="absolute -top-4 -left-2 w-10 h-10 rounded-full bg-navy-700 text-white flex items-center justify-center font-black text-lg shadow-lg">{s.step}</div>
-                <s.icon className="w-10 h-10 mb-4" />
-                <h3 className="text-xl font-black text-navy-700 mb-2">{s.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{s.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Products */}
+      {/* Latest Products */}
       <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h2 className="text-3xl font-black text-navy-700">Featured Products</h2>
+              <h2 className="text-3xl font-black text-navy-700">Latest Products</h2>
               <p className="text-gray-500 text-sm mt-1">Browse what&apos;s available across our markets</p>
             </div>
             <Link href="/marketplace" className="btn-secondary text-sm py-2.5 px-5 flex items-center gap-2">
@@ -170,7 +272,7 @@ export default function HomePage() {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {products.map((p) => (
-                <Link key={p.id} href={`/marketplace?q=${encodeURIComponent(p.name)}`} className="card group cursor-pointer border-2 border-transparent hover:border-brand-orange">
+                <Link key={p.id} href={`/marketplace/${p.id}`} className="card group cursor-pointer border-2 border-transparent hover:border-brand-orange">
                   <div className="w-full h-40 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl mb-3 overflow-hidden relative">
                     {p.images[0] ? (
                       <Image src={p.images[0].url} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform" sizes="(max-width: 768px) 50vw, 25vw" />
@@ -181,8 +283,13 @@ export default function HomePage() {
                     )}
                   </div>
                   <h3 className="font-bold text-navy-700 text-sm group-hover:text-brand-orange transition-colors line-clamp-2">{p.name}</h3>
-                  <div className="mt-1 text-brand-green font-bold text-sm">${p.minPrice}{p.maxPrice !== p.minPrice ? ` – $${p.maxPrice}` : ''}</div>
-                  <div className="text-xs text-gray-400 mt-0.5">{p.stall?.mall?.name}</div>
+                  <div className="mt-1 text-brand-green font-bold text-sm">
+                    ${p.minPrice}{p.maxPrice !== p.minPrice ? ` – $${p.maxPrice}` : ''}
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
+                    <MapPin className="w-3 h-3" />
+                    {p.stall?.mall?.name || p.stall?.name}
+                  </div>
                 </Link>
               ))}
             </div>
@@ -190,7 +297,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Malls */}
+      {/* Markets */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between mb-8">
@@ -198,9 +305,6 @@ export default function HomePage() {
               <h2 className="text-3xl font-black text-navy-700">Our Markets</h2>
               <p className="text-gray-500 text-sm mt-1">Browse stalls across Zimbabwe&apos;s top markets</p>
             </div>
-            <Link href="/marketplace" className="btn-secondary text-sm py-2.5 px-5 flex items-center gap-2">
-              View Map <MapPin className="w-4 h-4" />
-            </Link>
           </div>
 
           {malls.length === 0 ? (
@@ -231,32 +335,20 @@ export default function HomePage() {
         </div>
       </section>
 
-
-      {/* Dual CTA */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-3xl font-black text-navy-700 text-center mb-10">Get Started Today</h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="rounded-2xl bg-gradient-to-br from-brand-blue to-blue-600 p-8 text-white">
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
-                <Search className="w-6 h-6" />
-              </div>
-              <h3 className="text-2xl font-black mb-2">I Want to Buy</h3>
-              <p className="text-white/80 mb-6">Post what you need. Get live offers from sellers. Pick the best deal and collect it in person. Top up your wallet to get started.</p>
-              <Link href="/auth/register" className="inline-flex items-center gap-2 bg-white text-brand-blue font-bold py-3 px-6 rounded-xl hover:bg-blue-50 transition-colors shadow-lg">
-                Start Buying <ArrowRight className="w-5 h-5" />
-              </Link>
-            </div>
-            <div className="rounded-2xl bg-gradient-to-br from-brand-green to-green-700 p-8 text-white">
-              <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center mb-4">
-                <TrendingUp className="w-6 h-6" />
-              </div>
-              <h3 className="text-2xl font-black mb-2">I Want to Sell</h3>
-              <p className="text-white/80 mb-6">Free POS system. Manage your inventory. Respond to buyer demands and grow your sales across Zimbabwe.</p>
-              <Link href="/auth/register" className="inline-flex items-center gap-2 bg-white text-brand-green font-bold py-3 px-6 rounded-xl hover:bg-green-50 transition-colors shadow-lg">
-                Start Selling <ArrowRight className="w-5 h-5" />
-              </Link>
-            </div>
+      {/* Simple CTA banner */}
+      <section className="py-14 bg-navy-800">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div>
+            <h2 className="text-2xl font-black text-white">Ready to get started?</h2>
+            <p className="text-white/50 mt-1 text-sm">Join thousands of buyers and sellers across Zimbabwe</p>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link href="/auth/register?role=buyer" className="inline-flex items-center gap-2 bg-brand-blue hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg">
+              Join as Buyer <ArrowRight className="w-4 h-4" />
+            </Link>
+            <Link href="/auth/register?role=seller" className="inline-flex items-center gap-2 bg-brand-green hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg">
+              Join as Seller <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
         </div>
       </section>

@@ -196,6 +196,7 @@ model User {
   attendantStall StallAttendant[]
   refreshTokens  RefreshToken[]
   sessions       Session[]
+  chatMessages   ChatMessage[]    @relation("ChatMessages")
 
   @@index([phone])
   @@index([email])
@@ -298,11 +299,12 @@ model Stall {
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
-  merchant   Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  mall       Mall?            @relation(fields: [mallId], references: [id])
-  products   Product[]
-  attendants StallAttendant[]
-  posSales   POSSale[]
+  merchant      Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  mall          Mall?            @relation(fields: [mallId], references: [id])
+  products      Product[]
+  attendants    StallAttendant[]
+  posSales      POSSale[]
+  sellerOffers  SellerOffer[]    @relation("OfferStall")
 
   @@unique([mallId, stallNumber])
   @@index([merchantId])
@@ -576,8 +578,11 @@ model SellerOffer {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  demand BuyerDemand       @relation(fields: [demandId], references: [id], onDelete: Cascade)
-  items  SellerOfferItem[]
+  demand          BuyerDemand      @relation(fields: [demandId], references: [id], onDelete: Cascade)
+  stall           Stall            @relation("OfferStall", fields: [stallId], references: [id])
+  items           SellerOfferItem[]
+  chatRoom        ChatRoom?
+  deliveryRequest DeliveryRequest?
 
   @@index([demandId])
   @@index([stallId])
@@ -799,6 +804,77 @@ model FraudAlert {
   @@index([isResolved])
   @@index([createdAt])
   @@map("fraud_alerts")
+}
+
+// ============================================================
+// CHAT
+// ============================================================
+
+model ChatRoom {
+  id        String        @id @default(uuid()) @db.Uuid
+  offerId   String        @unique @map("offer_id") @db.Uuid
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  offer    SellerOffer   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@map("chat_rooms")
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  roomId    String   @map("room_id") @db.Uuid
+  senderId  String   @map("sender_id") @db.Uuid
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User     @relation("ChatMessages", fields: [senderId], references: [id])
+
+  @@index([roomId, createdAt])
+  @@map("chat_messages")
+}
+
+// ============================================================
+// DELIVERY
+// ============================================================
+
+enum DeliveryStatus {
+  PENDING
+  ACCEPTED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+model DeliveryRequest {
+  id           String         @id @default(uuid()) @db.Uuid
+  offerId      String         @unique @map("offer_id") @db.Uuid
+  buyerAddress String?        @map("buyer_address")
+  buyerLat     Float?         @map("buyer_lat")
+  buyerLng     Float?         @map("buyer_lng")
+  distanceKm   Float?         @map("distance_km")
+  deliveryFee  Decimal?       @map("delivery_fee") @db.Decimal(10, 2)
+  status       DeliveryStatus @default(PENDING)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  offer SellerOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@index([offerId])
+  @@map("delivery_requests")
+}
+
+// ============================================================
+// APP SETTINGS
+// ============================================================
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
 }
 
 // ============================================================

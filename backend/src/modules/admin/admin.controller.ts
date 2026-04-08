@@ -92,4 +92,16 @@ export class AdminController {
   async deleteCategory(@Param('id') id: string) {
     return this.adminService.deleteCategory(id);
   }
+
+  @Get('settings')
+  @ApiOperation({ summary: 'Get all app settings' })
+  async getSettings() {
+    return this.adminService.getSettings();
+  }
+
+  @Post('settings/:key')
+  @ApiOperation({ summary: 'Set an app setting value' })
+  async setSetting(@Param('key') key: string, @Body('value') value: string) {
+    return this.adminService.setSetting(key, value);
+  }
 }

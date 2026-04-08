@@ -22,6 +22,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { HealthModule } from './modules/health/health.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     HealthModule,
     UploadModule,
     PaymentsModule,
+    ChatModule,
   ],
 })
 export class AppModule {}

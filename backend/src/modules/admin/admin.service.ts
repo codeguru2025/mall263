@@ -121,6 +121,22 @@ export class AdminService {
     return this.prisma.category.delete({ where: { id } });
   }
 
+  async getSettings() {
+    const settings = await this.prisma.appSetting.findMany();
+    const map: Record<string, string> = {};
+    for (const s of settings) map[s.key] = s.value;
+    // Provide defaults for known settings
+    return { delivery_rate_per_km: '0.50', ...map };
+  }
+
+  async setSetting(key: string, value: string) {
+    return this.prisma.appSetting.upsert({
+      where: { key },
+      update: { value },
+      create: { key, value },
+    });
+  }
+
   private generateSlug(name: string): string {
     return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
   }

@@ -37,6 +37,7 @@ export class AuthService {
           passwordHash,
           firstName: dto.firstName,
           lastName: dto.lastName,
+          avatarUrl: dto.avatarUrl,
           role,
           status: UserStatus.ACTIVE,
         },

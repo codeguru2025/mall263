@@ -30,6 +30,11 @@ export class RegisterDto {
   @IsOptional()
   @IsEnum(UserRole)
   role?: UserRole;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
 }
 
 export class LoginDto {

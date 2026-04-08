@@ -1,13 +1,17 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
-import { ArrowLeft, Gavel, Clock, CheckCircle2, ChevronDown, Loader2, AlertCircle } from 'lucide-react';
+import {
+  ArrowLeft, Gavel, Clock, CheckCircle2, ChevronDown, Loader2, AlertCircle,
+  MapPin, MessageCircle, Truck, Navigation, Store, User,
+} from 'lucide-react';
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 
@@ -19,6 +23,10 @@ export default function DemandDetailPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [offerOpen, setOfferOpen] = useState(false);
   const [offerForm, setOfferForm] = useState({ message: '', totalPrice: '', stallId: '' });
+  const [deliveryOfferId, setDeliveryOfferId] = useState<string | null>(null);
+  const [buyerLocation, setBuyerLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [activeMapOffer, setActiveMapOffer] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) router.push('/auth/login');
@@ -30,11 +38,15 @@ export default function DemandDetailPage() {
     enabled: isAuthenticated && !!id,
   });
 
-  // Sellers need their stall ID to submit offers
   const { data: merchant } = useQuery({
     queryKey: ['my-merchant'],
     queryFn: () => api.get('/api/v1/merchants/me').then((r) => r.data).catch(() => null),
     enabled: isAuthenticated && ['STALL_OWNER', 'ATTENDANT'].includes(user?.role ?? ''),
+  });
+
+  const { data: deliveryRate } = useQuery({
+    queryKey: ['delivery-rate'],
+    queryFn: () => api.get('/api/v1/demands/delivery/rate').then((r) => r.data),
   });
 
   const stallId = merchant?.stalls?.[0]?.id ?? '';
@@ -45,7 +57,7 @@ export default function DemandDetailPage() {
         stallId,
         totalPrice: parseFloat(offerForm.totalPrice),
         message: offerForm.message || undefined,
-        items: [], // sellers can detail items optionally
+        items: [],
       }).then((r) => r.data),
     onSuccess: () => {
       toast.success('Offer submitted!');
@@ -59,12 +71,54 @@ export default function DemandDetailPage() {
   const acceptOffer = useMutation({
     mutationFn: (offerId: string) =>
       api.post(`/api/v1/demands/offers/${offerId}/accept`).then((r) => r.data),
-    onSuccess: () => {
-      toast.success('Offer accepted! Head to the stall to collect and pay.');
+    onSuccess: (_, offerId) => {
+      toast.success('Offer accepted!');
       queryClient.invalidateQueries({ queryKey: ['demand', id] });
+      setActiveMapOffer(offerId);
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to accept offer'),
   });
+
+  const openChat = useMutation({
+    mutationFn: (offerId: string) =>
+      api.post(`/api/v1/chat/rooms/${offerId}`).then((r) => r.data),
+    onSuccess: (room) => {
+      router.push(`/chat/${room.id}`);
+    },
+    onError: () => toast.error('Could not open chat'),
+  });
+
+  const requestDelivery = useMutation({
+    mutationFn: ({ offerId, lat, lng }: { offerId: string; lat: number; lng: number }) =>
+      api.post(`/api/v1/demands/offers/${offerId}/delivery`, { buyerLat: lat, buyerLng: lng }).then((r) => r.data),
+    onSuccess: (data) => {
+      toast.success(`Delivery requested! Fee: ${formatCurrency(data.deliveryFee)} for ${data.distanceKm.toFixed(1)}km`);
+      setDeliveryOfferId(null);
+      queryClient.invalidateQueries({ queryKey: ['demand', id] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to request delivery'),
+  });
+
+  const handleRequestDelivery = (offerId: string) => {
+    if (buyerLocation) {
+      requestDelivery.mutate({ offerId, lat: buyerLocation.lat, lng: buyerLocation.lng });
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setBuyerLocation(loc);
+        setLocating(false);
+        requestDelivery.mutate({ offerId, lat: loc.lat, lng: loc.lng });
+      },
+      () => {
+        setLocating(false);
+        toast.error('Could not get your location. Please enable location access.');
+      },
+      { timeout: 10000 }
+    );
+  };
 
   if (isLoading) {
     return (
@@ -102,8 +156,10 @@ export default function DemandDetailPage() {
     LOW: 'text-brand-blue bg-blue-50',
   };
 
+  const acceptedOffer = (demand.offers || []).find((o: any) => o.status === 'ACCEPTED');
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-28">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
           <Link href="/demands" className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
@@ -120,15 +176,22 @@ export default function DemandDetailPage() {
         {/* Demand card */}
         <div className="bg-white rounded-2xl border-2 border-gray-100 p-6">
           <div className="flex items-start gap-3 mb-4">
-            <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Gavel className="w-6 h-6 text-brand-orange" />
-            </div>
+            {demand.buyer?.avatarUrl ? (
+              <div className="w-12 h-12 rounded-xl overflow-hidden relative flex-shrink-0">
+                <Image src={demand.buyer.avatarUrl} alt={demand.buyer.firstName} fill className="object-cover" sizes="48px" />
+              </div>
+            ) : (
+              <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Gavel className="w-6 h-6 text-brand-orange" />
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <span className={`badge text-[10px] ${statusColors[demand.status] || statusColors.CLOSED}`}>{demand.status}</span>
                 <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${urgencyColors[demand.urgency] || urgencyColors.MEDIUM}`}>{demand.urgency}</span>
               </div>
               <h2 className="font-black text-navy-700 text-lg leading-tight">{demand.title}</h2>
+              <p className="text-xs text-gray-400 mt-0.5">by {demand.buyer?.firstName} {demand.buyer?.lastName}</p>
             </div>
           </div>
 
@@ -139,7 +202,9 @@ export default function DemandDetailPage() {
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="bg-gray-50 rounded-xl p-3">
               <p className="text-xs text-gray-500 mb-1">Budget Range</p>
-              <p className="font-black text-navy-700">{formatCurrency(parseFloat(demand.minBudget || '0'))} – {formatCurrency(parseFloat(demand.maxBudget || '0'))}</p>
+              <p className="font-black text-navy-700">
+                {formatCurrency(parseFloat(demand.minBudget || '0'))} – {formatCurrency(parseFloat(demand.maxBudget || '0'))}
+              </p>
             </div>
             <div className="bg-gray-50 rounded-xl p-3">
               <p className="text-xs text-gray-500 mb-1">Offers</p>
@@ -153,14 +218,131 @@ export default function DemandDetailPage() {
           </div>
         </div>
 
-        {/* Submit offer — sellers only, demand must be open */}
+        {/* Accepted offer — map + actions */}
+        {acceptedOffer && (
+          <div className="bg-white rounded-2xl border-2 border-brand-green overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-brand-green" />
+                <span className="font-black text-navy-700">Offer Accepted</span>
+                <span className="text-brand-green font-black">{formatCurrency(parseFloat(acceptedOffer.totalPrice))}</span>
+              </div>
+              <button
+                onClick={() => openChat.mutate(acceptedOffer.id)}
+                disabled={openChat.isPending}
+                className="flex items-center gap-1.5 bg-brand-blue text-white text-xs font-bold py-2 px-3 rounded-xl hover:bg-blue-600 transition-colors"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                {openChat.isPending ? 'Opening...' : 'Chat'}
+                {acceptedOffer.chatRoom && (
+                  <span className="w-2 h-2 bg-brand-green rounded-full" />
+                )}
+              </button>
+            </div>
+
+            {/* Stall info */}
+            <div className="px-5 py-3 bg-gray-50 flex items-center gap-3">
+              <Store className="w-5 h-5 text-brand-orange flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm text-navy-700">{acceptedOffer.stall?.name}</div>
+                <div className="text-xs text-gray-500 flex items-center gap-1">
+                  <MapPin className="w-3 h-3" />
+                  Stall {acceptedOffer.stall?.stallNumber}
+                  {acceptedOffer.stall?.mall?.name ? ` · ${acceptedOffer.stall.mall.name}` : ''}
+                  {acceptedOffer.stall?.mall?.city ? `, ${acceptedOffer.stall.mall.city}` : ''}
+                </div>
+              </div>
+            </div>
+
+            {/* Map */}
+            {(acceptedOffer.stall?.latitude || acceptedOffer.stall?.mall?.latitude) && (
+              <div className="px-5 py-4 space-y-3">
+                <div className="relative rounded-xl overflow-hidden h-48 bg-gray-100">
+                  <iframe
+                    title="Stall location"
+                    width="100%"
+                    height="100%"
+                    loading="lazy"
+                    style={{ border: 0 }}
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${
+                      (acceptedOffer.stall?.longitude ?? acceptedOffer.stall?.mall?.longitude) - 0.005
+                    }%2C${
+                      (acceptedOffer.stall?.latitude ?? acceptedOffer.stall?.mall?.latitude) - 0.005
+                    }%2C${
+                      (acceptedOffer.stall?.longitude ?? acceptedOffer.stall?.mall?.longitude) + 0.005
+                    }%2C${
+                      (acceptedOffer.stall?.latitude ?? acceptedOffer.stall?.mall?.latitude) + 0.005
+                    }&layer=mapnik&marker=${
+                      acceptedOffer.stall?.latitude ?? acceptedOffer.stall?.mall?.latitude
+                    }%2C${
+                      acceptedOffer.stall?.longitude ?? acceptedOffer.stall?.mall?.longitude
+                    }`}
+                  />
+                </div>
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${
+                    acceptedOffer.stall?.latitude ?? acceptedOffer.stall?.mall?.latitude
+                  },${
+                    acceptedOffer.stall?.longitude ?? acceptedOffer.stall?.mall?.longitude
+                  }`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-2.5 bg-brand-blue text-white text-sm font-bold rounded-xl hover:bg-blue-600 transition-colors"
+                >
+                  <Navigation className="w-4 h-4" /> Get Directions
+                </a>
+              </div>
+            )}
+
+            {/* Delivery section */}
+            {isBuyer && (
+              <div className="px-5 py-4 border-t border-gray-100">
+                {acceptedOffer.deliveryRequest ? (
+                  <div className="flex items-center gap-3 bg-green-50 rounded-xl p-3">
+                    <Truck className="w-5 h-5 text-brand-green" />
+                    <div>
+                      <div className="text-sm font-bold text-brand-green">Delivery Requested</div>
+                      <div className="text-xs text-gray-500">
+                        {acceptedOffer.deliveryRequest.distanceKm?.toFixed(1)}km ·{' '}
+                        {formatCurrency(parseFloat(acceptedOffer.deliveryRequest.deliveryFee))} ·{' '}
+                        Status: {acceptedOffer.deliveryRequest.status}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                      <Truck className="w-3.5 h-3.5" />
+                      Want it delivered? Rate: {formatCurrency(deliveryRate?.ratePerKm ?? 0.5)}/km
+                    </div>
+                    <button
+                      onClick={() => handleRequestDelivery(acceptedOffer.id)}
+                      disabled={locating || requestDelivery.isPending}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-brand-orange text-white text-sm font-bold rounded-xl hover:bg-orange-500 transition-colors disabled:opacity-60"
+                    >
+                      {locating || requestDelivery.isPending ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> {locating ? 'Getting location...' : 'Requesting...'}</>
+                      ) : (
+                        <><Truck className="w-4 h-4" /> Request Delivery</>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Submit offer — sellers only */}
         {isSeller && isOpen && stallId && (
           <div className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden">
             <button
               onClick={() => setOfferOpen((o) => !o)}
               className="w-full flex items-center justify-between px-6 py-4 font-bold text-navy-700 hover:bg-gray-50 transition-colors"
             >
-              <span className="flex items-center gap-2"><Gavel className="w-5 h-5 text-brand-green" /> Submit Your Offer</span>
+              <span className="flex items-center gap-2">
+                <Gavel className="w-5 h-5 text-brand-green" /> Submit Your Offer
+              </span>
               <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${offerOpen ? 'rotate-180' : ''}`} />
             </button>
             {offerOpen && (
@@ -190,16 +372,18 @@ export default function DemandDetailPage() {
                   onClick={() => {
                     const price = parseFloat(offerForm.totalPrice);
                     if (isNaN(price) || price <= 0) { toast.error('Enter a valid price'); return; }
-                    const min = parseFloat(demand.minBudget || '0');
                     const max = parseFloat(demand.maxBudget || '0');
-                    if (max > 0 && price > max) { toast.error(`Price exceeds buyer's max budget of ${formatCurrency(max)}`); return; }
-                    if (min > 0 && price < min) { toast.error(`Price is below buyer's min budget of ${formatCurrency(min)}`); return; }
+                    const min = parseFloat(demand.minBudget || '0');
+                    if (max > 0 && price > max) { toast.error(`Exceeds buyer's max budget ${formatCurrency(max)}`); return; }
+                    if (min > 0 && price < min) { toast.error(`Below buyer's min budget ${formatCurrency(min)}`); return; }
                     submitOffer.mutate();
                   }}
                   disabled={!offerForm.totalPrice || submitOffer.isPending}
                   className="btn-primary w-full py-3 flex items-center justify-center gap-2"
                 >
-                  {submitOffer.isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</> : <><Gavel className="w-4 h-4" /> Submit Offer</>}
+                  {submitOffer.isPending
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</>
+                    : <><Gavel className="w-4 h-4" /> Submit Offer</>}
                 </button>
               </div>
             )}
@@ -208,7 +392,9 @@ export default function DemandDetailPage() {
 
         {/* Offers list */}
         <div>
-          <h3 className="font-black text-lg text-navy-700 mb-3">Offers ({demand.offers?.length ?? 0})</h3>
+          <h3 className="font-black text-lg text-navy-700 mb-3">
+            {isBuyer ? 'Offers Received' : 'All Offers'} ({demand.offers?.length ?? 0})
+          </h3>
           {(demand.offers || []).length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 text-center py-10">
               <Gavel className="w-10 h-10 text-gray-200 mx-auto mb-2" />
@@ -217,38 +403,76 @@ export default function DemandDetailPage() {
           ) : (
             <div className="space-y-3">
               {demand.offers.map((offer: any) => {
-                const offerStatusColor: Record<string, string> = {
-                  PENDING: 'badge-bid',
-                  ACCEPTED: 'badge-success',
-                  REJECTED: 'badge-danger',
-                };
+                const isAccepted = offer.status === 'ACCEPTED';
+                const isPending = offer.status === 'PENDING';
+                const isRejected = offer.status === 'REJECTED';
+
                 return (
-                  <div key={offer.id} className={`bg-white rounded-2xl border-2 p-5 ${offer.status === 'ACCEPTED' ? 'border-brand-green' : 'border-gray-100'}`}>
-                    <div className="flex items-start justify-between gap-3">
+                  <div
+                    key={offer.id}
+                    className={`bg-white rounded-2xl border-2 transition-all ${
+                      isAccepted ? 'border-brand-green shadow-sm' :
+                      isRejected ? 'border-gray-100 opacity-60' :
+                      'border-gray-100'
+                    }`}
+                  >
+                    <div className="p-4 flex items-center gap-3">
+                      {/* Seller avatar placeholder */}
+                      <div className="w-10 h-10 bg-gradient-to-br from-brand-blue to-brand-green rounded-full flex items-center justify-center flex-shrink-0">
+                        <Store className="w-5 h-5 text-white" />
+                      </div>
+
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={`badge text-[10px] ${offerStatusColor[offer.status] || 'badge-bid'}`}>{offer.status}</span>
-                          <span className="text-xl font-black text-navy-700">{formatCurrency(parseFloat(offer.totalPrice))}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm text-navy-700 truncate">
+                            {offer.stall?.name || 'Seller'}
+                          </span>
+                          {isAccepted && (
+                            <span className="text-[10px] font-bold bg-green-100 text-brand-green px-2 py-0.5 rounded-full">Accepted</span>
+                          )}
+                          {isRejected && (
+                            <span className="text-[10px] font-bold bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">Rejected</span>
+                          )}
                         </div>
-                        {offer.message && <p className="text-sm text-gray-600">{offer.message}</p>}
-                        <p className="text-xs text-gray-400 mt-1">{new Date(offer.createdAt).toLocaleDateString()}</p>
+                        {offer.stall?.mall?.name && (
+                          <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                            <MapPin className="w-3 h-3" />
+                            {offer.stall.mall.name}{offer.stall.mall.city ? `, ${offer.stall.mall.city}` : ''}
+                          </div>
+                        )}
+                        {offer.message && (
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{offer.message}</p>
+                        )}
                       </div>
-                      {isBuyer && offer.status === 'PENDING' && isOpen && (
-                        <button
-                          onClick={() => acceptOffer.mutate(offer.id)}
-                          disabled={acceptOffer.isPending}
-                          className="btn-primary text-sm py-2.5 px-4 flex items-center gap-2 flex-shrink-0"
-                        >
-                          {acceptOffer.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                          Accept
-                        </button>
-                      )}
+
+                      <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                        <span className="text-xl font-black text-navy-700">
+                          {formatCurrency(parseFloat(offer.totalPrice))}
+                        </span>
+                        {isBuyer && isPending && isOpen && (
+                          <button
+                            onClick={() => acceptOffer.mutate(offer.id)}
+                            disabled={acceptOffer.isPending}
+                            className="flex items-center gap-1.5 bg-brand-green text-white text-xs font-bold py-2 px-3 rounded-xl hover:bg-green-600 transition-colors"
+                          >
+                            {acceptOffer.isPending
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <CheckCircle2 className="w-3.5 h-3.5" />}
+                            Accept
+                          </button>
+                        )}
+                        {isAccepted && (
+                          <button
+                            onClick={() => openChat.mutate(offer.id)}
+                            disabled={openChat.isPending}
+                            className="flex items-center gap-1.5 bg-brand-blue text-white text-xs font-bold py-2 px-3 rounded-xl hover:bg-blue-600 transition-colors"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            Chat
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    {offer.status === 'ACCEPTED' && (
-                      <div className="mt-3 bg-green-50 rounded-xl px-4 py-3 text-sm text-brand-green font-semibold">
-                        Offer accepted — head to the stall to collect and pay the seller directly.
-                      </div>
-                    )}
                   </div>
                 );
               })}

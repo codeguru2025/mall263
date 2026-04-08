@@ -75,4 +75,19 @@ export class DemandsController {
   async getStallOffers(@Param('stallId') stallId: string) {
     return this.demandsService.getOffersForStall(stallId);
   }
+
+  @Get('delivery/rate')
+  @Public()
+  @ApiOperation({ summary: 'Get current delivery rate per km' })
+  async getDeliveryRate() {
+    return this.demandsService.getDeliveryRate();
+  }
+
+  @Post('offers/:offerId/delivery')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Request delivery for an accepted offer (buyer)' })
+  async requestDelivery(@CurrentUser('id') buyerId: string, @Param('offerId') offerId: string, @Body() data: any) {
+    return this.demandsService.requestDelivery(offerId, buyerId, data);
+  }
 }

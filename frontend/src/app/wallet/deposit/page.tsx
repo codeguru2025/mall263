@@ -181,7 +181,7 @@ export default function DepositPage() {
         </div>
       </header>
 
-      <div className="max-w-lg mx-auto px-4 py-8">
+      <div className="max-w-lg mx-auto px-4 py-8 pb-28">
         <form onSubmit={handleSubmit} className="space-y-5">
 
           {/* Amount */}

@@ -9,7 +9,13 @@
       "Bash(git checkout:*)",
       "Bash(git rebase:*)",
       "Bash(find:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npx prisma:*)",
+      "Bash(python3 -c ':*)",
+      "Bash(node -e ':*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(grep -E \"\\\\.ts$\")"
     ]
   }
 }
