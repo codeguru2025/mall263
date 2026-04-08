@@ -106,22 +106,21 @@ export class WalletService {
    * REPEATABLE READ ensures the balance we read is stable throughout the transaction.
    */
   async lockFundsForBid(userId: string, bidAmount: number, referenceId: string) {
-    const lockAmount = bidAmount * 0.10; // 10% of bid value
+    const lockAmountDec = new Prisma.Decimal(bidAmount).mul('0.10');
 
     return this.prisma.$retryTransaction(
       async (tx) => {
         const wallet = await tx.wallet.findUnique({ where: { userId } });
         if (!wallet) throw new NotFoundException('Wallet not found');
 
-        const available = parseFloat(wallet.availableBalance.toString());
-        if (available < lockAmount) {
+        if (wallet.availableBalance.lessThan(lockAmountDec)) {
           throw new BadRequestException(
-            `Insufficient funds. Need $${lockAmount.toFixed(2)} (10% of $${bidAmount.toFixed(2)}). Available: $${available.toFixed(2)}`,
+            `Insufficient funds. Need $${lockAmountDec.toFixed(2)} (10% of $${bidAmount.toFixed(2)}). Available: $${wallet.availableBalance.toFixed(2)}`,
           );
         }
 
-        const newAvailable = new Prisma.Decimal(available - lockAmount);
-        const newLocked = new Prisma.Decimal(parseFloat(wallet.lockedBalance.toString()) + lockAmount);
+        const newAvailable = wallet.availableBalance.sub(lockAmountDec);
+        const newLocked = wallet.lockedBalance.add(lockAmountDec);
 
         await tx.wallet.update({
           where: { id: wallet.id },
@@ -131,7 +130,7 @@ export class WalletService {
         const lock = await tx.walletLock.create({
           data: {
             walletId: wallet.id,
-            amount: new Prisma.Decimal(lockAmount),
+            amount: lockAmountDec,
             reason: WalletLockReason.BID,
             status: WalletLockStatus.ACTIVE,
             referenceId,
@@ -144,7 +143,7 @@ export class WalletService {
           data: {
             walletId: wallet.id,
             type: WalletTransactionType.BID_LOCK,
-            amount: new Prisma.Decimal(lockAmount),
+            amount: lockAmountDec,
             balanceBefore: wallet.availableBalance,
             balanceAfter: newAvailable,
             status: WalletTransactionStatus.COMPLETED,
@@ -176,18 +175,15 @@ export class WalletService {
         const wallet = await tx.wallet.findUnique({ where: { id: lock.walletId } });
         if (!wallet) throw new NotFoundException('Wallet not found');
 
-        const lockAmount = parseFloat(lock.amount.toString());
-        const currentLocked = parseFloat(wallet.lockedBalance.toString());
-
         // Consistency guard: locked balance must never go negative
-        if (currentLocked < lockAmount) {
+        if (wallet.lockedBalance.lessThan(lock.amount)) {
           throw new BadRequestException(
-            `Cannot release lock: locked balance ($${currentLocked.toFixed(2)}) is less than lock amount ($${lockAmount.toFixed(2)})`,
+            `Cannot release lock: locked balance ($${wallet.lockedBalance.toFixed(2)}) is less than lock amount ($${lock.amount.toFixed(2)})`,
           );
         }
 
-        const newAvailable = new Prisma.Decimal(parseFloat(wallet.availableBalance.toString()) + lockAmount);
-        const newLocked = new Prisma.Decimal(currentLocked - lockAmount);
+        const newAvailable = wallet.availableBalance.add(lock.amount);
+        const newLocked = wallet.lockedBalance.sub(lock.amount);
 
         await tx.wallet.update({
           where: { id: wallet.id },
@@ -214,7 +210,7 @@ export class WalletService {
           },
         });
 
-        return { released: true, amount: lockAmount };
+        return { released: true, amount: lock.amount };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
@@ -243,21 +239,20 @@ export class WalletService {
    * This standalone version is suitable for direct API calls or other contexts.
    */
   async deductCommission(sellerUserId: string, saleAmount: number, saleId: string) {
-    const commissionAmount = saleAmount * this.COMMISSION_RATE;
+    const commissionDec = new Prisma.Decimal(saleAmount).mul(this.COMMISSION_RATE.toString());
 
     return this.prisma.$retryTransaction(
       async (tx) => {
         const wallet = await tx.wallet.findUnique({ where: { userId: sellerUserId } });
         if (!wallet) throw new NotFoundException('Seller wallet not found');
 
-        const available = parseFloat(wallet.availableBalance.toString());
-        if (available < commissionAmount) {
+        if (wallet.availableBalance.lessThan(commissionDec)) {
           throw new BadRequestException(
-            `Insufficient commission balance. Sale of $${saleAmount.toFixed(2)} requires $${commissionAmount.toFixed(2)} commission. Available: $${available.toFixed(2)}. Please fund your wallet.`,
+            `Insufficient commission balance. Sale of $${saleAmount.toFixed(2)} requires $${commissionDec.toFixed(2)} commission. Available: $${wallet.availableBalance.toFixed(2)}. Please fund your wallet.`,
           );
         }
 
-        const newBalance = new Prisma.Decimal(available - commissionAmount);
+        const newBalance = wallet.availableBalance.sub(commissionDec);
 
         await tx.wallet.update({
           where: { id: wallet.id },
@@ -268,7 +263,7 @@ export class WalletService {
           data: {
             walletId: wallet.id,
             type: WalletTransactionType.COMMISSION_DEDUCTION,
-            amount: new Prisma.Decimal(commissionAmount),
+            amount: commissionDec,
             balanceBefore: wallet.availableBalance,
             balanceAfter: newBalance,
             status: WalletTransactionStatus.COMPLETED,
@@ -279,7 +274,7 @@ export class WalletService {
           },
         });
 
-        return { commissionDeducted: commissionAmount, newBalance };
+        return { commissionDeducted: commissionDec.toNumber(), newBalance };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
@@ -371,12 +366,12 @@ export class WalletService {
         if (!wallet) throw new NotFoundException('Wallet not found');
         if (!wallet.isActive) throw new BadRequestException('Wallet is inactive');
 
-        const available = parseFloat(wallet.availableBalance.toString());
-        if (available < amount) {
-          throw new BadRequestException(`Insufficient balance. Available: $${available.toFixed(2)}`);
+        const amountDec = new Prisma.Decimal(amount);
+        if (wallet.availableBalance.lessThan(amountDec)) {
+          throw new BadRequestException(`Insufficient balance. Available: $${wallet.availableBalance.toFixed(2)}`);
         }
 
-        const newBalance = new Prisma.Decimal(available - amount);
+        const newBalance = wallet.availableBalance.sub(amountDec);
 
         await tx.wallet.update({
           where: { id: wallet.id },
@@ -387,7 +382,7 @@ export class WalletService {
           data: {
             walletId: wallet.id,
             type: WalletTransactionType.WITHDRAWAL,
-            amount: new Prisma.Decimal(amount),
+            amount: amountDec,
             balanceBefore: wallet.availableBalance,
             balanceAfter: newBalance,
             status: WalletTransactionStatus.PENDING,
@@ -402,21 +397,29 @@ export class WalletService {
 
   /**
    * Mark a PENDING withdrawal as COMPLETED (called by payment processor webhook).
+   *
+   * ATOMICITY: Status check and update are in one RepeatableRead transaction
+   * to prevent TOCTOU race from duplicate webhook deliveries.
    */
   async completeWithdrawal(transactionId: string, externalRef?: string) {
-    const tx = await this.prisma.walletTransaction.findUnique({ where: { id: transactionId } });
-    if (!tx) throw new NotFoundException('Transaction not found');
-    if (tx.status !== WalletTransactionStatus.PENDING) {
-      throw new BadRequestException('Transaction is not pending');
-    }
-    if (tx.type !== WalletTransactionType.WITHDRAWAL) {
-      throw new BadRequestException('Transaction is not a withdrawal');
-    }
+    return this.prisma.$retryTransaction(
+      async (tx) => {
+        const wtx = await tx.walletTransaction.findUnique({ where: { id: transactionId } });
+        if (!wtx) throw new NotFoundException('Transaction not found');
+        if (wtx.status !== WalletTransactionStatus.PENDING) {
+          throw new BadRequestException('Transaction is not pending');
+        }
+        if (wtx.type !== WalletTransactionType.WITHDRAWAL) {
+          throw new BadRequestException('Transaction is not a withdrawal');
+        }
 
-    return this.prisma.walletTransaction.update({
-      where: { id: transactionId },
-      data: { status: WalletTransactionStatus.COMPLETED, completedAt: new Date(), externalRef },
-    });
+        return tx.walletTransaction.update({
+          where: { id: transactionId },
+          data: { status: WalletTransactionStatus.COMPLETED, completedAt: new Date(), externalRef },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
   }
 
   /**
@@ -442,9 +445,7 @@ export class WalletService {
         const wallet = await tx.wallet.findUnique({ where: { id: wtx.walletId } });
         if (!wallet) throw new NotFoundException('Wallet not found');
 
-        const refundedBalance = new Prisma.Decimal(
-          parseFloat(wallet.availableBalance.toString()) + parseFloat(wtx.amount.toString()),
-        );
+        const refundedBalance = wallet.availableBalance.add(wtx.amount);
 
         await tx.wallet.update({
           where: { id: wallet.id },

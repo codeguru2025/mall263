@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 import { Store, ArrowLeft, Search, CheckCircle, Ban, ShieldCheck, Clock } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import toast from 'react-hot-toast';
@@ -12,10 +13,12 @@ export default function AdminMerchantsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-merchants', search, page],
     queryFn: () => api.get('/admin/merchants', { params: { search, page, limit: 20 } }).then((r) => r.data),
+    enabled: isAuthenticated,
   });
 
   const actionMutation = useMutation({

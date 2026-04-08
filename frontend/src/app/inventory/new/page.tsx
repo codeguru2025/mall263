@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { Logo } from '@/components/Logo';
+import { ImageUpload, UploadedImage } from '@/components/ImageUpload';
 import { ArrowLeft, Plus, Trash2, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -41,6 +42,7 @@ export default function NewProductPage() {
     categoryId: '',
   });
   const [variants, setVariants] = useState<Variant[]>([emptyVariant()]);
+  const [images, setImages] = useState<UploadedImage[]>([]);
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -80,6 +82,11 @@ export default function NewProductPage() {
           sellingPrice: parseFloat(v.sellingPrice),
           stockQuantity: parseInt(v.stockQuantity, 10),
         })),
+        images: images.length > 0 ? images.map((img, idx) => ({
+          url: img.cdnUrl || img.url,
+          alt: img.alt || form.name,
+          isPrimary: img.isPrimary || idx === 0,
+        })) : undefined,
       }).then((r) => r.data),
     onSuccess: () => {
       toast.success('Product added to stock!');
@@ -101,14 +108,17 @@ export default function NewProductPage() {
     if (!form.name.trim()) { toast.error('Product name is required'); return; }
     for (let i = 0; i < variants.length; i++) {
       const v = variants[i];
-      if (!v.sellingPrice || isNaN(parseFloat(v.sellingPrice))) {
-        toast.error(`Variant ${i + 1}: selling price is required`); return;
+      const sell = parseFloat(v.sellingPrice);
+      const cost = parseFloat(v.costPrice);
+      const qty = parseInt(v.stockQuantity, 10);
+      if (!v.sellingPrice || isNaN(sell) || sell <= 0) {
+        toast.error(`Variant ${i + 1}: selling price must be greater than 0`); return;
       }
-      if (!v.costPrice || isNaN(parseFloat(v.costPrice))) {
-        toast.error(`Variant ${i + 1}: cost price is required`); return;
+      if (!v.costPrice || isNaN(cost) || cost < 0) {
+        toast.error(`Variant ${i + 1}: cost price must be 0 or greater`); return;
       }
-      if (!v.stockQuantity || isNaN(parseInt(v.stockQuantity, 10))) {
-        toast.error(`Variant ${i + 1}: stock quantity is required`); return;
+      if (!v.stockQuantity || isNaN(qty) || qty < 0 || !Number.isInteger(qty)) {
+        toast.error(`Variant ${i + 1}: stock quantity must be a whole number ≥ 0`); return;
       }
     }
     mutation.mutate();
@@ -207,6 +217,15 @@ export default function NewProductPage() {
                 rows={3}
               />
             </div>
+          </div>
+
+          {/* Product Images */}
+          <div className="bg-white rounded-2xl border-2 border-gray-100 p-5">
+            <ImageUpload
+              images={images}
+              onChange={setImages}
+              maxImages={5}
+            />
           </div>
 
           {/* Variants */}

@@ -33,8 +33,11 @@ export default function SellerSetupPage() {
 
   // Pre-fill business name from user's name
   useEffect(() => {
-    if (user && !form.businessName) {
-      setForm((f) => ({ ...f, businessName: `${user.firstName} ${user.lastName}` }));
+    if (user) {
+      setForm((f) => {
+        if (f.businessName) return f;
+        return { ...f, businessName: `${user.firstName} ${user.lastName}` };
+      });
     }
   }, [user]);
 

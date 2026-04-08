@@ -8,25 +8,26 @@ import { ArrowLeft, ArrowDownLeft, ArrowUpRight, RefreshCw, Loader2 } from 'luci
 import { Logo } from '@/components/Logo';
 
 const TYPE_LABELS: Record<string, { label: string; color: string }> = {
-  DEPOSIT:    { label: 'Deposit',    color: 'text-brand-green' },
-  WITHDRAWAL: { label: 'Withdrawal', color: 'text-brand-red' },
-  PAYMENT:    { label: 'Payment',    color: 'text-brand-red' },
-  REFUND:     { label: 'Refund',     color: 'text-brand-green' },
-  COMMISSION: { label: 'Commission', color: 'text-brand-red' },
-  TRANSFER:   { label: 'Transfer',   color: 'text-navy-700' },
-  LOCK:       { label: 'Locked',     color: 'text-gray-500' },
-  UNLOCK:     { label: 'Unlocked',   color: 'text-gray-500' },
+  DEPOSIT:              { label: 'Deposit',             color: 'text-brand-green' },
+  WITHDRAWAL:           { label: 'Withdrawal',          color: 'text-brand-red' },
+  COMMISSION_DEDUCTION: { label: 'Commission',          color: 'text-brand-red' },
+  BID_LOCK:             { label: 'Bid Locked',          color: 'text-gray-500' },
+  BID_UNLOCK:           { label: 'Bid Unlocked',        color: 'text-brand-green' },
+  REFUND_CREDIT:        { label: 'Refund Credit',       color: 'text-brand-green' },
+  ADJUSTMENT:           { label: 'Adjustment',          color: 'text-brand-green' },
+  TRANSFER:             { label: 'Transfer',            color: 'text-navy-700' },
 };
 
+const CREDIT_TYPES = ['DEPOSIT', 'BID_UNLOCK', 'REFUND_CREDIT', 'ADJUSTMENT'];
+
 function txIcon(type: string) {
-  const credits = ['DEPOSIT', 'REFUND', 'UNLOCK'];
-  if (credits.includes(type)) return <ArrowDownLeft className="w-4 h-4 text-brand-green" />;
-  if (type === 'LOCK') return <RefreshCw className="w-4 h-4 text-gray-400" />;
+  if (CREDIT_TYPES.includes(type)) return <ArrowDownLeft className="w-4 h-4 text-brand-green" />;
+  if (type === 'BID_LOCK') return <RefreshCw className="w-4 h-4 text-gray-400" />;
   return <ArrowUpRight className="w-4 h-4 text-brand-red" />;
 }
 
 function txAmountSign(type: string) {
-  return ['DEPOSIT', 'REFUND', 'UNLOCK'].includes(type) ? '+' : '-';
+  return CREDIT_TYPES.includes(type) ? '+' : '-';
 }
 
 export default function WalletHistoryPage() {

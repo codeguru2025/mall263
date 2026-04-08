@@ -165,9 +165,20 @@ export default function InventoryPage() {
               const isOut = totalStock === 0;
               const isActive = product.status === 'ACTIVE';
 
+              const primaryImage = product.images?.find((img: any) => img.isPrimary) || product.images?.[0];
+
               return (
                 <div key={product.id} className="bg-white rounded-2xl border-2 border-gray-100 p-4">
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    {primaryImage && (
+                      <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
+                        <img
+                          src={primaryImage.url}
+                          alt={primaryImage.alt || product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-black text-navy-700">{product.name}</span>

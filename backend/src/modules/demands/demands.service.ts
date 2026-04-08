@@ -33,20 +33,19 @@ export class DemandsService {
     mallId?: string;
     expiresInHours?: number;
   }) {
-    const lockAmount = data.maxBudget * 0.10;
+    const lockAmountDec = new Prisma.Decimal(data.maxBudget).mul('0.10');
 
     return this.prisma.$retryTransaction(
       async (tx) => {
         // --- Wallet checks (inside tx so reads are stable at RepeatableRead) ---
         const wallet = await tx.wallet.findUnique({ where: { userId: buyerId } });
-        if (!wallet || parseFloat(wallet.availableBalance.toString()) <= 0) {
+        if (!wallet || wallet.availableBalance.lte(0)) {
           throw new BadRequestException('You must fund your wallet to post demand requests');
         }
 
-        const available = parseFloat(wallet.availableBalance.toString());
-        if (available < lockAmount) {
+        if (wallet.availableBalance.lessThan(lockAmountDec)) {
           throw new BadRequestException(
-            `Need $${lockAmount.toFixed(2)} (10% of $${data.maxBudget}) in wallet. Available: $${available.toFixed(2)}`,
+            `Need $${lockAmountDec.toFixed(2)} (10% of $${data.maxBudget}) in wallet. Available: $${wallet.availableBalance.toFixed(2)}`,
           );
         }
 
@@ -73,8 +72,8 @@ export class DemandsService {
         });
 
         // --- Lock 10% of max budget (inline using tx — atomic with demand creation) ---
-        const newAvailable = new Prisma.Decimal(available - lockAmount);
-        const newLocked = new Prisma.Decimal(parseFloat(wallet.lockedBalance.toString()) + lockAmount);
+        const newAvailable = wallet.availableBalance.sub(lockAmountDec);
+        const newLocked = wallet.lockedBalance.add(lockAmountDec);
 
         await tx.wallet.update({
           where: { id: wallet.id },
@@ -84,7 +83,7 @@ export class DemandsService {
         await tx.walletLock.create({
           data: {
             walletId: wallet.id,
-            amount: new Prisma.Decimal(lockAmount),
+            amount: lockAmountDec,
             reason: WalletLockReason.BID,
             status: WalletLockStatus.ACTIVE,
             referenceId: demand.id,
@@ -97,7 +96,7 @@ export class DemandsService {
           data: {
             walletId: wallet.id,
             type: WalletTransactionType.BID_LOCK,
-            amount: new Prisma.Decimal(lockAmount),
+            amount: lockAmountDec,
             balanceBefore: wallet.availableBalance,
             balanceAfter: newAvailable,
             status: WalletTransactionStatus.COMPLETED,
@@ -207,17 +206,19 @@ export class DemandsService {
   }
 
   async acceptOffer(buyerId: string, offerId: string) {
-    const offer = await this.prisma.sellerOffer.findUnique({
-      where: { id: offerId },
-      include: { demand: true },
-    });
-    if (!offer) throw new NotFoundException('Offer not found');
-    if (offer.demand.buyerId !== buyerId) throw new ForbiddenException('Not your demand');
-    if (offer.status !== OfferStatus.PENDING) throw new BadRequestException('Offer is no longer pending');
-
     return this.prisma.$retryTransaction(
       async (tx) => {
         const now = new Date();
+
+        // All checks inside the Serializable tx to prevent TOCTOU race
+        const offer = await tx.sellerOffer.findUnique({
+          where: { id: offerId },
+          include: { demand: true },
+        });
+        if (!offer) throw new NotFoundException('Offer not found');
+        if (offer.demand.buyerId !== buyerId) throw new ForbiddenException('Not your demand');
+        if (offer.status !== OfferStatus.PENDING) throw new BadRequestException('Offer is no longer pending');
+        if (offer.demand.status !== DemandStatus.OPEN) throw new BadRequestException('Demand is no longer open');
 
         // Release the buyer's BID lock — demand is matched, funds no longer need to be held
         const buyerWallet = await tx.wallet.findUnique({ where: { userId: buyerId } });
@@ -226,9 +227,8 @@ export class DemandsService {
             where: { walletId: buyerWallet.id, referenceId: offer.demandId, status: WalletLockStatus.ACTIVE },
           });
           if (bidLock) {
-            const lockAmount = parseFloat(bidLock.amount.toString());
-            const newAvailable = new Prisma.Decimal(parseFloat(buyerWallet.availableBalance.toString()) + lockAmount);
-            const newLocked = new Prisma.Decimal(Math.max(0, parseFloat(buyerWallet.lockedBalance.toString()) - lockAmount));
+            const newAvailable = buyerWallet.availableBalance.add(bidLock.amount);
+            const newLocked = Prisma.Decimal.max(new Prisma.Decimal(0), buyerWallet.lockedBalance.sub(bidLock.amount));
 
             await tx.walletLock.update({
               where: { id: bidLock.id },
@@ -258,20 +258,20 @@ export class DemandsService {
         }
 
         // Deduct 2.5% platform fee from buyer wallet on purchase
-        const feeAmount = parseFloat((offer.totalPrice as any).toString()) * BUYER_FEE_RATE;
+        const offerPrice = new Prisma.Decimal((offer.totalPrice as any).toString());
+        const feeDec = offerPrice.mul(BUYER_FEE_RATE.toString());
         const buyerWalletFresh = await tx.wallet.findUnique({ where: { userId: buyerId } });
         if (!buyerWalletFresh) throw new NotFoundException('Buyer wallet not found');
 
-        const buyerAvailable = parseFloat(buyerWalletFresh.availableBalance.toString());
-        if (buyerAvailable < feeAmount) {
+        if (buyerWalletFresh.availableBalance.lessThan(feeDec)) {
           throw new BadRequestException(
             `Insufficient wallet balance for platform fee. ` +
-            `Fee: $${feeAmount.toFixed(2)} (2.5% of $${parseFloat((offer.totalPrice as any).toString()).toFixed(2)}). ` +
-            `Available: $${buyerAvailable.toFixed(2)}. Please fund your wallet.`,
+            `Fee: $${feeDec.toFixed(2)} (2.5% of $${offerPrice.toFixed(2)}). ` +
+            `Available: $${buyerWalletFresh.availableBalance.toFixed(2)}. Please fund your wallet.`,
           );
         }
 
-        const buyerNewBalance = new Prisma.Decimal(buyerAvailable - feeAmount);
+        const buyerNewBalance = buyerWalletFresh.availableBalance.sub(feeDec);
         await tx.wallet.update({
           where: { id: buyerWalletFresh.id },
           data: { availableBalance: buyerNewBalance, lastActivityAt: now },
@@ -280,7 +280,7 @@ export class DemandsService {
           data: {
             walletId: buyerWalletFresh.id,
             type: WalletTransactionType.COMMISSION_DEDUCTION,
-            amount: new Prisma.Decimal(feeAmount),
+            amount: feeDec,
             balanceBefore: buyerWalletFresh.availableBalance,
             balanceAfter: buyerNewBalance,
             status: WalletTransactionStatus.COMPLETED,
@@ -309,7 +309,7 @@ export class DemandsService {
           data: { status: DemandStatus.MATCHED },
         });
 
-        return { accepted: true, offerId, feeCharged: feeAmount };
+        return { accepted: true, offerId, feeCharged: feeDec.toNumber() };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -363,12 +363,11 @@ export class DemandsService {
         await this.prisma.$retryTransaction(
           async (tx) => {
             const now = new Date();
-            const lockAmount = parseFloat(lock.amount.toString());
             const wallet = await tx.wallet.findUnique({ where: { id: lock.walletId } });
             if (!wallet) return;
 
-            const newAvailable = new Prisma.Decimal(parseFloat(wallet.availableBalance.toString()) + lockAmount);
-            const newLocked = new Prisma.Decimal(Math.max(0, parseFloat(wallet.lockedBalance.toString()) - lockAmount));
+            const newAvailable = wallet.availableBalance.add(lock.amount);
+            const newLocked = Prisma.Decimal.max(new Prisma.Decimal(0), wallet.lockedBalance.sub(lock.amount));
 
             await tx.walletLock.update({
               where: { id: lock.id },

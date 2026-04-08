@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
-import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield } from 'lucide-react';
+import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield, Tag } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 export default function AdminPage() {
@@ -22,14 +22,18 @@ export default function AdminPage() {
     }
   }, [isAuthenticated, user, router]);
 
+  const isAdmin = isAuthenticated && user != null && ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'].includes(user.role);
+
   const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: () => api.get('/api/v1/admin/dashboard').then((r) => r.data),
+    enabled: isAdmin,
   });
 
   const { data: activity } = useQuery({
     queryKey: ['admin-activity'],
     queryFn: () => api.get('/api/v1/admin/activity').then((r) => r.data),
+    enabled: isAdmin,
   });
 
   if (isLoading) {
@@ -61,6 +65,7 @@ export default function AdminPage() {
     { href: '/admin/users', icon: Users, label: 'Manage Users', desc: 'Suspend, activate, or view user details', color: 'text-brand-blue', bg: 'bg-blue-50', border: 'hover:border-brand-blue' },
     { href: '/admin/merchants', icon: Store, label: 'Manage Merchants', desc: 'Verify, suspend, or manage merchant accounts', color: 'text-brand-green', bg: 'bg-green-50', border: 'hover:border-brand-green' },
     { href: '/admin/stalls', icon: Shield, label: 'Manage Stalls', desc: 'Approve, suspend, or manage market stalls', color: 'text-brand-orange', bg: 'bg-orange-50', border: 'hover:border-brand-orange' },
+    { href: '/admin/categories', icon: Tag, label: 'Manage Categories', desc: 'Add, edit, or organize product categories', color: 'text-purple-600', bg: 'bg-purple-50', border: 'hover:border-purple-600' },
     { href: '/reports', icon: BarChart3, label: 'Platform Reports', desc: 'View sales, commission, and user reports', color: 'text-brand-red', bg: 'bg-red-50', border: 'hover:border-brand-red' },
   ];
 

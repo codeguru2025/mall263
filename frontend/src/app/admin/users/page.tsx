@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 import { Users, ArrowLeft, Search, Plus, X, Phone, Lock, User, Shield, ChevronRight, Ban, CheckCircle } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import toast from 'react-hot-toast';
@@ -31,10 +32,12 @@ export default function AdminUsersPage() {
   });
 
   const queryClient = useQueryClient();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users', search, page],
     queryFn: () => api.get('/admin/users', { params: { search, page, limit: 20 } }).then((r) => r.data),
+    enabled: isAuthenticated,
   });
 
   const createMutation = useMutation({

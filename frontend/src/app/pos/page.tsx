@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, Plus, Minus, Trash2, Store, Receipt, MapPin, Package } from 'lucide-react';
 import api from '@/lib/api';
-import { useCartStore } from '@/lib/store';
+import { useCartStore, useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -14,6 +14,7 @@ export default function POSPage() {
   const [stallId, setStallId] = useState('');
   const [search, setSearch] = useState('');
   const cart = useCartStore();
+  const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
 
   const { data: merchant } = useQuery({
@@ -52,11 +53,11 @@ export default function POSPage() {
     if (cart.items.length === 0) { toast.error('Cart is empty'); return; }
     saleMutation.mutate({
       stallId,
+      cashierId: user?.id,
       paymentMethod: 'CASH',
       items: cart.items.map((i) => ({
         variantId: i.variantId,
         quantity: i.quantity,
-        unitPrice: i.price,
       })),
     });
   };
@@ -111,8 +112,8 @@ export default function POSPage() {
                   <div key={i} className="bg-white rounded-2xl p-4 animate-pulse border border-gray-100"><div className="bg-gray-100 h-20 rounded-xl mb-2" /><div className="bg-gray-100 h-4 rounded-lg w-3/4" /></div>
                 ))
               ) : (
-                (products?.data || products || []).map((p: any) => (
-                  p.variants?.map((v: any) => {
+                (products?.data || products || []).flatMap((p: any) => (
+                  (p.variants || []).map((v: any) => {
                     const outOfStock = !v.inventory || v.inventory.quantity === 0;
                     return (
                       <button

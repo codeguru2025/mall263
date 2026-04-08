@@ -4,16 +4,19 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
 import { ArrowLeft, Gavel, Clock, ChevronRight, Zap, PlusCircle, MessageSquare } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 export default function DemandsPage() {
   const [tab, setTab] = useState<'open' | 'my'>('open');
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const { data: demands, isLoading } = useQuery({
     queryKey: ['demands', tab],
     queryFn: () => api.get(tab === 'my' ? '/api/v1/demands/my' : '/api/v1/demands/open', { params: { limit: 20 } }).then((r) => r.data),
+    enabled: tab === 'open' || isAuthenticated,
   });
 
   const statusConfig: Record<string, { badge: string; label: string }> = {
@@ -79,7 +82,7 @@ export default function DemandsPage() {
                         <div className="flex items-center gap-4 flex-wrap">
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs text-gray-400">Budget:</span>
-                            <span className="text-sm font-black text-navy-700">{formatCurrency(parseFloat(d.minBudget || 0))} - {formatCurrency(parseFloat(d.maxBudget || 0))}</span>
+                            <span className="text-sm font-black text-navy-700">{formatCurrency(parseFloat(d.minBudget || '0'))} - {formatCurrency(parseFloat(d.maxBudget || '0'))}</span>
                           </div>
                           <div className="flex items-center gap-1 text-sm font-bold text-brand-green">
                             <Gavel className="w-3.5 h-3.5" /> {d._count?.offers || d.offersCount || 0} offers

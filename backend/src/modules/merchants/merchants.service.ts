@@ -13,13 +13,13 @@ export class MerchantsService {
     businessEmail?: string;
     agentId?: string;
   }) {
-    const user = await this.prisma.user.findUnique({ where: { id: data.userId } });
-    if (!user) throw new NotFoundException('User not found');
-
-    const existing = await this.prisma.merchant.findUnique({ where: { userId: data.userId } });
-    if (existing) throw new BadRequestException('User is already a merchant');
-
     return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: data.userId } });
+      if (!user) throw new NotFoundException('User not found');
+
+      const existing = await tx.merchant.findUnique({ where: { userId: data.userId } });
+      if (existing) throw new BadRequestException('User is already a merchant');
+
       await tx.user.update({ where: { id: data.userId }, data: { role: UserRole.STALL_OWNER } });
 
       return tx.merchant.create({
@@ -47,10 +47,9 @@ export class MerchantsService {
     description?: string;
     phone?: string;
   }) {
-    const existing = await this.prisma.merchant.findUnique({ where: { userId } });
-    if (existing) throw new BadRequestException('Merchant profile already exists');
-
     return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.merchant.findUnique({ where: { userId } });
+      if (existing) throw new BadRequestException('Merchant profile already exists');
       const merchant = await tx.merchant.create({
         data: {
           userId,

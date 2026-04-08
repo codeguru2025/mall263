@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -64,5 +64,32 @@ export class AdminController {
   @ApiOperation({ summary: 'Suspend a product' })
   async suspendProduct(@Param('id') id: string) {
     return this.adminService.suspendProduct(id);
+  }
+
+  @Get('categories')
+  @ApiOperation({ summary: 'List all categories' })
+  async listCategories() {
+    return this.adminService.listCategories();
+  }
+
+  @Post('categories')
+  @ApiOperation({ summary: 'Create a new category' })
+  async createCategory(@Body() data: { name: string; parentId?: string; imageUrl?: string }) {
+    return this.adminService.createCategory(data);
+  }
+
+  @Patch('categories/:id')
+  @ApiOperation({ summary: 'Update a category' })
+  async updateCategory(
+    @Param('id') id: string,
+    @Body() data: { name?: string; parentId?: string; imageUrl?: string; sortOrder?: number; isActive?: boolean },
+  ) {
+    return this.adminService.updateCategory(id, data);
+  }
+
+  @Delete('categories/:id')
+  @ApiOperation({ summary: 'Delete a category' })
+  async deleteCategory(@Param('id') id: string) {
+    return this.adminService.deleteCategory(id);
   }
 }

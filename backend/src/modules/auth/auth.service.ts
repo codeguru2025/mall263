@@ -16,18 +16,20 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
-    const existing = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
-    if (existing) throw new ConflictException('Phone number already registered');
-
-    if (dto.email) {
-      const emailExists = await this.prisma.user.findUnique({ where: { email: dto.email } });
-      if (emailExists) throw new ConflictException('Email already registered');
-    }
-
+    // Hash password outside the transaction (CPU-bound, no DB concern)
     const passwordHash = await bcrypt.hash(dto.password, 12);
     const role = dto.role || UserRole.BUYER;
 
     const user = await this.prisma.$transaction(async (tx) => {
+      // Uniqueness checks INSIDE the transaction to prevent TOCTOU race
+      const existing = await tx.user.findUnique({ where: { phone: dto.phone } });
+      if (existing) throw new ConflictException('Phone number already registered');
+
+      if (dto.email) {
+        const emailExists = await tx.user.findUnique({ where: { email: dto.email } });
+        if (emailExists) throw new ConflictException('Email already registered');
+      }
+
       const newUser = await tx.user.create({
         data: {
           phone: dto.phone,

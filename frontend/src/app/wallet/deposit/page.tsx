@@ -64,6 +64,7 @@ export default function DepositPage() {
   });
 
   const startPolling = (ref: string) => {
+    if (pollRef.current) clearInterval(pollRef.current);
     pollCount.current = 0;
     pollRef.current = setInterval(async () => {
       pollCount.current++;
@@ -92,7 +93,13 @@ export default function DepositPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || parseFloat(amount) < 1) { toast.error('Minimum deposit is $1.00'); return; }
+    // Block scientific notation (1e5), commas, or other non-numeric chars
+    if (!amount || !/^\d+(\.\d{0,2})?$/.test(amount)) {
+      toast.error('Enter a valid dollar amount (e.g. 10.00)'); return;
+    }
+    const parsed = parseFloat(amount);
+    if (parsed < 1) { toast.error('Minimum deposit is $1.00'); return; }
+    if (parsed > 10000) { toast.error('Maximum single deposit is $10,000'); return; }
     if (isMobile && !phone) { toast.error('Enter your mobile number'); return; }
     mutation.mutate();
   };

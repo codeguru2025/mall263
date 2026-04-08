@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Search, MapPin, Gavel, ArrowRight, Shield, Users, Star, TrendingUp, CheckCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { Logo } from '@/components/Logo';
 import api from '@/lib/api';
 
@@ -27,14 +28,17 @@ interface Product {
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [malls, setMalls] = useState<Mall[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const router = useRouter();
 
-  useEffect(() => {
-    api.get('/api/v1/stalls/malls').then((r) => setMalls(r.data)).catch(() => {});
-    api.get('/api/v1/products/browse?limit=8&sortBy=popular').then((r) => setProducts(r.data.data || [])).catch(() => {});
-  }, []);
+  const { data: malls = [] } = useQuery<Mall[]>({
+    queryKey: ['malls'],
+    queryFn: () => api.get('/api/v1/stalls/malls').then((r) => r.data),
+  });
+
+  const { data: products = [] } = useQuery<Product[]>({
+    queryKey: ['popular-products'],
+    queryFn: () => api.get('/api/v1/products/browse?limit=8&sortBy=popular').then((r) => r.data.data || []),
+  });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

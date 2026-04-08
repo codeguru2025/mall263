@@ -139,7 +139,7 @@ export default function DemandDetailPage() {
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="bg-gray-50 rounded-xl p-3">
               <p className="text-xs text-gray-500 mb-1">Budget Range</p>
-              <p className="font-black text-navy-700">{formatCurrency(parseFloat(demand.minBudget || 0))} – {formatCurrency(parseFloat(demand.maxBudget))}</p>
+              <p className="font-black text-navy-700">{formatCurrency(parseFloat(demand.minBudget || '0'))} – {formatCurrency(parseFloat(demand.maxBudget || '0'))}</p>
             </div>
             <div className="bg-gray-50 rounded-xl p-3">
               <p className="text-xs text-gray-500 mb-1">Offers</p>
@@ -187,7 +187,15 @@ export default function DemandDetailPage() {
                   />
                 </div>
                 <button
-                  onClick={() => submitOffer.mutate()}
+                  onClick={() => {
+                    const price = parseFloat(offerForm.totalPrice);
+                    if (isNaN(price) || price <= 0) { toast.error('Enter a valid price'); return; }
+                    const min = parseFloat(demand.minBudget || '0');
+                    const max = parseFloat(demand.maxBudget || '0');
+                    if (max > 0 && price > max) { toast.error(`Price exceeds buyer's max budget of ${formatCurrency(max)}`); return; }
+                    if (min > 0 && price < min) { toast.error(`Price is below buyer's min budget of ${formatCurrency(min)}`); return; }
+                    submitOffer.mutate();
+                  }}
                   disabled={!offerForm.totalPrice || submitOffer.isPending}
                   className="btn-primary w-full py-3 flex items-center justify-center gap-2"
                 >

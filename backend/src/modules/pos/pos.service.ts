@@ -135,25 +135,29 @@ export class POSService {
         const sellerWallet = await tx.wallet.findUnique({ where: { userId: sellerUserId } });
         if (!sellerWallet) throw new NotFoundException('Seller wallet not found');
 
-        const sellerAvailable = parseFloat(sellerWallet.availableBalance.toString());
-        const commissionDeduct = parseFloat(commissionAmount.toString());
-
-        if (sellerAvailable < commissionDeduct) {
+        if (sellerWallet.availableBalance.lessThan(commissionAmount)) {
           throw new BadRequestException(
             `Sale blocked: Insufficient commission balance. ` +
-            `Sale of $${totalAmount.toFixed(2)} requires $${commissionDeduct.toFixed(2)} commission. ` +
-            `Available: $${sellerAvailable.toFixed(2)}. ` +
+            `Sale of $${totalAmount.toFixed(2)} requires $${commissionAmount.toFixed(2)} commission. ` +
+            `Available: $${sellerWallet.availableBalance.toFixed(2)}. ` +
             `Please fund your wallet before processing sales.`,
           );
         }
 
         // 6. Generate receipt number INSIDE the transaction to prevent duplicates
         //    under concurrent sales for the same stall on the same day.
-        const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        //    Use UTC consistently for both the date prefix and the count query
+        //    to avoid timezone-boundary collisions.
+        const now = new Date();
+        const yyyy = now.getUTCFullYear();
+        const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+        const dd = String(now.getUTCDate()).padStart(2, '0');
+        const today = `${yyyy}${mm}${dd}`;
+        const startOfDayUTC = new Date(Date.UTC(yyyy, now.getUTCMonth(), now.getUTCDate()));
         const todayCount = await tx.pOSSale.count({
           where: {
             stallId: data.stallId,
-            createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+            createdAt: { gte: startOfDayUTC },
           },
         });
         const receiptNumber = `M263-${today}-${(todayCount + 1).toString().padStart(4, '0')}`;
@@ -205,7 +209,7 @@ export class POSService {
         });
 
         // 8. Deduct commission from seller wallet atomically inside this transaction
-        const sellerNewBalance = new Prisma.Decimal(sellerAvailable - commissionDeduct);
+        const sellerNewBalance = sellerWallet.availableBalance.sub(commissionAmount);
         await tx.wallet.update({
           where: { id: sellerWallet.id },
           data: { availableBalance: sellerNewBalance, lastActivityAt: new Date() },
@@ -227,8 +231,8 @@ export class POSService {
 
         return {
           sale,
-          profit: parseFloat(totalAmount.toString()) - parseFloat(totalCost.toString()) - commissionDeduct,
-          commission: commissionDeduct,
+          profit: totalAmount.sub(totalCost).sub(commissionAmount).toNumber(),
+          commission: commissionAmount.toNumber(),
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
@@ -335,21 +339,22 @@ export class POSService {
    * same transaction as the inventory restore and sale status update.
    */
   async processRefund(saleId: string, reason: string, processedBy: string) {
-    const sale = await this.prisma.pOSSale.findUnique({
-      where: { id: saleId },
-      include: {
-        items: true,
-        stall: { include: { merchant: { include: { user: true } } } },
-      },
-    });
-
-    if (!sale) throw new NotFoundException('Sale not found');
-    if (sale.status === POSSaleStatus.FULLY_REFUNDED) {
-      throw new BadRequestException('Sale already fully refunded');
-    }
-
     return this.prisma.$retryTransaction(
       async (tx) => {
+        // Re-read sale inside tx to prevent TOCTOU on status check
+        const sale = await tx.pOSSale.findUnique({
+          where: { id: saleId },
+          include: {
+            items: true,
+            stall: { include: { merchant: { include: { user: true } } } },
+          },
+        });
+
+        if (!sale) throw new NotFoundException('Sale not found');
+        if (sale.status === POSSaleStatus.FULLY_REFUNDED) {
+          throw new BadRequestException('Sale already fully refunded');
+        }
+
         // 1. Restore inventory
         for (const item of sale.items) {
           const inventory = await tx.inventory.findUnique({
@@ -379,10 +384,7 @@ export class POSService {
         const sellerUserId = sale.stall.merchant.userId;
         const sellerWallet = await tx.wallet.findUnique({ where: { userId: sellerUserId } });
         if (sellerWallet) {
-          const commissionAmount = parseFloat(sale.commissionAmount.toString());
-          const refundedBalance = new Prisma.Decimal(
-            parseFloat(sellerWallet.availableBalance.toString()) + commissionAmount,
-          );
+          const refundedBalance = sellerWallet.availableBalance.add(sale.commissionAmount);
 
           await tx.wallet.update({
             where: { id: sellerWallet.id },

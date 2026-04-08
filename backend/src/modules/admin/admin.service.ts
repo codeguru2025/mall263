@@ -76,4 +76,52 @@ export class AdminService {
   async suspendProduct(productId: string) {
     return this.prisma.product.update({ where: { id: productId }, data: { status: ProductStatus.SUSPENDED } });
   }
+
+  async listCategories() {
+    return this.prisma.category.findMany({
+      orderBy: { sortOrder: 'asc' },
+      include: {
+        parent: { select: { id: true, name: true } },
+        children: { select: { id: true, name: true } },
+        _count: { select: { products: true } },
+      },
+    });
+  }
+
+  async createCategory(data: { name: string; parentId?: string; imageUrl?: string }) {
+    const slug = this.generateSlug(data.name);
+    return this.prisma.category.create({
+      data: {
+        name: data.name,
+        slug,
+        parentId: data.parentId || null,
+        imageUrl: data.imageUrl || null,
+      },
+    });
+  }
+
+  async updateCategory(id: string, data: { name?: string; parentId?: string; imageUrl?: string; sortOrder?: number; isActive?: boolean }) {
+    const updateData: any = {};
+    if (data.name !== undefined) {
+      updateData.name = data.name;
+      updateData.slug = this.generateSlug(data.name);
+    }
+    if (data.parentId !== undefined) updateData.parentId = data.parentId || null;
+    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl || null;
+    if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+
+    return this.prisma.category.update({
+      where: { id },
+      data: updateData,
+    });
+  }
+
+  async deleteCategory(id: string) {
+    return this.prisma.category.delete({ where: { id } });
+  }
+
+  private generateSlug(name: string): string {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
+  }
 }
