@@ -40,13 +40,14 @@ export class UploadService {
   async uploadImage(
     file: Express.Multer.File,
     folder: string = 'images',
-    maxWidth: number = 1200,
+    maxWidth: number = 900,
   ): Promise<UploadResult> {
     this.validateImage(file);
 
     const optimized = await sharp(file.buffer)
       .resize({ width: maxWidth, withoutEnlargement: true })
-      .webp({ quality: 82 })
+      .sharpen({ sigma: 0.6, m1: 0.5, m2: 0.5 })
+      .webp({ quality: 78, effort: 6, smartSubsample: true })
       .toBuffer();
 
     const key = `${folder}/${uuid()}.webp`;
@@ -79,7 +80,8 @@ export class UploadService {
 
     const optimized = await sharp(file.buffer)
       .resize({ width: 400, height: 400, fit: 'cover' })
-      .webp({ quality: 75 })
+      .sharpen({ sigma: 0.5, m1: 0.4, m2: 0.4 })
+      .webp({ quality: 70, effort: 6, smartSubsample: true })
       .toBuffer();
 
     const key = `${folder}/${uuid()}.webp`;
@@ -153,8 +155,8 @@ export class UploadService {
     if (!allowedMimes.includes(file.mimetype)) {
       throw new BadRequestException('Only JPEG, PNG, WebP, and GIF images are allowed');
     }
-    if (file.size > 5 * 1024 * 1024) {
-      throw new BadRequestException('Image size must be under 5MB');
+    if (file.size > 15 * 1024 * 1024) {
+      throw new BadRequestException('Image size must be under 15MB');
     }
   }
 }

@@ -182,7 +182,7 @@ export default function POSPage() {
           </div>
 
           {/* Cart */}
-          <div className="bg-white rounded-2xl border-2 border-gray-100 sticky top-20 self-start overflow-hidden">
+          <div className="bg-white rounded-2xl border-2 border-gray-100 lg:sticky lg:top-20 lg:self-start overflow-hidden">
             <div className="bg-navy-700 text-white px-5 py-4 flex items-center justify-between">
               <h2 className="font-black text-lg">Cart</h2>
               <span className="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full">{cart.getItemCount()} items</span>
@@ -219,7 +219,7 @@ export default function POSPage() {
                 </div>
               )}
 
-              <div className="border-t border-gray-100 mt-4 pt-4">
+              <div className="border-t border-gray-100 mt-4 pt-4 pb-20 lg:pb-0">
                 <div className="flex justify-between items-center mb-3">
                   <span className="font-bold text-gray-500">Total</span>
                   <span className="text-2xl font-black text-navy-700">{formatCurrency(cart.getTotal())}</span>

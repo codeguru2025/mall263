@@ -36,10 +36,10 @@ export function ImageUpload({ images, onChange, maxImages = 5 }: ImageUploadProp
       return;
     }
 
-    const MAX_FILE_SIZE = 5 * 1024 * 1024;
+    const MAX_FILE_SIZE = 15 * 1024 * 1024;
     const oversized = files.find((f) => f.size > MAX_FILE_SIZE);
     if (oversized) {
-      toast.error(`"${oversized.name}" exceeds 5 MB. Please resize it first.`);
+      toast.error(`"${oversized.name}" exceeds 15 MB. Please use a smaller image.`);
       return;
     }
 
@@ -130,12 +130,12 @@ export function ImageUpload({ images, onChange, maxImages = 5 }: ImageUploadProp
           {images.map((image, index) => (
             <div
               key={image.key}
-              className="relative aspect-square rounded-xl overflow-hidden border-2 border-gray-100 bg-white group"
+              className="relative aspect-square rounded-2xl overflow-hidden border-2 border-gray-200 bg-checkerboard shadow-sm hover:shadow-md hover:border-gray-400 transition-all group"
             >
               <img
                 src={image.cdnUrl || image.url}
                 alt={image.alt || `Product image ${index + 1}`}
-                className="w-full h-full object-contain p-1"
+                className="w-full h-full object-contain p-2"
               />
               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                 {!image.isPrimary && (
@@ -200,7 +200,7 @@ export function ImageUpload({ images, onChange, maxImages = 5 }: ImageUploadProp
           <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-xl">
             <ImageIcon className="w-4 h-4 text-brand-blue flex-shrink-0 mt-0.5" />
             <p className="text-xs text-brand-blue">
-              Tap to add images. You can crop, adjust brightness, contrast and more before uploading.
+              Tap to add images. You can crop, adjust brightness/contrast, or remove the background before uploading. Max 15 MB per image.
             </p>
           </div>
         )}

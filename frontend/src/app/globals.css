@@ -49,6 +49,18 @@
 }
 
 @layer utilities {
+  /* Checkerboard pattern to show image transparency */
+  .bg-checkerboard {
+    background-color: #fff;
+    background-image:
+      linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+      linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+      linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+    background-size: 12px 12px;
+    background-position: 0 0, 0 6px, 6px -6px, -6px 0px;
+  }
+
   /* Dynamic viewport height — shrinks when keyboard is visible */
   .h-dvh {
     height: 100dvh;

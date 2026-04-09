@@ -25,7 +25,7 @@ export class UploadController {
   @Post('image')
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 15 * 1024 * 1024 } }))
   async uploadImage(@UploadedFile() file: Express.Multer.File): Promise<UploadResult> {
     if (!file) throw new BadRequestException('No file provided');
     return this.uploadService.uploadImage(file, 'products');
@@ -50,7 +50,7 @@ export class UploadController {
 
   @Post('images')
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FilesInterceptor('files', 5, { limits: { fileSize: 5 * 1024 * 1024 } }))
+  @UseInterceptors(FilesInterceptor('files', 5, { limits: { fileSize: 15 * 1024 * 1024 } }))
   async uploadMultipleImages(@UploadedFiles() files: Express.Multer.File[]): Promise<UploadResult[]> {
     if (!files || files.length === 0) throw new BadRequestException('No files provided');
     return Promise.all(files.map((f) => this.uploadService.uploadImage(f, 'products')));
