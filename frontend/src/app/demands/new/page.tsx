@@ -71,7 +71,7 @@ export default function NewDemandPage() {
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-4 pt-8 pb-28 sm:pb-8">
         <div className="bg-white rounded-2xl border-2 border-gray-100 p-6">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center">

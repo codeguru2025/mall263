@@ -142,19 +142,32 @@ export default function DashboardPage() {
         {/* Quick Actions */}
         <h2 className="font-black text-lg text-navy-700 mb-3">Quick Actions</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <Link href="/marketplace" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-blue hover:shadow-md transition-all group">
-            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-blue group-hover:text-white transition-colors">
-              <ShoppingCart className="w-6 h-6 text-brand-blue group-hover:text-white transition-colors" />
-            </div>
-            <span className="text-sm font-bold text-navy-700">Browse</span>
-          </Link>
-          <Link href="/demands" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-orange hover:shadow-md transition-all group">
-            <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-orange group-hover:text-white transition-colors">
-              <Gavel className="w-6 h-6 text-brand-orange group-hover:text-white transition-colors" />
-            </div>
-            <span className="text-sm font-bold text-navy-700">Demands</span>
-          </Link>
 
+          {/* Customer-only actions */}
+          {!isSeller && !isAdmin && !isAgent && (
+            <>
+              <Link href="/marketplace" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-blue hover:shadow-md transition-all group">
+                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-blue group-hover:text-white transition-colors">
+                  <ShoppingCart className="w-6 h-6 text-brand-blue group-hover:text-white transition-colors" />
+                </div>
+                <span className="text-sm font-bold text-navy-700">Browse</span>
+              </Link>
+              <Link href="/demands" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-orange hover:shadow-md transition-all group">
+                <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-orange group-hover:text-white transition-colors">
+                  <Gavel className="w-6 h-6 text-brand-orange group-hover:text-white transition-colors" />
+                </div>
+                <span className="text-sm font-bold text-navy-700">Demands</span>
+              </Link>
+              <Link href="/demands/new" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-green hover:shadow-md transition-all group">
+                <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-green group-hover:text-white transition-colors">
+                  <PlusCircle className="w-6 h-6 text-brand-green group-hover:text-white transition-colors" />
+                </div>
+                <span className="text-sm font-bold text-navy-700">Post Demand</span>
+              </Link>
+            </>
+          )}
+
+          {/* Seller actions */}
           {isSeller && (
             <>
               <Link href="/pos" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-green hover:shadow-md transition-all group">
@@ -172,6 +185,7 @@ export default function DashboardPage() {
             </>
           )}
 
+          {/* Admin actions */}
           {isAdmin && (
             <>
               <Link href="/admin" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-red hover:shadow-md transition-all group">
@@ -189,6 +203,7 @@ export default function DashboardPage() {
             </>
           )}
 
+          {/* Agent actions */}
           {isAgent && (
             <>
               <Link href="/agent" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-blue hover:shadow-md transition-all group">
@@ -204,15 +219,6 @@ export default function DashboardPage() {
                 <span className="text-sm font-bold text-navy-700">Stock</span>
               </Link>
             </>
-          )}
-
-          {!isSeller && !isAdmin && !isAgent && (
-            <Link href="/demands/new" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-green hover:shadow-md transition-all group">
-              <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-green group-hover:text-white transition-colors">
-                <PlusCircle className="w-6 h-6 text-brand-green group-hover:text-white transition-colors" />
-              </div>
-              <span className="text-sm font-bold text-navy-700">Post Demand</span>
-            </Link>
           )}
         </div>
 

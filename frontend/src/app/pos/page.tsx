@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, Plus, Minus, Trash2, Store, Receipt, MapPin, Package } from 'lucide-react';
 import api from '@/lib/api';
@@ -44,6 +44,15 @@ export default function POSPage() {
     onError: (err: any) => toast.error(err.response?.data?.message || 'Sale failed'),
   });
 
+  // Auto-select first stall on load — no manual selection needed
+  useEffect(() => {
+    if (!stallId && stalls?.length) {
+      const first = stalls[0].id;
+      setStallId(first);
+      cart.setStall(first);
+    }
+  }, [stalls, stallId]);
+
   const handleSelectStall = (id: string) => {
     setStallId(id);
     cart.setStall(id);
@@ -72,16 +81,11 @@ export default function POSPage() {
               <h1 className="text-lg font-black text-navy-700">Point of Sale</h1>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-brand-orange" />
-              <select value={stallId} onChange={(e) => handleSelectStall(e.target.value)} className="border-2 border-gray-100 rounded-xl py-2.5 px-4 text-sm bg-white font-bold text-navy-700 focus:border-brand-green outline-none min-w-[160px]">
-                <option value="">Select Stall</option>
-                {(stalls || []).map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
+          <div className="flex items-center gap-2 bg-green-50 rounded-xl px-3 py-2">
+            <MapPin className="w-4 h-4 text-brand-green flex-shrink-0" />
+            <span className="text-sm font-bold text-navy-700">
+              {stalls?.find((s: any) => s.id === stallId)?.name ?? 'Loading stall...'}
+            </span>
           </div>
         </div>
       </header>
@@ -89,11 +93,8 @@ export default function POSPage() {
       {!stallId ? (
         <div className="flex items-center justify-center h-[60vh]">
           <div className="text-center">
-            <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Store className="w-10 h-10 text-brand-green" />
-            </div>
-            <h2 className="text-xl font-black text-navy-700 mb-2">Select Your Stall</h2>
-            <p className="text-gray-500">Choose a stall from the dropdown to start processing sales</p>
+            <div className="w-16 h-16 border-4 border-brand-green border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-gray-500 font-medium">Loading your stall...</p>
           </div>
         </div>
       ) : (

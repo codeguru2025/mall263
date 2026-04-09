@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { Logo } from '@/components/Logo';
 import { ArrowLeft, Send, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 
@@ -66,7 +67,7 @@ export default function ChatRoomPage() {
       setMessage('');
       inputRef.current?.focus();
     },
-    onError: () => {},
+    onError: () => toast.error('Failed to send message. Please try again.'),
   });
 
   const handleSend = (e: React.FormEvent) => {

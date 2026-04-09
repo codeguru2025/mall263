@@ -83,17 +83,6 @@ export default function InventoryPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {stalls && stalls.length > 1 && (
-              <select
-                value={stallId}
-                onChange={(e) => setStallId(e.target.value)}
-                className="border-2 border-gray-100 rounded-xl py-2 px-3 text-sm bg-white font-bold text-navy-700 focus:border-brand-green outline-none"
-              >
-                {stalls.map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            )}
             <Link
               href={`/inventory/new${stallId ? `?stallId=${stallId}` : ''}`}
               className="flex items-center gap-2 bg-brand-green text-white text-sm font-bold py-2.5 px-4 rounded-xl hover:bg-green-600 transition-colors"
@@ -135,9 +124,8 @@ export default function InventoryPage() {
 
         {/* Product list */}
         {!stallId ? (
-          <div className="text-center py-16">
-            <Package className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-            <p className="text-gray-400">Select a stall to view stock</p>
+          <div className="flex items-center justify-center py-16">
+            <div className="w-10 h-10 border-4 border-brand-green border-t-transparent rounded-full animate-spin" />
           </div>
         ) : isLoading ? (
           <div className="space-y-3">

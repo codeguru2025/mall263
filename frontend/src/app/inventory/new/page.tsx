@@ -139,24 +139,16 @@ export default function NewProductPage() {
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-4 pt-8 pb-28 sm:pb-8">
         <form onSubmit={handleSubmit} className="space-y-5">
 
-          {/* Stall selector */}
-          {stalls && stalls.length > 1 && (
-            <div className="bg-white rounded-2xl border-2 border-gray-100 p-5">
-              <label className="label">Stall <span className="text-brand-red">*</span></label>
-              <select
-                value={selectedStall}
-                onChange={(e) => setSelectedStall(e.target.value)}
-                className="input"
-                required
-              >
-                <option value="">Select stall</option>
-                {stalls.map((s: any) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+          {/* Stall indicator */}
+          {stalls?.find((s: any) => s.id === selectedStall) && (
+            <div className="bg-green-50 rounded-2xl border-2 border-green-100 px-5 py-3 flex items-center gap-2">
+              <Package className="w-4 h-4 text-brand-green flex-shrink-0" />
+              <span className="text-sm font-bold text-navy-700">
+                Adding to: {stalls.find((s: any) => s.id === selectedStall)?.name}
+              </span>
             </div>
           )}
 

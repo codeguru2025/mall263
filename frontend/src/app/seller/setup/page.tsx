@@ -90,7 +90,7 @@ export default function SellerSetupPage() {
         />
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-8">
+      <div className="max-w-lg mx-auto px-4 pt-8 pb-28 sm:pb-8">
 
         {step === 1 && (
           <div className="space-y-5">

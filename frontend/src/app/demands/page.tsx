@@ -12,6 +12,8 @@ import { Logo } from '@/components/Logo';
 export default function DemandsPage() {
   const [tab, setTab] = useState<'open' | 'my'>('open');
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
+  const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
 
   const { data: demands, isLoading } = useQuery({
     queryKey: ['demands', tab],
@@ -38,9 +40,11 @@ export default function DemandsPage() {
               <p className="text-xs text-gray-500">Live auction-style requests</p>
             </div>
           </div>
-          <Link href="/demands/new" className="btn-primary text-sm py-2.5 px-5 flex items-center gap-2">
-            <PlusCircle className="w-4 h-4" /> Post Demand
-          </Link>
+          {!isSeller && (
+            <Link href="/demands/new" className="btn-primary text-sm py-2.5 px-5 flex items-center gap-2">
+              <PlusCircle className="w-4 h-4" /> Post Demand
+            </Link>
+          )}
         </div>
       </header>
 
@@ -50,9 +54,11 @@ export default function DemandsPage() {
           <button onClick={() => setTab('open')} className={`py-2.5 px-5 rounded-xl text-sm font-bold transition-all ${tab === 'open' ? 'bg-navy-700 text-white shadow-md' : 'bg-white text-navy-600 border-2 border-gray-100 hover:border-gray-200'}`}>
             <span className="flex items-center gap-2"><Zap className="w-4 h-4" /> Live Demands</span>
           </button>
-          <button onClick={() => setTab('my')} className={`py-2.5 px-5 rounded-xl text-sm font-bold transition-all ${tab === 'my' ? 'bg-navy-700 text-white shadow-md' : 'bg-white text-navy-600 border-2 border-gray-100 hover:border-gray-200'}`}>
-            My Demands
-          </button>
+          {!isSeller && (
+            <button onClick={() => setTab('my')} className={`py-2.5 px-5 rounded-xl text-sm font-bold transition-all ${tab === 'my' ? 'bg-navy-700 text-white shadow-md' : 'bg-white text-navy-600 border-2 border-gray-100 hover:border-gray-200'}`}>
+              My Demands
+            </button>
+          )}
         </div>
 
         {isLoading ? (

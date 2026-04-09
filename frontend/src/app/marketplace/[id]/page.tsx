@@ -71,7 +71,7 @@ export default function ProductDetailPage() {
           )}
         </div>
 
-        <div className="px-4 py-6 space-y-5">
+        <div className="px-4 pt-6 pb-28 sm:pb-6 space-y-5">
           {/* Name & price */}
           <div>
             <h1 className="text-2xl font-black text-navy-700 leading-tight mb-1">{product.name}</h1>
@@ -163,6 +163,9 @@ export default function ProductDetailPage() {
               <Gavel className="w-4 h-4" /> Post a Demand
             </Link>
           </div>
+
+          {/* Bottom nav spacer — keeps last content above the fixed nav on mobile */}
+          <div className="h-20 sm:hidden" />
         </div>
       </div>
     </div>

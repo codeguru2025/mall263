@@ -1,11 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { ArrowLeft, ArrowDownLeft, ArrowUpRight, RefreshCw, Loader2 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { useAuthStore } from '@/lib/store';
 
 const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   DEPOSIT:              { label: 'Deposit',             color: 'text-brand-green' },
@@ -31,6 +34,12 @@ function txAmountSign(type: string) {
 }
 
 export default function WalletHistoryPage() {
+  const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  useEffect(() => {
+    if (!isAuthenticated) router.push('/auth/login');
+  }, [isAuthenticated, router]);
+
   const { data, isLoading } = useQuery({
     queryKey: ['wallet-transactions'],
     queryFn: () => api.get('/api/v1/wallets/me/transactions', { params: { limit: 50 } }).then((r) => r.data),

@@ -34,6 +34,11 @@
     padding-bottom: calc(env(safe-area-inset-bottom) + 5rem);
   }
 
+  /* Sticky headers respect the phone's status bar (notch / Dynamic Island / clock) */
+  header.sticky {
+    padding-top: env(safe-area-inset-top);
+  }
+
   /* Keyboard-safe: ensure the page can scroll when the virtual keyboard opens */
   html, body {
     height: 100%;

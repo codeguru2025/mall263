@@ -8,6 +8,7 @@ import api from '@/lib/api';
 import { Logo } from '@/components/Logo';
 import { ArrowLeft, Smartphone, CreditCard, Loader2, CheckCircle2, XCircle, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '@/lib/store';
 
 type Method = 'ecocash' | 'onemoney' | 'telecash' | 'web';
 
@@ -30,6 +31,11 @@ export default function DepositPage() {
   const [instructions, setInstructions] = useState('');
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const pollCount = useRef(0);
+
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  useEffect(() => {
+    if (!isAuthenticated) router.push('/auth/login');
+  }, [isAuthenticated, router]);
 
   const isMobile = method !== 'web';
 

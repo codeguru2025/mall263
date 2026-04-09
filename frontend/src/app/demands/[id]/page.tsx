@@ -44,12 +44,19 @@ export default function DemandDetailPage() {
     enabled: isAuthenticated && ['STALL_OWNER', 'ATTENDANT'].includes(user?.role ?? ''),
   });
 
+  // Fetch stalls separately — merchants/me doesn't embed stalls
+  const { data: myStalls } = useQuery({
+    queryKey: ['my-stalls', merchant?.id],
+    queryFn: () => api.get(`/api/v1/stalls/merchant/${merchant.id}`).then((r) => r.data),
+    enabled: isAuthenticated && ['STALL_OWNER', 'ATTENDANT'].includes(user?.role ?? '') && !!merchant?.id,
+  });
+
   const { data: deliveryRate } = useQuery({
     queryKey: ['delivery-rate'],
     queryFn: () => api.get('/api/v1/demands/delivery/rate').then((r) => r.data),
   });
 
-  const stallId = merchant?.stalls?.[0]?.id ?? '';
+  const stallId = myStalls?.[0]?.id ?? '';
 
   const submitOffer = useMutation({
     mutationFn: () =>

@@ -8,11 +8,14 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
+import { useAuthStore } from '@/lib/store';
 
 export default function MarketplacePage() {
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [page, setPage] = useState(1);
+  const user = useAuthStore((s) => s.user);
+  const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
 
   const { data, isLoading } = useQuery({
     queryKey: ['search', query, sortBy, page],
@@ -70,9 +73,11 @@ export default function MarketplacePage() {
                 <h1 className="text-xl font-black text-navy-700">Browse Products</h1>
                 <p className="text-sm text-gray-500">{data?.total || 0} products available</p>
               </div>
-              <Link href="/demands/new" className="btn-bid text-sm py-2.5 px-5 flex items-center gap-2">
-                <Gavel className="w-4 h-4" /> Post a Demand
-              </Link>
+              {!isSeller && (
+                <Link href="/demands/new" className="btn-bid text-sm py-2.5 px-5 flex items-center gap-2">
+                  <Gavel className="w-4 h-4" /> Post a Demand
+                </Link>
+              )}
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -114,8 +119,10 @@ export default function MarketplacePage() {
               <div className="text-center py-20">
                 <ShoppingBag className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-xl font-black text-navy-700 mb-2">No products found</h3>
-                <p className="text-gray-500 mb-6">Try a different search or post a demand for what you need</p>
-                <Link href="/demands/new" className="btn-primary">Post a Demand Instead</Link>
+                <p className="text-gray-500 mb-6">Try a different search or broaden your query</p>
+                {!isSeller && (
+                  <Link href="/demands/new" className="btn-primary">Post a Demand Instead</Link>
+                )}
               </div>
             )}
 
