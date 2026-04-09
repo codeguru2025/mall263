@@ -14,19 +14,24 @@ export default function ReportsPage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
+
+  const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'];
+  const isAdmin = isAuthenticated && user && ADMIN_ROLES.includes(user.role);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) { router.push('/auth/login'); return; }
-    if (user && !['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'].includes(user.role)) {
-      router.push('/dashboard');
-    }
-  }, [isAuthenticated, user, router]);
+    if (user && !ADMIN_ROLES.includes(user.role)) router.push('/dashboard');
+  }, [authLoading, isAuthenticated, user, router]);
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: () => api.get('/api/v1/admin/dashboard').then((r) => r.data),
-    enabled: isAuthenticated,
+    enabled: !!isAdmin,
   });
+
+  if (authLoading || !isAdmin) return null;
 
   const reportCards = stats ? [
     { label: 'Total Users', value: stats.users ?? 0, icon: Users, color: 'text-brand-blue', bg: 'bg-blue-50' },
@@ -52,7 +57,7 @@ export default function ReportsPage() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div className="max-w-4xl mx-auto px-4 py-6 pb-24 sm:pb-6">
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-10 h-10 text-brand-orange animate-spin" />

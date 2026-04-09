@@ -7,15 +7,14 @@
     /* Smooth momentum scrolling on iOS */
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
+    /* Eliminate 300ms tap delay on all mobile browsers */
+    touch-action: manipulation;
   }
 
   body {
     @apply bg-gray-50 text-navy-700 antialiased;
-    /* Prevent text size adjustment on orientation change */
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    /* Prevent pull-to-refresh hijacking scroll */
-    overscroll-behavior-y: none;
   }
 
   /* Native-feel tap highlight */
@@ -34,14 +33,18 @@
     padding-bottom: calc(env(safe-area-inset-bottom) + 5rem);
   }
 
-  /* Sticky headers respect the phone's status bar (notch / Dynamic Island / clock) */
   header.sticky {
     padding-top: env(safe-area-inset-top);
   }
 
-  /* Keyboard-safe: ensure the page can scroll when the virtual keyboard opens */
   html, body {
     height: 100%;
+  }
+
+  /* Scoped overscroll containment for scroll containers (not body — enables custom pull-to-refresh) */
+  .scroll-container {
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -139,5 +142,14 @@
   }
   .map-overlay-card {
     @apply absolute bottom-24 left-4 right-4 bg-white rounded-2xl shadow-2xl p-4 z-40 border border-gray-100;
+  }
+}
+
+/* Respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { DemandsService } from './demands.service';
+import { DemandRankingService } from './demand-ranking.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -11,7 +12,10 @@ import { UserRole, DemandStatus, DemandUrgency } from '@prisma/client';
 @ApiTags('Demands & Offers')
 @Controller('demands')
 export class DemandsController {
-  constructor(private demandsService: DemandsService) {}
+  constructor(
+    private demandsService: DemandsService,
+    private rankingService: DemandRankingService,
+  ) {}
 
   @Post()
   @ApiBearerAuth()
@@ -32,6 +36,43 @@ export class DemandsController {
     @Query('limit') limit?: number,
   ) {
     return this.demandsService.getOpenDemands({ categoryId, mallId, urgency, page, limit });
+  }
+
+  @Get('ranked')
+  @Public()
+  @ApiOperation({ summary: 'Get ranked demands with algorithmic scoring (urgency + trust + time decay)' })
+  async getRankedDemands(
+    @Query('categoryId') categoryId?: string,
+    @Query('mallId') mallId?: string,
+    @Query('lat') lat?: number,
+    @Query('lng') lng?: number,
+    @Query('maxDistance') maxDistance?: number,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.rankingService.getRankedDemands({
+      categoryId,
+      mallId,
+      latitude: lat,
+      longitude: lng,
+      maxDistanceKm: maxDistance,
+      page,
+      limit,
+    });
+  }
+
+  @Get('trending')
+  @Public()
+  @ApiOperation({ summary: 'Get trending demands (high score + recent activity)' })
+  async getTrendingDemands(@Query('limit') limit?: number) {
+    return this.rankingService.getTrendingDemands(limit);
+  }
+
+  @Get('urgent')
+  @Public()
+  @ApiOperation({ summary: 'Get urgent demands expiring soon (< 6 hours)' })
+  async getUrgentDemands(@Query('limit') limit?: number) {
+    return this.rankingService.getUrgentDemands(limit);
   }
 
   @Get('my')

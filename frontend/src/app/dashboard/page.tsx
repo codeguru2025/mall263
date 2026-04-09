@@ -106,7 +106,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-sm text-right hidden sm:block">
                   <div className="font-bold text-navy-700">{user.firstName} {user.lastName}</div>
-                  <div className="text-xs text-gray-500 capitalize">{user.role.replace('_', ' ').toLowerCase()}</div>
+                  <div className="text-xs text-gray-500 capitalize">{user.role.replace(/_/g, ' ').toLowerCase()}</div>
                 </div>
               </button>
               {menuOpen && (

@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { Users, ArrowLeft, Search, Plus, X, Phone, Lock, User, Shield, ChevronRight, Ban, CheckCircle } from 'lucide-react';
@@ -19,10 +20,14 @@ interface CreateUserForm {
   role: UserRole;
 }
 
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'];
+
 export default function AdminUsersPage() {
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
+  const [activeUserId, setActiveUserId] = useState<string | null>(null);
   const [form, setForm] = useState<CreateUserForm>({
     firstName: '',
     lastName: '',
@@ -32,16 +37,28 @@ export default function AdminUsersPage() {
   });
 
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
+
+  const isAdmin = isAuthenticated && user && ADMIN_ROLES.includes(user.role);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) { router.push('/auth/login'); return; }
+    if (user && !ADMIN_ROLES.includes(user.role)) router.push('/dashboard');
+  }, [authLoading, isAuthenticated, user, router]);
+
+  if (authLoading || !isAdmin) return null;
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users', search, page],
-    queryFn: () => api.get('/admin/users', { params: { search, page, limit: 20 } }).then((r) => r.data),
-    enabled: isAuthenticated,
+    queryFn: () => api.get('/api/v1/admin/users', { params: { search, page, limit: 20 } }).then((r) => r.data),
+    enabled: !!isAdmin,
   });
 
   const createMutation = useMutation({
-    mutationFn: (payload: CreateUserForm) => api.post('/admin/users', payload).then((r) => r.data),
+    mutationFn: (payload: CreateUserForm) => api.post('/api/v1/admin/users', payload).then((r) => r.data),
     onSuccess: () => {
       toast.success('User created successfully');
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
@@ -53,12 +70,14 @@ export default function AdminUsersPage() {
 
   const suspendMutation = useMutation({
     mutationFn: ({ id, suspend }: { id: string; suspend: boolean }) =>
-      api.patch(`/admin/users/${id}/${suspend ? 'suspend' : 'activate'}`).then((r) => r.data),
+      api.patch(`/api/v1/admin/users/${id}/${suspend ? 'suspend' : 'activate'}`).then((r) => r.data),
     onSuccess: () => {
       toast.success('User status updated');
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setActiveUserId(null);
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Action failed'),
+    onSettled: () => setActiveUserId(null),
   });
 
   const update = (field: keyof CreateUserForm, value: string) =>
@@ -148,8 +167,8 @@ export default function AdminUsersPage() {
                     {user.role.replace(/_/g, ' ')}
                   </span>
                   <button
-                    onClick={() => suspendMutation.mutate({ id: user.id, suspend: user.status === 'ACTIVE' })}
-                    disabled={suspendMutation.isPending}
+                    onClick={() => { setActiveUserId(user.id); suspendMutation.mutate({ id: user.id, suspend: user.status === 'ACTIVE' }); }}
+                    disabled={suspendMutation.isPending && activeUserId === user.id}
                     className={`flex-shrink-0 p-2 rounded-xl transition-colors ${user.status === 'SUSPENDED' ? 'hover:bg-green-50 text-brand-green' : 'hover:bg-red-50 text-brand-red'}`}
                     title={user.status === 'SUSPENDED' ? 'Activate user' : 'Suspend user'}
                   >
@@ -166,7 +185,7 @@ export default function AdminUsersPage() {
           <div className="flex justify-center mt-6 gap-3">
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-secondary text-sm py-2.5 px-5 disabled:opacity-40">Previous</button>
             <span className="py-2.5 px-4 text-sm font-bold text-navy-700 bg-white rounded-xl border-2 border-gray-100">Page {page}</span>
-            <button onClick={() => setPage((p) => p + 1)} disabled={(data?.data || []).length < 20} className="btn-secondary text-sm py-2.5 px-5 disabled:opacity-40">Next</button>
+            <button onClick={() => setPage((p) => p + 1)} disabled={page * 20 >= (data?.total || 0)} className="btn-secondary text-sm py-2.5 px-5 disabled:opacity-40">Next</button>
           </div>
         )}
       </div>

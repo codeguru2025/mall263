@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { generateIdempotencyKey } from '@/lib/idempotency';
 import { Logo } from '@/components/Logo';
 import { ArrowLeft, Smartphone, CreditCard, Loader2, CheckCircle2, XCircle, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -19,7 +20,7 @@ const METHODS: { id: Method; label: string; icon: string; desc: string }[] = [
   { id: 'web',      label: 'Card / Zipit', icon: '💳', desc: 'Visa, Mastercard or Zipit bank transfer' },
 ];
 
-type Stage = 'form' | 'processing' | 'success' | 'failed';
+type Stage = 'form' | 'processing' | 'success' | 'failed' | 'timeout';
 
 export default function DepositPage() {
   const router = useRouter();
@@ -33,25 +34,28 @@ export default function DepositPage() {
   const pollCount = useRef(0);
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
-  }, [isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, router]);
 
   const isMobile = method !== 'web';
 
   // ── Initiate payment ───────────────────────────────────────────────────────
   const mutation = useMutation({
     mutationFn: async () => {
+      const idempotencyKey = generateIdempotencyKey();
       if (isMobile) {
         return api.post('/api/v1/payments/initiate/mobile', {
           amount: parseFloat(amount),
           phone,
           method,
-        }).then((r) => r.data);
+        }, { headers: { 'Idempotency-Key': idempotencyKey } }).then((r) => r.data);
       } else {
         return api.post('/api/v1/payments/initiate/web', {
           amount: parseFloat(amount),
-        }).then((r) => r.data);
+        }, { headers: { 'Idempotency-Key': idempotencyKey } }).then((r) => r.data);
       }
     },
     onSuccess: (data) => {
@@ -77,7 +81,7 @@ export default function DepositPage() {
       // Stop after 5 minutes (60 × 5s)
       if (pollCount.current > 60) {
         clearInterval(pollRef.current!);
-        setStage('failed');
+        setStage('timeout');
         return;
       }
       try {
@@ -109,6 +113,8 @@ export default function DepositPage() {
     if (isMobile && !phone) { toast.error('Enter your mobile number'); return; }
     mutation.mutate();
   };
+
+  if (authLoading) return null;
 
   // ── Success screen ─────────────────────────────────────────────────────────
   if (stage === 'success') {
@@ -144,6 +150,34 @@ export default function DepositPage() {
           <Link href="/dashboard" className="block text-sm text-gray-400 hover:text-gray-600">
             Back to Dashboard
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Timeout screen ─────────────────────────────────────────────────────────
+  if (stage === 'timeout') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="bg-white rounded-3xl border-2 border-gray-100 p-8 max-w-sm w-full text-center shadow-sm">
+          <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-5">
+            <XCircle className="w-10 h-10 text-brand-orange" />
+          </div>
+          <h2 className="text-2xl font-black text-navy-700 mb-2">Payment not confirmed</h2>
+          <p className="text-gray-500 mb-6">We could not confirm your payment after 5 minutes. If money was deducted, please contact support with your reference.</p>
+          <div className="bg-gray-50 rounded-2xl p-4 mb-6 text-left">
+            <p className="text-xs text-gray-400 mb-1">Reference</p>
+            <p className="font-mono text-sm text-navy-700 font-bold">{reference}</p>
+          </div>
+          <button onClick={() => setStage('form')} className="btn-primary w-full py-4 text-base mb-3">
+            Try Again
+          </button>
+          <button
+            onClick={() => { if (reference) startPolling(reference); }}
+            className="btn-secondary w-full py-4 text-base"
+          >
+            Check Status
+          </button>
         </div>
       </div>
     );
@@ -201,11 +235,10 @@ export default function DepositPage() {
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-gray-400">$</span>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 className="input pl-9 text-2xl font-black"
                 placeholder="0.00"
-                min="1"
-                step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 required

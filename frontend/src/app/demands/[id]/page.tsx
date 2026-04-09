@@ -8,9 +8,11 @@ import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
+import UrgencyCountdown, { useCountdown, formatCountdown } from '@/components/UrgencyCountdown';
 import {
   ArrowLeft, Gavel, Clock, CheckCircle2, ChevronDown, Loader2, AlertCircle,
   MapPin, MessageCircle, Truck, Navigation, Store, PackageCheck, X, Receipt,
+  TrendingUp, Star
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
@@ -29,6 +31,7 @@ export default function DemandDetailPage() {
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   const [offerOpen, setOfferOpen] = useState(false);
   const [offerForm, setOfferForm] = useState({ message: '', totalPrice: '', stallId: '' });
   const [deliveryOfferId, setDeliveryOfferId] = useState<string | null>(null);
@@ -40,8 +43,9 @@ export default function DemandDetailPage() {
   const [completedSaleId, setCompletedSaleId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
-  }, [isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, router]);
 
   const { data: demand, isLoading, isError } = useQuery({
     queryKey: ['demand', id],
@@ -150,6 +154,8 @@ export default function DemandDetailPage() {
     );
   };
 
+  if (authLoading) return null;
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -181,12 +187,17 @@ export default function DemandDetailPage() {
   };
 
   const urgencyColors: Record<string, string> = {
-    HIGH: 'text-brand-red bg-red-50',
-    MEDIUM: 'text-brand-orange bg-orange-50',
-    LOW: 'text-brand-blue bg-blue-50',
+    HIGH: 'text-brand-red bg-red-50 border-red-200',
+    MEDIUM: 'text-brand-orange bg-orange-50 border-orange-200',
+    LOW: 'text-brand-blue bg-blue-50 border-blue-200',
+    URGENT: 'text-brand-red bg-red-100 border-red-300 animate-pulse',
   };
 
   const acceptedOffer = (demand.offers || []).find((o: any) => o.status === 'ACCEPTED');
+  const timeLeft = useCountdown(demand.expiresAt);
+  const trustScore = demand.buyer?.trustScore?.overallScore 
+    ? parseFloat(String(demand.buyer.trustScore.overallScore))
+    : 50;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-28">
@@ -218,10 +229,23 @@ export default function DemandDetailPage() {
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1">
                 <span className={`badge text-[10px] ${statusColors[demand.status] || statusColors.CLOSED}`}>{demand.status}</span>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${urgencyColors[demand.urgency] || urgencyColors.MEDIUM}`}>{demand.urgency}</span>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border ${urgencyColors[demand.urgency] || urgencyColors.MEDIUM}`}>
+                  {demand.urgency}
+                </span>
+                <UrgencyCountdown 
+                  expiresAt={demand.expiresAt} 
+                  urgency={demand.urgency}
+                  size="sm"
+                />
               </div>
               <h2 className="font-black text-navy-700 text-lg leading-tight">{demand.title}</h2>
-              <p className="text-xs text-gray-400 mt-0.5">by {demand.buyer?.firstName} {demand.buyer?.lastName}</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className="text-xs text-gray-400">by {demand.buyer?.firstName} {demand.buyer?.lastName}</p>
+                <span className="flex items-center gap-1 text-xs text-brand-green bg-green-50 px-1.5 py-0.5 rounded">
+                  <Star className="w-3 h-3" />
+                  Trust {trustScore.toFixed(0)}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -244,7 +268,11 @@ export default function DemandDetailPage() {
 
           <div className="flex items-center gap-2 text-xs text-gray-400">
             <Clock className="w-3.5 h-3.5" />
-            Posted {new Date(demand.createdAt).toLocaleDateString()} · Expires {new Date(demand.expiresAt).toLocaleDateString()}
+            <span>Posted {new Date(demand.createdAt).toLocaleDateString()}</span>
+            <span className="text-gray-300">|</span>
+            <span className={timeLeft.total < 3600000 ? 'text-brand-red font-bold' : ''}>
+              Expires in {formatCountdown(timeLeft)}
+            </span>
           </div>
         </div>
 
@@ -408,7 +436,7 @@ export default function DemandDetailPage() {
                     type="number"
                     className="input"
                     placeholder="e.g. 25.00"
-                    min="0"
+                    min="0.01"
                     step="0.01"
                     value={offerForm.totalPrice}
                     onChange={(e) => setOfferForm((f) => ({ ...f, totalPrice: e.target.value }))}

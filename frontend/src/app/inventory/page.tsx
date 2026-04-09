@@ -3,20 +3,34 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
-import { Package, Plus, Search, ArrowLeft, AlertTriangle, Edit2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Package, Plus, Search, ArrowLeft, AlertTriangle, Edit2, ToggleLeft, ToggleRight, Store } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '@/lib/store';
 
 export default function InventoryPage() {
+  const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) { router.push('/auth/login'); return; }
+    if (user && !['STALL_OWNER', 'ATTENDANT'].includes(user.role)) { router.push('/dashboard'); return; }
+  }, [authLoading, isAuthenticated, user, router]);
+
   const [stallId, setStallId] = useState('');
   const [search, setSearch] = useState('');
   const queryClient = useQueryClient();
 
-  const { data: merchant } = useQuery({
+  const { data: merchant, isError: merchantError } = useQuery({
     queryKey: ['my-merchant'],
     queryFn: () => api.get('/api/v1/merchants/me').then((r) => r.data),
+    enabled: isAuthenticated,
   });
 
   const { data: stalls } = useQuery({
@@ -68,6 +82,8 @@ export default function InventoryPage() {
     p.variants?.every((v: any) => !v.inventory || v.inventory.quantity === 0),
   ).length;
 
+  if (authLoading) return null;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
@@ -93,7 +109,18 @@ export default function InventoryPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 py-6 pb-24 sm:pb-6">
+        {merchantError ? (
+          <div className="flex items-center justify-center h-[60vh]">
+            <div className="text-center px-6">
+              <Store className="w-14 h-14 text-gray-200 mx-auto mb-3" />
+              <p className="font-black text-navy-700 text-lg mb-1">No Merchant Profile</p>
+              <p className="text-sm text-gray-500 mb-4">You need to complete seller setup before managing inventory.</p>
+              <Link href="/seller/setup" className="btn-primary inline-flex items-center gap-2">Go to Setup</Link>
+            </div>
+          </div>
+        ) : (
+        <>
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-2xl border-2 border-gray-100 p-4 text-center">
@@ -241,6 +268,8 @@ export default function InventoryPage() {
               );
             })}
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

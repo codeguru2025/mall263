@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import api from './api';
 
 interface User {
@@ -82,42 +83,47 @@ interface CartState {
   getItemCount: () => number;
 }
 
-export const useCartStore = create<CartState>((set, get) => ({
-  items: [],
-  stallId: null,
+export const useCartStore = create<CartState>()(
+  persist(
+    (set, get) => ({
+      items: [],
+      stallId: null,
 
-  setStall: (stallId) => set({ stallId, items: [] }),
+      setStall: (stallId) => set({ stallId, items: [] }),
 
-  addItem: (item) => {
-    const existing = get().items.find((i) => i.variantId === item.variantId);
-    if (existing) {
-      set({
-        items: get().items.map((i) =>
-          i.variantId === item.variantId
-            ? { ...i, quantity: Math.min(i.quantity + 1, i.maxStock) }
-            : i
-        ),
-      });
-    } else {
-      set({ items: [...get().items, { ...item, quantity: 1 }] });
-    }
-  },
+      addItem: (item) => {
+        const existing = get().items.find((i) => i.variantId === item.variantId);
+        if (existing) {
+          set({
+            items: get().items.map((i) =>
+              i.variantId === item.variantId
+                ? { ...i, quantity: Math.min(i.quantity + 1, i.maxStock) }
+                : i
+            ),
+          });
+        } else {
+          set({ items: [...get().items, { ...item, quantity: 1 }] });
+        }
+      },
 
-  removeItem: (variantId) => set({ items: get().items.filter((i) => i.variantId !== variantId) }),
+      removeItem: (variantId) => set({ items: get().items.filter((i) => i.variantId !== variantId) }),
 
-  updateQuantity: (variantId, quantity) => {
-    if (quantity <= 0) {
-      set({ items: get().items.filter((i) => i.variantId !== variantId) });
-    } else {
-      set({
-        items: get().items.map((i) =>
-          i.variantId === variantId ? { ...i, quantity: Math.min(quantity, i.maxStock) } : i
-        ),
-      });
-    }
-  },
+      updateQuantity: (variantId, quantity) => {
+        if (quantity <= 0) {
+          set({ items: get().items.filter((i) => i.variantId !== variantId) });
+        } else {
+          set({
+            items: get().items.map((i) =>
+              i.variantId === variantId ? { ...i, quantity: Math.min(quantity, i.maxStock) } : i
+            ),
+          });
+        }
+      },
 
-  clearCart: () => set({ items: [] }),
-  getTotal: () => get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
-  getItemCount: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
-}));
+      clearCart: () => set({ items: [] }),
+      getTotal: () => get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+      getItemCount: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
+    }),
+    { name: 'pos-cart' }
+  )
+);

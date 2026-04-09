@@ -35,12 +35,14 @@ function getRange(period: Period) {
 export default function SellerReportsPage() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   const router = useRouter();
   const [period, setPeriod] = useState<Period>('7d');
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
-  }, [isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, router]);
 
   const { data: merchant } = useQuery({
     queryKey: ['my-merchant'],
@@ -48,7 +50,7 @@ export default function SellerReportsPage() {
     enabled: isAuthenticated,
   });
 
-  const { data: stalls } = useQuery({
+  const { data: stalls, isError: stallsError } = useQuery({
     queryKey: ['my-stalls', merchant?.id],
     queryFn: () => api.get(`/api/v1/stalls/merchant/${merchant.id}`).then((r) => r.data),
     enabled: !!merchant?.id,
@@ -92,6 +94,8 @@ export default function SellerReportsPage() {
     </div>
   );
 
+  if (authLoading) return null;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
@@ -127,7 +131,7 @@ export default function SellerReportsPage() {
 
         {/* Low stock alert */}
         {(lowStockItems?.length ?? 0) > 0 && (
-          <Link href="/inventory" className="block bg-amber-50 border-2 border-amber-100 rounded-2xl px-4 py-3 mb-5 flex items-center gap-3">
+          <Link href="/inventory" className="bg-amber-50 border-2 border-amber-100 rounded-2xl px-4 py-3 mb-5 flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0" />
             <div className="flex-1">
               <p className="font-bold text-amber-700 text-sm">{lowStockItems.length} item{lowStockItems.length !== 1 ? 's' : ''} running low on stock</p>
@@ -151,7 +155,13 @@ export default function SellerReportsPage() {
           ))}
         </div>
 
-        {isLoading ? (
+        {stallsError ? (
+          <div className="text-center py-16">
+            <BarChart3 className="w-12 h-12 text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-500 font-semibold">Failed to load stall data</p>
+            <p className="text-gray-400 text-sm mt-1">Please try refreshing the page</p>
+          </div>
+        ) : isLoading ? (
           <div className="grid grid-cols-2 gap-3 mb-5">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="bg-white rounded-2xl border-2 border-gray-100 p-4 animate-pulse h-24" />

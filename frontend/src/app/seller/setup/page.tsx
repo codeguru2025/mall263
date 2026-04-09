@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
@@ -15,6 +16,7 @@ export default function SellerSetupPage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   const [step, setStep] = useState<Step>(1);
 
   const [form, setForm] = useState({
@@ -28,8 +30,10 @@ export default function SellerSetupPage() {
   });
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
-  }, [isAuthenticated, router]);
+    if (user && !['STALL_OWNER', 'ATTENDANT', 'FIELD_AGENT'].includes(user.role)) { router.push('/dashboard'); return; }
+  }, [authLoading, isAuthenticated, user, router]);
 
   // Pre-fill business name from user's name
   useEffect(() => {
@@ -68,12 +72,16 @@ export default function SellerSetupPage() {
   const step1Valid = form.businessName.trim().length > 0;
   const step2Valid = form.stallName.trim().length > 0 && form.stallNumber.trim().length > 0;
 
+  if (authLoading) return null;
   if (!user) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
+          <Link href="/dashboard" className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+            <ArrowLeft className="w-5 h-5 text-navy-700" />
+          </Link>
           <Logo size={30} />
           <div>
             <h1 className="text-lg font-black text-navy-700">Set Up Your Stall</h1>

@@ -22,14 +22,17 @@ const PAYMENT_LABELS: Record<string, string> = {
 export default function SalesHistoryPage() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [dateFilter, setDateFilter] = useState<'today' | '7d' | '30d' | 'all'>('today');
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
-  }, [isAuthenticated, router]);
+    if (user && !['STALL_OWNER', 'ATTENDANT'].includes(user.role)) { router.push('/dashboard'); return; }
+  }, [authLoading, isAuthenticated, user, router]);
 
   const { data: merchant } = useQuery({
     queryKey: ['my-merchant'],
@@ -77,6 +80,8 @@ export default function SalesHistoryPage() {
     : sales;
 
   const totalRevenue = sales.reduce((sum, s) => sum + parseFloat(s.totalAmount), 0);
+
+  if (authLoading) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -198,7 +203,7 @@ export default function SalesHistoryPage() {
               Previous
             </button>
             <span className="py-2.5 px-4 text-sm font-bold text-navy-700 bg-white rounded-xl border-2 border-gray-100">Page {page}</span>
-            <button onClick={() => setPage((p) => p + 1)} disabled={filtered.length < 20} className="btn-secondary text-sm py-2.5 px-5 disabled:opacity-40">
+            <button onClick={() => setPage((p) => p + 1)} disabled={page * 20 >= total} className="btn-secondary text-sm py-2.5 px-5 disabled:opacity-40">
               Next
             </button>
           </div>

@@ -2,25 +2,35 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, MapPin, Star, Gavel, ShoppingBag } from 'lucide-react';
-import { useState } from 'react';
+import { Search, MapPin, Star, Gavel, ShoppingBag, Loader2 } from 'lucide-react';
+import { useState, Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
 import { useAuthStore } from '@/lib/store';
+import { useDebounce } from '@/lib/hooks/useDebounce';
 
-export default function MarketplacePage() {
-  const [query, setQuery] = useState('');
+function MarketplaceContent() {
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(searchParams.get('q') || '');
+  const debouncedQuery = useDebounce(query, 300);
+  const [selectedMall, setSelectedMall] = useState(searchParams.get('mall') || '');
   const [sortBy, setSortBy] = useState('newest');
   const [page, setPage] = useState(1);
   const user = useAuthStore((s) => s.user);
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['search', query, sortBy, page],
-    queryFn: () => api.get('/api/v1/search', { params: { q: query, sortBy, page, limit: 20 } }).then((r) => r.data),
+  // Reset page when debounced search changes
+  useEffect(() => { setPage(1); }, [debouncedQuery]);
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['search', debouncedQuery.trim(), selectedMall, sortBy, page],
+    queryFn: () => api.get('/api/v1/search', { params: { q: debouncedQuery.trim() || undefined, mall: selectedMall || undefined, sortBy, page, limit: 20 } }).then((r) => r.data),
     placeholderData: (prev: any) => prev,
+    staleTime: 120_000,
+    gcTime: 300_000,
   });
 
   return (
@@ -37,9 +47,12 @@ export default function MarketplacePage() {
                   type="text"
                   placeholder="Search products, brands, categories..."
                   value={query}
-                  onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+                  onChange={(e) => setQuery(e.target.value)}
                   className="w-full py-2.5 bg-transparent text-sm text-navy-700 placeholder-gray-400 outline-none font-medium"
                 />
+                {(debouncedQuery !== query || isFetching) && (
+                  <Loader2 className="w-4 h-4 text-brand-orange animate-spin flex-shrink-0" />
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -132,7 +145,7 @@ export default function MarketplacePage() {
                   Previous
                 </button>
                 <span className="py-2.5 px-4 text-sm font-bold text-navy-700 bg-white rounded-xl border-2 border-gray-100">Page {page}</span>
-                <button onClick={() => setPage((p) => p + 1)} disabled={(data?.data || []).length < 20} className="btn-secondary text-sm py-2.5 px-5 disabled:opacity-40">
+                <button onClick={() => setPage((p) => p + 1)} disabled={page * 20 >= (data?.total || 0)} className="btn-secondary text-sm py-2.5 px-5 disabled:opacity-40">
                   Next
                 </button>
               </div>
@@ -141,5 +154,13 @@ export default function MarketplacePage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function MarketplacePage() {
+  return (
+    <Suspense fallback={null}>
+      <MarketplaceContent />
+    </Suspense>
   );
 }

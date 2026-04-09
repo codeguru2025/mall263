@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { Loader2, CheckCircle2, Smartphone } from 'lucide-react';
+import { Loader2, CheckCircle2, Smartphone, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface SubscribeModalProps {
@@ -15,7 +15,7 @@ interface SubscribeModalProps {
 export default function SubscribeModal({ onClose, dismissible = true }: SubscribeModalProps) {
   const queryClient = useQueryClient();
   const [phone, setPhone] = useState('');
-  const [step, setStep] = useState<'phone' | 'waiting' | 'done'>('phone');
+  const [step, setStep] = useState<'phone' | 'waiting' | 'done' | 'timeout'>('phone');
   const [reference, setReference] = useState('');
   const [pollCount, setPollCount] = useState(0);
 
@@ -38,18 +38,25 @@ export default function SubscribeModal({ onClose, dismissible = true }: Subscrib
     onError: (err: any) => toast.error(err.response?.data?.message || 'Could not initiate payment'),
   });
 
-  // Poll for payment confirmation
+  // Poll for payment confirmation — max 72 polls (6 minutes)
   useEffect(() => {
     if (step !== 'waiting' || !reference) return;
     const interval = setInterval(async () => {
       try {
         const res = await api.get(`/api/v1/subscriptions/poll/${reference}`);
         if (res.data.paid) {
+          clearInterval(interval);
           setStep('done');
           queryClient.invalidateQueries({ queryKey: ['subscription'] });
-          clearInterval(interval);
+          return;
         }
-        setPollCount((c) => c + 1);
+        setPollCount((c) => {
+          if (c + 1 >= 72) {
+            clearInterval(interval);
+            setStep('timeout');
+          }
+          return c + 1;
+        });
       } catch { /* ignore */ }
     }, 5000);
     return () => clearInterval(interval);
@@ -144,6 +151,29 @@ export default function SubscribeModal({ onClose, dismissible = true }: Subscrib
             >
               Continue
             </button>
+          </div>
+        )}
+
+        {step === 'timeout' && (
+          <div className="px-6 py-10 text-center space-y-4">
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-8 h-8 text-brand-red" />
+            </div>
+            <div>
+              <h3 className="font-black text-navy-700 text-lg">Payment Not Confirmed</h3>
+              <p className="text-sm text-gray-500 mt-1">We didn&apos;t receive a payment confirmation. Please try again.</p>
+            </div>
+            <button
+              onClick={() => { setStep('phone'); setPollCount(0); setReference(''); }}
+              className="w-full py-3 bg-brand-orange text-white font-black rounded-xl hover:bg-orange-600 transition-colors"
+            >
+              Try Again
+            </button>
+            {dismissible && onClose && (
+              <button onClick={onClose} className="w-full text-center text-sm text-gray-400 hover:text-gray-600 py-1">
+                Maybe later
+              </button>
+            )}
           </div>
         )}
       </div>

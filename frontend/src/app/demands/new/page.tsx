@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 export default function NewDemandPage() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -22,8 +23,9 @@ export default function NewDemandPage() {
   });
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
-  }, [isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, router]);
 
   const update = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -49,12 +51,18 @@ export default function NewDemandPage() {
       toast.error('Please fill in all required fields');
       return;
     }
+    if (parseFloat(form.minBudget) <= 0 || parseFloat(form.maxBudget) <= 0) {
+      toast.error('Budget must be greater than $0');
+      return;
+    }
     if (parseFloat(form.minBudget) > parseFloat(form.maxBudget)) {
       toast.error('Min budget cannot exceed max budget');
       return;
     }
     mutation.mutate();
   };
+
+  if (authLoading) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -114,7 +122,7 @@ export default function NewDemandPage() {
                   type="number"
                   className="input"
                   placeholder="0.00"
-                  min="0"
+                  min="0.01"
                   step="0.01"
                   value={form.minBudget}
                   onChange={(e) => update('minBudget', e.target.value)}
@@ -127,7 +135,7 @@ export default function NewDemandPage() {
                   type="number"
                   className="input"
                   placeholder="0.00"
-                  min="0"
+                  min="0.01"
                   step="0.01"
                   value={form.maxBudget}
                   onChange={(e) => update('maxBudget', e.target.value)}

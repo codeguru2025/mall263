@@ -1,25 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { Logo } from '@/components/Logo';
 import { ArrowLeft, Plus, Edit2, Trash2, Tag, ToggleLeft, ToggleRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'];
+
 export default function AdminCategoriesPage() {
+  const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
   const [formData, setFormData] = useState({ name: '', parentId: '', imageUrl: '' });
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
+
+  const isAdmin = isAuthenticated && user && ADMIN_ROLES.includes(user.role);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) { router.push('/auth/login'); return; }
+    if (user && !ADMIN_ROLES.includes(user.role)) router.push('/dashboard');
+  }, [authLoading, isAuthenticated, user, router]);
+
+  if (authLoading || !isAdmin) return null;
 
   const { data: categories, isLoading } = useQuery({
     queryKey: ['admin-categories'],
     queryFn: () => api.get('/api/v1/admin/categories').then((r) => r.data),
-    enabled: isAuthenticated,
+    enabled: !!isAdmin,
   });
 
   const createMutation = useMutation({

@@ -16,14 +16,16 @@ export default function ChatRoomPage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   const [message, setMessage] = useState('');
   const [lastTimestamp, setLastTimestamp] = useState<string | undefined>(undefined);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
-  }, [isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, router]);
 
   // Load initial messages
   const { data: messages = [], isLoading } = useQuery<any[]>({
@@ -77,11 +79,13 @@ export default function ChatRoomPage() {
     sendMessage.mutate(trimmed);
   };
 
+  if (authLoading) return null;
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={() => router.back()} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+          <button onClick={() => { if (window.history.length > 1) { router.back(); } else { router.push('/demands'); } }} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
             <ArrowLeft className="w-5 h-5 text-navy-700" />
           </button>
           <Logo size={28} />

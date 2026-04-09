@@ -60,7 +60,7 @@ export default function NotificationsPage() {
         </div>
       </header>
 
-      <div className="max-w-lg mx-auto px-4 py-4">
+      <div className="max-w-lg mx-auto px-4 py-4 pb-24 sm:pb-6">
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">

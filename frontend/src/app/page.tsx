@@ -1,60 +1,25 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
-import { Search, MapPin, Gavel, ArrowRight, Shield, Users, Star, ChevronLeft, ChevronRight, LogOut, User, CheckCircle } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { Gavel, LogOut, User } from 'lucide-react';
 import { Logo } from '@/components/Logo';
-import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
-
-interface Mall {
-  id: string;
-  name: string;
-  city: string;
-  imageUrl?: string;
-}
-
-interface Product {
-  id: string;
-  name: string;
-  minPrice: string;
-  maxPrice: string;
-  images: { url: string }[];
-  stall: { name: string; mall: { name: string; city: string } };
-  category?: { name: string };
-}
+import LocationFilterBar from '@/components/home/LocationFilterBar';
+import CategoryGrid from '@/components/home/CategoryGrid';
+import BannerCarousel from '@/components/home/BannerCarousel';
+import DemandCTA from '@/components/home/DemandCTA';
+import InfiniteProductFeed from '@/components/home/InfiniteProductFeed';
 
 export default function HomePage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [heroIndex, setHeroIndex] = useState(0);
+  const [selectedMallId, setSelectedMallId] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const logout = useAuthStore((s) => s.logout);
-
-  const { data: malls = [] } = useQuery<Mall[]>({
-    queryKey: ['malls'],
-    queryFn: () => api.get('/api/v1/stalls/malls').then((r) => r.data),
-  });
-
-  const { data: products = [] } = useQuery<Product[]>({
-    queryKey: ['popular-products'],
-    queryFn: () => api.get('/api/v1/products/browse?limit=8&sortBy=popular').then((r) => r.data.data || []),
-  });
-
-  // Auto-rotate hero carousel every 4 seconds
-  useEffect(() => {
-    if (products.length === 0) return;
-    const timer = setInterval(() => {
-      setHeroIndex((i) => (i + 1) % products.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, [products.length]);
 
   // Close account dropdown on outside click
   useEffect(() => {
@@ -65,15 +30,8 @@ export default function HomePage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    router.push(searchQuery.trim() ? `/marketplace?q=${encodeURIComponent(searchQuery)}` : '/marketplace');
-  };
-
-  const heroProduct = products.length > 0 ? products[heroIndex] : null;
-
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50 pb-24 sm:pb-6">
       {/* Header */}
       <header className="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -131,257 +89,12 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-navy-700 via-navy-800 to-navy-900" />
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #3B9AE1 0%, transparent 50%), radial-gradient(circle at 80% 50%, #F7941D 0%, transparent 50%)' }} />
-
-        <div className="relative max-w-7xl mx-auto px-4 py-16 md:py-24">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm text-white/90 text-sm font-semibold px-4 py-2 rounded-full mb-6 border border-white/10">
-                <CheckCircle className="w-4 h-4 text-brand-green" />
-                Zimbabwe&apos;s demand-driven marketplace
-              </div>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white leading-tight mb-5">
-                Find it. <span className="text-brand-orange">Bid on it.</span><br />
-                <span className="text-brand-green">Collect it.</span>
-              </h1>
-              <p className="text-lg text-white/70 mb-8 max-w-lg">
-                Post what you need. Sellers across Zimbabwe&apos;s markets respond with their best offers. Pick the one you want and collect it in person.
-              </p>
-
-              <form onSubmit={handleSearch} className="relative mb-6">
-                <div className="bg-white rounded-2xl shadow-2xl p-2 flex items-center gap-2">
-                  <div className="flex items-center gap-3 flex-1 pl-4">
-                    <div className="w-3 h-3 rounded-full bg-brand-orange flex-shrink-0" />
-                    <input
-                      type="text"
-                      placeholder="What are you looking for?"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full py-3 text-navy-700 placeholder-gray-400 outline-none text-lg font-medium"
-                    />
-                  </div>
-                  <button type="submit" className="bg-brand-orange hover:bg-orange-500 text-white py-3.5 px-8 rounded-xl font-bold transition-all shadow-md hover:shadow-lg flex items-center gap-2">
-                    <Search className="w-5 h-5" /> Search
-                  </button>
-                </div>
-              </form>
-
-              <div className="flex items-center gap-3 flex-wrap">
-                <Link href={isAuthenticated ? '/marketplace' : '/auth/register?role=buyer'} className="inline-flex items-center gap-2 bg-brand-blue hover:bg-blue-600 text-white text-sm font-bold py-2.5 px-5 rounded-xl transition-all shadow-md">
-                  I want to Buy <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link href={isAuthenticated ? '/dashboard' : '/auth/register?role=seller'} className="inline-flex items-center gap-2 bg-brand-green hover:bg-green-600 text-white text-sm font-bold py-2.5 px-5 rounded-xl transition-all shadow-md">
-                  I want to Sell <ArrowRight className="w-4 h-4" />
-                </Link>
-              </div>
-            </div>
-
-            {/* Rotating product carousel */}
-            <div className="hidden md:block">
-              {heroProduct ? (
-                <div className="relative rounded-3xl overflow-hidden shadow-2xl h-80 bg-white/10 border border-white/20">
-                  {heroProduct.images[0] ? (
-                    <Image
-                      key={heroProduct.id}
-                      src={heroProduct.images[0].url}
-                      alt={heroProduct.name}
-                      fill
-                      className="object-cover"
-                      sizes="50vw"
-                      priority
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Search className="w-16 h-16 text-white/20" />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-navy-900/85 via-transparent to-transparent" />
-                  <div className="absolute bottom-0 left-0 right-0 p-5">
-                    <div className="text-white/70 text-xs mb-1 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {heroProduct.stall?.mall?.name || heroProduct.stall?.name}
-                      {heroProduct.stall?.mall?.city ? ` · ${heroProduct.stall.mall.city}` : ''}
-                    </div>
-                    <div className="text-white font-bold text-lg leading-tight line-clamp-2 mb-1">
-                      {heroProduct.name}
-                    </div>
-                    <div className="text-brand-green font-black text-xl">
-                      ${heroProduct.minPrice}
-                      {heroProduct.maxPrice !== heroProduct.minPrice ? ` – $${heroProduct.maxPrice}` : ''}
-                    </div>
-                  </div>
-                  {/* Prev / Next */}
-                  <button
-                    onClick={() => setHeroIndex((i) => (i - 1 + products.length) % products.length)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center text-white transition-colors"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setHeroIndex((i) => (i + 1) % products.length)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/30 hover:bg-black/50 rounded-full flex items-center justify-center text-white transition-colors"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                  {/* Dots */}
-                  <div className="absolute bottom-4 right-16 flex items-center gap-1.5">
-                    {products.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setHeroIndex(i)}
-                        className={`h-2 rounded-full transition-all duration-300 ${i === heroIndex ? 'bg-white w-5' : 'bg-white/40 w-2'}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="relative rounded-3xl h-80 bg-white/5 border border-white/10 flex items-center justify-center">
-                  <div className="text-center text-white/30">
-                    <Search className="w-12 h-12 mx-auto mb-2" />
-                    <div className="text-sm font-medium">Products will appear here</div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Latest Products */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-3xl font-black text-navy-700">Latest Products</h2>
-              <p className="text-gray-500 text-sm mt-1">Browse what&apos;s available across our markets</p>
-            </div>
-            <Link href="/marketplace" className="btn-secondary text-sm py-2.5 px-5 flex items-center gap-2">
-              View All <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-
-          {products.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <Search className="w-10 h-10 mx-auto mb-3 opacity-40" />
-              <div className="font-semibold">No products yet</div>
-              <div className="text-sm mt-1">Products added by sellers will appear here</div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {products.map((p) => (
-                <Link key={p.id} href={`/marketplace/${p.id}`} className="card group cursor-pointer border-2 border-transparent hover:border-brand-orange">
-                  <div className="w-full h-40 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl mb-3 overflow-hidden relative">
-                    {p.images[0] ? (
-                      <Image src={p.images[0].url} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform" sizes="(max-width: 768px) 50vw, 25vw" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-300">
-                        <Search className="w-8 h-8" />
-                      </div>
-                    )}
-                  </div>
-                  <h3 className="font-bold text-navy-700 text-sm group-hover:text-brand-orange transition-colors line-clamp-2">{p.name}</h3>
-                  <div className="mt-1 text-brand-green font-bold text-sm">
-                    ${p.minPrice}{p.maxPrice !== p.minPrice ? ` – $${p.maxPrice}` : ''}
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-gray-400 mt-0.5">
-                    <MapPin className="w-3 h-3" />
-                    {p.stall?.mall?.name || p.stall?.name}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Markets */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-3xl font-black text-navy-700">Our Markets</h2>
-              <p className="text-gray-500 text-sm mt-1">Browse stalls across Zimbabwe&apos;s top markets</p>
-            </div>
-          </div>
-
-          {malls.length === 0 ? (
-            <div className="text-center py-16 text-gray-400">
-              <MapPin className="w-10 h-10 mx-auto mb-3 opacity-40" />
-              <div className="font-semibold">No markets listed yet</div>
-              <div className="text-sm mt-1">Markets will appear here once added</div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {malls.map((m) => (
-                <Link key={m.id} href={`/marketplace?mall=${m.id}`} className="card group cursor-pointer border-2 border-transparent hover:border-brand-blue">
-                  <div className="w-full h-32 bg-gradient-to-br from-blue-100 to-green-50 rounded-xl mb-3 overflow-hidden relative flex items-center justify-center">
-                    {m.imageUrl ? (
-                      <Image src={m.imageUrl} alt={m.name} fill className="object-cover group-hover:scale-105 transition-transform" sizes="(max-width: 768px) 50vw, 25vw" />
-                    ) : (
-                      <MapPin className="w-8 h-8 text-brand-orange" />
-                    )}
-                  </div>
-                  <h3 className="font-bold text-navy-700 group-hover:text-brand-blue transition-colors">{m.name}</h3>
-                  <div className="flex items-center mt-1">
-                    <span className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> {m.city}</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Simple CTA banner */}
-      <section className="py-14 bg-navy-800">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div>
-            <h2 className="text-2xl font-black text-white">Ready to get started?</h2>
-            <p className="text-white/50 mt-1 text-sm">Join thousands of buyers and sellers across Zimbabwe</p>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {isAuthenticated ? (
-              <Link href="/dashboard" className="inline-flex items-center gap-2 bg-brand-orange hover:bg-orange-500 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg">
-                Go to Dashboard <ArrowRight className="w-4 h-4" />
-              </Link>
-            ) : (
-              <>
-                <Link href="/auth/register?role=buyer" className="inline-flex items-center gap-2 bg-brand-blue hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg">
-                  Join as Buyer <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link href="/auth/register?role=seller" className="inline-flex items-center gap-2 bg-brand-green hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg">
-                  Join as Seller <ArrowRight className="w-4 h-4" />
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Trust */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-5xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-black text-navy-700 mb-10">Built on Trust</h2>
-          <div className="grid grid-cols-3 gap-6">
-            {[
-              { icon: Shield, title: 'Wallet-Backed Commitments', desc: 'Buyers top up to post demands. Sellers top up to cover commission. No ghost bids.' },
-              { icon: Users, title: 'Verified Sellers', desc: 'Field agents verify merchants in person before they go live' },
-              { icon: Star, title: 'Trust Scores', desc: 'Transparent ratings on every buyer and seller' },
-            ].map((f) => (
-              <div key={f.title} className="text-center">
-                <div className="w-14 h-14 bg-navy-700 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-                  <f.icon className="w-7 h-7" />
-                </div>
-                <h3 className="font-bold text-navy-700 mb-1">{f.title}</h3>
-                <p className="text-sm text-gray-500">{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Alibaba/FB Marketplace Layout */}
+      <LocationFilterBar selectedMallId={selectedMallId} onSelectMall={setSelectedMallId} />
+      <CategoryGrid selectedCategoryId={selectedCategoryId} onSelectCategory={setSelectedCategoryId} />
+      <BannerCarousel />
+      <DemandCTA />
+      <InfiniteProductFeed mallId={selectedMallId} categoryId={selectedCategoryId} />
 
       {/* Footer */}
       <footer className="bg-navy-900 text-gray-400 py-12">

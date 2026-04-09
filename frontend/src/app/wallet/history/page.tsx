@@ -36,9 +36,11 @@ function txAmountSign(type: string) {
 export default function WalletHistoryPage() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
-  }, [isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, router]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['wallet-transactions'],
@@ -51,6 +53,8 @@ export default function WalletHistoryPage() {
   });
 
   const transactions: any[] = data?.data ?? [];
+
+  if (authLoading) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -67,7 +71,7 @@ export default function WalletHistoryPage() {
         </div>
       </header>
 
-      <div className="max-w-lg mx-auto px-4 py-6">
+      <div className="max-w-lg mx-auto px-4 py-6 pb-24 sm:pb-6">
         {/* Balance summary */}
         <div className="rounded-2xl bg-gradient-to-br from-navy-700 via-navy-800 to-navy-900 text-white p-5 mb-6">
           <p className="text-sm text-white/60 mb-1">Available Balance</p>

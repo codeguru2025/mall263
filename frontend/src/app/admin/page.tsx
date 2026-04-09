@@ -14,15 +14,18 @@ export default function AdminPage() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
+
+  const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'];
+  const isAdmin = isAuthenticated && user != null && ADMIN_ROLES.includes(user.role);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) { router.push('/auth/login'); return; }
-    if (user && !['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'].includes(user.role)) {
-      router.push('/dashboard');
-    }
-  }, [isAuthenticated, user, router]);
+    if (user && !ADMIN_ROLES.includes(user.role)) router.push('/dashboard');
+  }, [authLoading, isAuthenticated, user, router]);
 
-  const isAdmin = isAuthenticated && user != null && ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'].includes(user.role);
+  if (authLoading || !isAdmin) return null;
 
   const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['admin-stats'],
@@ -84,7 +87,7 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 py-6 pb-24 sm:pb-6">
         {/* Stat Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
           {statCards.map((card) => (

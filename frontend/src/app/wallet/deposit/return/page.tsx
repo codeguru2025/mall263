@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { Logo } from '@/components/Logo';
@@ -11,7 +11,7 @@ import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
  * The URL contains ?reference=... and ?status=... from Paynow.
  * We poll our backend to confirm the payment before showing success.
  */
-export default function DepositReturnPage() {
+function ReturnPageContent() {
   const params = useSearchParams();
   const router = useRouter();
   const reference = params.get('reference') || '';
@@ -88,5 +88,13 @@ export default function DepositReturnPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function ReturnPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-10 h-10 border-4 border-brand-orange border-t-transparent rounded-full animate-spin" /></div>}>
+      <ReturnPageContent />
+    </Suspense>
   );
 }

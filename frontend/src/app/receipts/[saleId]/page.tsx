@@ -1,21 +1,33 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
 import { Printer, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
+import { useAuthStore } from '@/lib/store';
 
 export default function ReceiptPage() {
   const { saleId } = useParams<{ saleId: string }>();
+  const router = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) router.push('/auth/login');
+  }, [authLoading, isAuthenticated, router]);
 
   const { data: sale, isLoading } = useQuery({
     queryKey: ['sale', saleId],
     queryFn: () => api.get(`/api/v1/pos/sales/${saleId}`).then((r) => r.data),
     enabled: !!saleId,
   });
+
+  if (authLoading) return null;
 
   if (isLoading) {
     return (
@@ -57,7 +69,7 @@ export default function ReceiptPage() {
       </div>
 
       {/* Receipt card */}
-      <div className="max-w-lg mx-auto px-4 py-6">
+      <div className="max-w-lg mx-auto px-4 py-6 pb-24 sm:pb-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden print:shadow-none print:border-none">
           {/* Header */}
           <div className="bg-navy-700 text-white px-6 pt-8 pb-6 text-center print:bg-white print:text-navy-700">

@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { useAuthStore } from '@/lib/store';
-import { Home, Search, Gavel, Wallet, LayoutDashboard, Store, Package, BarChart3 } from 'lucide-react';
+import { useHaptic } from '@/lib/hooks/useHaptic';
+import { Home, Search, Gavel, Wallet, LayoutDashboard, Store, Package, BarChart3, Shield, Users, Settings } from 'lucide-react';
 
 const CUSTOMER_TABS = [
   { href: '/',               icon: Home,            label: 'Home' },
@@ -21,17 +23,26 @@ const SELLER_TABS = [
   { href: '/seller/reports', icon: BarChart3,       label: 'Reports' },
 ];
 
+const ADMIN_TABS = [
+  { href: '/admin',          icon: Shield,          label: 'Console' },
+  { href: '/admin/users',    icon: Users,           label: 'Users' },
+  { href: '/admin/merchants',icon: Store,           label: 'Merchants' },
+  { href: '/reports',        icon: BarChart3,       label: 'Reports' },
+  { href: '/admin/settings', icon: Settings,        label: 'Settings' },
+];
+
 export default function BottomNav() {
   const pathname = usePathname();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
+  const haptic = useHaptic();
 
-  // Hide on auth pages
-  const hide = ['/auth/', '/auth/login', '/auth/register'].some((p) => pathname.startsWith(p));
+  const hide = ['/auth/', '/wallet/deposit/return', '/chat/'].some((p) => pathname.startsWith(p));
   if (hide) return null;
 
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
-  const TABS = isSeller ? SELLER_TABS : CUSTOMER_TABS;
+  const isAdmin = user ? ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'].includes(user.role) : false;
+  const TABS = isAdmin ? ADMIN_TABS : isSeller ? SELLER_TABS : CUSTOMER_TABS;
   const TOP_UP_HREF = '/wallet/deposit';
 
   return (
@@ -39,14 +50,22 @@ export default function BottomNav() {
       <div className="flex items-stretch">
         {TABS.map(({ href, icon: Icon, label }) => {
           const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
-          const isTopUp = href === TOP_UP_HREF;
+          const isTopUp = href === TOP_UP_HREF && !isAdmin;
 
           if (isTopUp) {
             return (
-              <Link key={href} href={isAuthenticated ? href : '/auth/login'} className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 relative -top-3">
-                <div className="w-14 h-14 bg-brand-orange rounded-full flex items-center justify-center shadow-lg shadow-orange-200 border-4 border-white">
+              <Link
+                key={href}
+                href={isAuthenticated ? href : '/auth/login'}
+                onClick={() => haptic.medium()}
+                className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 relative -top-3"
+              >
+                <motion.div
+                  whileTap={{ scale: 0.9 }}
+                  className="w-14 h-14 bg-brand-orange rounded-full flex items-center justify-center shadow-lg shadow-orange-200 border-4 border-white"
+                >
                   <Icon className="w-6 h-6 text-white" />
-                </div>
+                </motion.div>
                 <span className="text-[10px] font-bold text-brand-orange mt-0.5">Top Up</span>
               </Link>
             );
@@ -56,13 +75,22 @@ export default function BottomNav() {
             <Link
               key={href}
               href={!isAuthenticated && href !== '/' && href !== '/marketplace' ? '/auth/login' : href}
-              className={`flex-1 flex flex-col items-center justify-center py-3 gap-0.5 transition-colors ${
+              onClick={() => haptic.light()}
+              className={`relative flex-1 flex flex-col items-center justify-center py-3 gap-0.5 transition-colors ${
                 active ? 'text-brand-orange' : 'text-gray-400'
               }`}
             >
-              <Icon className={`w-5 h-5 transition-transform ${active ? 'scale-110' : ''}`} />
+              <motion.div whileTap={{ scale: 0.85 }}>
+                <Icon className={`w-5 h-5 transition-transform ${active ? 'scale-110' : ''}`} />
+              </motion.div>
               <span className={`text-[10px] font-semibold ${active ? 'font-bold' : ''}`}>{label}</span>
-              {active && <div className="absolute top-0 w-6 h-0.5 bg-brand-orange rounded-full" />}
+              {active && (
+                <motion.div
+                  layoutId="activeTab"
+                  className="absolute top-0 w-6 h-0.5 bg-brand-orange rounded-full"
+                  transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                />
+              )}
             </Link>
           );
         })}

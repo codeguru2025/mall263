@@ -1,34 +1,52 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { Store, ArrowLeft, Search, CheckCircle, Ban, ShieldCheck, Clock } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import toast from 'react-hot-toast';
 
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'];
+
 export default function AdminMerchantsPage() {
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [activeMerchantId, setActiveMerchantId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authLoading = useAuthStore((s) => s.isLoading);
+
+  const isAdmin = isAuthenticated && user && ADMIN_ROLES.includes(user.role);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) { router.push('/auth/login'); return; }
+    if (user && !ADMIN_ROLES.includes(user.role)) router.push('/dashboard');
+  }, [authLoading, isAuthenticated, user, router]);
+
+  if (authLoading || !isAdmin) return null;
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-merchants', search, page],
-    queryFn: () => api.get('/admin/merchants', { params: { search, page, limit: 20 } }).then((r) => r.data),
-    enabled: isAuthenticated,
+    queryFn: () => api.get('/api/v1/admin/merchants', { params: { search, page, limit: 20 } }).then((r) => r.data),
+    enabled: !!isAdmin,
   });
 
   const actionMutation = useMutation({
     mutationFn: ({ id, action }: { id: string; action: string }) =>
-      api.patch(`/admin/merchants/${id}/${action}`).then((r) => r.data),
+      api.patch(`/api/v1/admin/merchants/${id}/${action}`).then((r) => r.data),
     onSuccess: (_, vars) => {
       toast.success(`Merchant ${vars.action}d`);
       queryClient.invalidateQueries({ queryKey: ['admin-merchants'] });
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Action failed'),
+    onSettled: () => setActiveMerchantId(null),
   });
 
   const statusConfig: Record<string, { badge: string; label: string }> = {
@@ -94,8 +112,8 @@ export default function AdminMerchantsPage() {
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {merchant.status === 'PENDING' && (
                         <button
-                          onClick={() => actionMutation.mutate({ id: merchant.id, action: 'verify' })}
-                          disabled={actionMutation.isPending}
+                          onClick={() => { setActiveMerchantId(merchant.id); actionMutation.mutate({ id: merchant.id, action: 'verify' }); }}
+                          disabled={actionMutation.isPending && activeMerchantId === merchant.id}
                           className="p-2 rounded-xl hover:bg-green-50 text-brand-green transition-colors"
                           title="Verify merchant"
                         >
@@ -104,8 +122,8 @@ export default function AdminMerchantsPage() {
                       )}
                       {merchant.status === 'ACTIVE' && (
                         <button
-                          onClick={() => actionMutation.mutate({ id: merchant.id, action: 'suspend' })}
-                          disabled={actionMutation.isPending}
+                          onClick={() => { setActiveMerchantId(merchant.id); actionMutation.mutate({ id: merchant.id, action: 'suspend' }); }}
+                          disabled={actionMutation.isPending && activeMerchantId === merchant.id}
                           className="p-2 rounded-xl hover:bg-red-50 text-brand-red transition-colors"
                           title="Suspend merchant"
                         >
@@ -114,8 +132,8 @@ export default function AdminMerchantsPage() {
                       )}
                       {merchant.status === 'SUSPENDED' && (
                         <button
-                          onClick={() => actionMutation.mutate({ id: merchant.id, action: 'activate' })}
-                          disabled={actionMutation.isPending}
+                          onClick={() => { setActiveMerchantId(merchant.id); actionMutation.mutate({ id: merchant.id, action: 'activate' }); }}
+                          disabled={actionMutation.isPending && activeMerchantId === merchant.id}
                           className="p-2 rounded-xl hover:bg-green-50 text-brand-green transition-colors"
                           title="Activate merchant"
                         >
@@ -134,7 +152,7 @@ export default function AdminMerchantsPage() {
           <div className="flex justify-center mt-6 gap-3">
             <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="btn-secondary text-sm py-2.5 px-5 disabled:opacity-40">Previous</button>
             <span className="py-2.5 px-4 text-sm font-bold text-navy-700 bg-white rounded-xl border-2 border-gray-100">Page {page}</span>
-            <button onClick={() => setPage((p) => p + 1)} disabled={(data?.data || []).length < 20} className="btn-secondary text-sm py-2.5 px-5 disabled:opacity-40">Next</button>
+            <button onClick={() => setPage((p) => p + 1)} disabled={page * 20 >= (data?.total || 0)} className="btn-secondary text-sm py-2.5 px-5 disabled:opacity-40">Next</button>
           </div>
         )}
       </div>

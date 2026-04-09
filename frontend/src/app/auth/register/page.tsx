@@ -77,6 +77,7 @@ function RegisterForm() {
     form.firstName.trim().length > 0 &&
     form.lastName.trim().length > 0 &&
     form.phone.trim().length > 0 &&
+    /^(\+263|0)[0-9]{9}$/.test(form.phone.trim()) &&
     form.password.length >= 8 &&
     form.password === form.confirmPassword;
 
