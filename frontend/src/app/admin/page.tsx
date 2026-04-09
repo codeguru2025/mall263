@@ -25,8 +25,6 @@ export default function AdminPage() {
     if (user && !ADMIN_ROLES.includes(user.role)) router.push('/dashboard');
   }, [authLoading, isAuthenticated, user, router]);
 
-  if (authLoading || !isAdmin) return null;
-
   const { data: stats, isLoading, isError } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: () => api.get('/api/v1/admin/dashboard').then((r) => r.data),
@@ -38,6 +36,8 @@ export default function AdminPage() {
     queryFn: () => api.get('/api/v1/admin/activity').then((r) => r.data),
     enabled: isAdmin,
   });
+
+  if (authLoading || !isAdmin) return null;
 
   if (isLoading) {
     return (

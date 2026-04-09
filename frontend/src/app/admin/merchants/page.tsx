@@ -30,8 +30,6 @@ export default function AdminMerchantsPage() {
     if (user && !ADMIN_ROLES.includes(user.role)) router.push('/dashboard');
   }, [authLoading, isAuthenticated, user, router]);
 
-  if (authLoading || !isAdmin) return null;
-
   const { data, isLoading } = useQuery({
     queryKey: ['admin-merchants', search, page],
     queryFn: () => api.get('/api/v1/admin/merchants', { params: { search, page, limit: 20 } }).then((r) => r.data),
@@ -48,6 +46,8 @@ export default function AdminMerchantsPage() {
     onError: (err: any) => toast.error(err.response?.data?.message || 'Action failed'),
     onSettled: () => setActiveMerchantId(null),
   });
+
+  if (authLoading || !isAdmin) return null;
 
   const statusConfig: Record<string, { badge: string; label: string }> = {
     PENDING: { badge: 'bg-orange-50 text-brand-orange border border-orange-200', label: 'Pending' },

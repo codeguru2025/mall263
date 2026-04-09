@@ -30,8 +30,6 @@ export default function AdminCategoriesPage() {
     if (user && !ADMIN_ROLES.includes(user.role)) router.push('/dashboard');
   }, [authLoading, isAuthenticated, user, router]);
 
-  if (authLoading || !isAdmin) return null;
-
   const { data: categories, isLoading } = useQuery({
     queryKey: ['admin-categories'],
     queryFn: () => api.get('/api/v1/admin/categories').then((r) => r.data),
@@ -82,6 +80,8 @@ export default function AdminCategoriesPage() {
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to update status'),
   });
+
+  if (authLoading || !isAdmin) return null;
 
   const openModal = (category?: any) => {
     if (category) {

@@ -49,8 +49,6 @@ export default function AdminUsersPage() {
     if (user && !ADMIN_ROLES.includes(user.role)) router.push('/dashboard');
   }, [authLoading, isAuthenticated, user, router]);
 
-  if (authLoading || !isAdmin) return null;
-
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users', search, page],
     queryFn: () => api.get('/api/v1/admin/users', { params: { search, page, limit: 20 } }).then((r) => r.data),
@@ -79,6 +77,8 @@ export default function AdminUsersPage() {
     onError: (err: any) => toast.error(err.response?.data?.message || 'Action failed'),
     onSettled: () => setActiveUserId(null),
   });
+
+  if (authLoading || !isAdmin) return null;
 
   const update = (field: keyof CreateUserForm, value: string) =>
     setForm((prev) => ({ ...prev, [field]: value }));

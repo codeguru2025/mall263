@@ -154,6 +154,9 @@ export default function DemandDetailPage() {
     );
   };
 
+  // Must be called unconditionally before any early returns
+  const timeLeft = useCountdown(demand?.expiresAt ?? '');
+
   if (authLoading) return null;
 
   if (isLoading) {
@@ -194,7 +197,6 @@ export default function DemandDetailPage() {
   };
 
   const acceptedOffer = (demand.offers || []).find((o: any) => o.status === 'ACCEPTED');
-  const timeLeft = useCountdown(demand.expiresAt);
   const trustScore = demand.buyer?.trustScore?.overallScore 
     ? parseFloat(String(demand.buyer.trustScore.overallScore))
     : 50;
