@@ -171,9 +171,19 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Product not found');
     if (product.stallId !== stallId) throw new ForbiddenException('Not your product');
 
+    // Only pass safe updatable scalar fields to avoid Prisma rejecting relation keys
+    const { name, description, brand, tags, categoryId, status } = data as any;
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (brand !== undefined) updateData.brand = brand;
+    if (tags !== undefined) updateData.tags = tags;
+    if (categoryId !== undefined) updateData.categoryId = categoryId;
+    if (status !== undefined) updateData.status = status;
+
     return this.prisma.product.update({
       where: { id: productId },
-      data,
+      data: updateData,
       include: { variants: true, images: true },
     });
   }

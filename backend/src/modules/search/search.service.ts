@@ -115,6 +115,11 @@ export class SearchService implements OnModuleInit {
         attributesToHighlight: ['name', 'description'],
       });
 
+      // If Meilisearch returns nothing for a real query, try the DB too
+      if (results.estimatedTotalHits === 0 && query.trim()) {
+        return this.dbFallbackSearch(query, { ...params, page, limit, minPrice, maxPrice });
+      }
+
       return {
         data: results.hits,
         total: results.estimatedTotalHits,
@@ -225,21 +230,25 @@ export class SearchService implements OnModuleInit {
     const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit) : 20;
     const minPrice = Number.isFinite(params.minPrice) ? params.minPrice : undefined;
     const maxPrice = Number.isFinite(params.maxPrice) ? params.maxPrice : undefined;
-    const where: any = {
-      status: ProductStatus.ACTIVE,
-      OR: [
+
+    const where: any = { status: ProductStatus.ACTIVE };
+
+    // Only add OR text search when there's actually a query
+    if (query.trim()) {
+      where.OR = [
         { name: { contains: query, mode: 'insensitive' } },
         { description: { contains: query, mode: 'insensitive' } },
         { brand: { contains: query, mode: 'insensitive' } },
-        { tags: { hasSome: query.split(' ') } },
-      ],
-    };
+        { tags: { hasSome: query.split(' ').filter(Boolean) } },
+      ];
+    }
+
     if (categoryId) where.categoryId = categoryId;
     if (mallId) where.stall = { mallId };
-    if (minPrice) where.minPrice = { gte: minPrice };
-    if (maxPrice) where.maxPrice = { lte: maxPrice };
+    if (minPrice !== undefined) where.minPrice = { gte: minPrice };
+    if (maxPrice !== undefined) where.maxPrice = { lte: maxPrice };
 
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
         skip: (page - 1) * limit,
@@ -247,13 +256,45 @@ export class SearchService implements OnModuleInit {
         include: {
           images: { where: { isPrimary: true }, take: 1 },
           category: { select: { name: true } },
-          stall: { select: { name: true, mall: { select: { name: true } } } },
+          stall: {
+            select: {
+              id: true,
+              name: true,
+              mallId: true,
+              mall: { select: { id: true, name: true, city: true } },
+              merchant: { select: { user: { select: { trustScore: { select: { overallScore: true } } } } } },
+            },
+          },
           variants: { select: { sellingPrice: true }, where: { isActive: true } },
         },
         orderBy: { viewCount: 'desc' },
       }),
       this.prisma.product.count({ where }),
     ]);
+
+    // Normalize to the same flat shape as Meilisearch documents so the frontend
+    // can consume both sources identically.
+    const data = rows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description || '',
+      brand: p.brand || '',
+      category: p.category?.name || '',
+      categoryId: p.categoryId || '',
+      tags: p.tags,
+      minPrice: parseFloat(p.minPrice.toString()),
+      maxPrice: parseFloat(p.maxPrice.toString()),
+      stallId: p.stallId,
+      stallName: p.stall.name,
+      mallId: p.stall.mallId || '',
+      mallName: p.stall.mall?.name || '',
+      city: p.stall.mall?.city || '',
+      imageUrl: p.images[0]?.url || '',
+      inStock: p.variants.length > 0,
+      trustScore: parseFloat((p.stall.merchant as any)?.user?.trustScore?.overallScore?.toString() || '50'),
+      viewCount: p.viewCount,
+      createdAt: p.createdAt.getTime(),
+    }));
 
     return { data, total, query, processingTimeMs: 0, page, limit };
   }

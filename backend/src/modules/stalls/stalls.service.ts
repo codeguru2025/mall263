@@ -91,4 +91,66 @@ export class StallsService {
     if (city) where.city = city;
     return this.prisma.mall.findMany({ where, orderBy: { name: 'asc' } });
   }
+
+  // ── Admin mall management ──────────────────────────────────────────────────
+
+  async listAllMalls() {
+    return this.prisma.mall.findMany({
+      orderBy: { name: 'asc' },
+      include: { _count: { select: { stalls: true } } },
+    });
+  }
+
+  async createMall(data: {
+    name: string;
+    city: string;
+    address: string;
+    latitude?: number;
+    longitude?: number;
+    imageUrl?: string;
+  }) {
+    return this.prisma.mall.create({
+      data: {
+        name: data.name.trim(),
+        city: data.city.trim(),
+        address: data.address.trim(),
+        latitude: data.latitude,
+        longitude: data.longitude,
+        imageUrl: data.imageUrl,
+        isActive: true,
+      },
+      include: { _count: { select: { stalls: true } } },
+    });
+  }
+
+  async updateMall(
+    mallId: string,
+    data: Partial<{
+      name: string;
+      city: string;
+      address: string;
+      latitude: number;
+      longitude: number;
+      imageUrl: string;
+      isActive: boolean;
+    }>,
+  ) {
+    const mall = await this.prisma.mall.findUnique({ where: { id: mallId } });
+    if (!mall) throw new NotFoundException('Mall not found');
+
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name.trim();
+    if (data.city !== undefined) updateData.city = data.city.trim();
+    if (data.address !== undefined) updateData.address = data.address.trim();
+    if (data.latitude !== undefined) updateData.latitude = data.latitude;
+    if (data.longitude !== undefined) updateData.longitude = data.longitude;
+    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+
+    return this.prisma.mall.update({
+      where: { id: mallId },
+      data: updateData,
+      include: { _count: { select: { stalls: true } } },
+    });
+  }
 }

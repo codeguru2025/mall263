@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { StallsService } from './stalls.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -24,9 +24,45 @@ export class StallsController {
 
   @Get('malls')
   @Public()
-  @ApiOperation({ summary: 'List all malls' })
+  @ApiOperation({ summary: 'List active malls (public)' })
   async listMalls(@Query('city') city?: string) {
     return this.stallsService.listMalls(city);
+  }
+
+  // ── Admin mall management ──────────────────────────────────────────────────
+
+  @Get('admin/malls')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
+  @ApiOperation({ summary: 'Admin: list all malls including inactive' })
+  async adminListMalls() {
+    return this.stallsService.listAllMalls();
+  }
+
+  @Post('admin/malls')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
+  @ApiOperation({ summary: 'Admin: create a mall' })
+  async createMall(@Body() data: {
+    name: string;
+    city: string;
+    address: string;
+    latitude?: number;
+    longitude?: number;
+    imageUrl?: string;
+  }) {
+    return this.stallsService.createMall(data);
+  }
+
+  @Patch('admin/malls/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
+  @ApiOperation({ summary: 'Admin: update a mall' })
+  async updateMall(@Param('id') id: string, @Body() data: any) {
+    return this.stallsService.updateMall(id, data);
   }
 
   @Get('merchant/:merchantId')

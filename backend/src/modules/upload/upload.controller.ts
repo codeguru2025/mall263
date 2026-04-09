@@ -13,6 +13,7 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { UploadService, UploadResult } from './upload.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { Public } from '../../common/decorators/public.decorator';
 
 @ApiTags('Upload')
 @ApiBearerAuth()
@@ -31,6 +32,7 @@ export class UploadController {
   }
 
   @Post('avatar')
+  @Public()
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
   async uploadAvatar(@UploadedFile() file: Express.Multer.File): Promise<UploadResult> {

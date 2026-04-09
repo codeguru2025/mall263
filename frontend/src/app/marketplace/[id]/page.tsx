@@ -54,13 +54,13 @@ export default function ProductDetailPage() {
 
       <div className="max-w-2xl mx-auto">
         {/* Product image */}
-        <div className="bg-gradient-to-br from-gray-50 to-gray-100 h-72 flex items-center justify-center relative overflow-hidden">
+        <div className="bg-white h-72 flex items-center justify-center relative overflow-hidden border-b border-gray-100">
           {primaryImage ? (
             <Image
               src={primaryImage.url}
               alt={product.name}
               fill
-              className="object-cover"
+              className="object-contain p-4"
               priority
             />
           ) : (

@@ -186,11 +186,11 @@ export default function InventoryPage() {
                 <div key={product.id} className="bg-white rounded-2xl border-2 border-gray-100 p-4">
                   <div className="flex items-start gap-3">
                     {primaryImage && (
-                      <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100">
+                      <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden bg-white border border-gray-100">
                         <img
                           src={primaryImage.url}
                           alt={primaryImage.alt || product.name}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain p-1"
                         />
                       </div>
                     )}

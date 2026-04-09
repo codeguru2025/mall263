@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Loader2, ShoppingBag } from 'lucide-react';
 import api from '@/lib/api';
 import ProductCard from './ProductCard';
@@ -13,6 +13,15 @@ interface Props {
 
 export default function InfiniteProductFeed({ mallId, categoryId }: Props) {
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const { data: categories = [] } = useQuery<any[]>({
+    queryKey: ['categories'],
+    queryFn: () => api.get('/api/v1/products/categories').then((r) => r.data),
+    staleTime: 300_000,
+  });
+  const activeCategoryName = categoryId
+    ? categories.find((c: any) => c.id === categoryId)?.name
+    : null;
 
   const {
     data,
@@ -63,7 +72,14 @@ export default function InfiniteProductFeed({ mallId, categoryId }: Props) {
     <div className="max-w-7xl mx-auto px-4 py-4">
       {/* Section header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-black text-navy-700">Recommended For You</h2>
+        <h2 className="text-lg font-black text-navy-700">
+          {activeCategoryName ? activeCategoryName : 'Recommended For You'}
+        </h2>
+        {activeCategoryName && (
+          <span className="text-xs text-gray-400 font-semibold">
+            Filtered by category
+          </span>
+        )}
       </div>
 
       {isLoading ? (
