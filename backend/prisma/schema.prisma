@@ -92,6 +92,7 @@ enum WalletLockStatus {
 enum DemandStatus {
   OPEN
   MATCHED
+  FULFILLED
   CLOSED
   EXPIRED
   CANCELLED
@@ -197,6 +198,7 @@ model User {
   refreshTokens  RefreshToken[]
   sessions       Session[]
   chatMessages   ChatMessage[]    @relation("ChatMessages")
+  subscription   Subscription?
 
   @@index([phone])
   @@index([email])
@@ -897,4 +899,59 @@ model MarketPrice {
   @@index([productName])
   @@index([calculatedAt])
   @@map("market_prices")
+}
+
+// ============================================================
+// SUBSCRIPTIONS
+// ============================================================
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  GRACE
+  EXPIRED
+  CANCELLED
+}
+
+model Subscription {
+  id               String             @id @default(uuid()) @db.Uuid
+  userId           String             @unique @map("user_id") @db.Uuid
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status           SubscriptionStatus @default(TRIAL)
+  trialStartedAt   DateTime           @default(now()) @map("trial_started_at")
+  trialEndsAt      DateTime           @map("trial_ends_at")
+  ecocashNumber    String?            @map("ecocash_number")
+  currentPeriodEnd DateTime?          @map("current_period_end")
+  nextBillingDate  DateTime?          @map("next_billing_date")
+  lastBilledAt     DateTime?          @map("last_billed_at")
+  lastPaymentRef   String?            @map("last_payment_ref")
+  failedAttempts   Int                @default(0) @map("failed_attempts")
+  nextRetryAt      DateTime?          @map("next_retry_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  payments         SubscriptionPayment[]
+
+  @@index([status])
+  @@index([nextBillingDate])
+  @@index([nextRetryAt])
+  @@map("subscriptions")
+}
+
+model SubscriptionPayment {
+  id             String       @id @default(uuid()) @db.Uuid
+  subscriptionId String       @map("subscription_id") @db.Uuid
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  amount         Decimal      @db.Decimal(10, 2)
+  currency       String       @default("USD")
+  paynowRef      String?      @unique @map("paynow_ref")
+  pollUrl        String?      @map("poll_url")
+  status         String       // PENDING, SUCCESS, FAILED
+  initiatedAt    DateTime     @default(now()) @map("initiated_at")
+  completedAt    DateTime?    @map("completed_at")
+  metadata       Json?
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([paynowRef])
+  @@map("subscription_payments")
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { DemandsService } from './demands.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -89,5 +89,18 @@ export class DemandsController {
   @ApiOperation({ summary: 'Request delivery for an accepted offer (buyer)' })
   async requestDelivery(@CurrentUser('id') buyerId: string, @Param('offerId') offerId: string, @Body() data: any) {
     return this.demandsService.requestDelivery(offerId, buyerId, data);
+  }
+
+  @Patch(':id/fulfill')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
+  @ApiOperation({ summary: 'Complete a demand sale — records POS sale, generates receipt, marks fulfilled (seller)' })
+  async completeDemandSale(
+    @Param('id') id: string,
+    @CurrentUser('id') cashierId: string,
+    @Body() data: { stallId: string; paymentMethod: string },
+  ) {
+    return this.demandsService.completeDemandSale(id, data.stallId, cashierId, data.paymentMethod as any);
   }
 }

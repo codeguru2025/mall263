@@ -10,10 +10,18 @@ import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
 import {
   ArrowLeft, Gavel, Clock, CheckCircle2, ChevronDown, Loader2, AlertCircle,
-  MapPin, MessageCircle, Truck, Navigation, Store, User,
+  MapPin, MessageCircle, Truck, Navigation, Store, PackageCheck, X, Receipt,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+
+const PAYMENT_OPTIONS = [
+  { value: 'CASH', label: 'Cash' },
+  { value: 'ECOCASH', label: 'EcoCash' },
+  { value: 'ONEMONEY', label: 'OneMoney' },
+  { value: 'TELECASH', label: 'Telecash' },
+  { value: 'CARD', label: 'Card' },
+];
 
 export default function DemandDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +35,9 @@ export default function DemandDetailPage() {
   const [buyerLocation, setBuyerLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [activeMapOffer, setActiveMapOffer] = useState<string | null>(null);
+  const [fulfillModal, setFulfillModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [completedSaleId, setCompletedSaleId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) router.push('/auth/login');
@@ -93,6 +104,18 @@ export default function DemandDetailPage() {
       router.push(`/chat/${room.id}`);
     },
     onError: () => toast.error('Could not open chat'),
+  });
+
+  const completeSale = useMutation({
+    mutationFn: () =>
+      api.patch(`/api/v1/demands/${id}/fulfill`, { stallId, paymentMethod }).then((r) => r.data),
+    onSuccess: (data) => {
+      toast.success(`Sale recorded! Receipt: ${data.receiptNumber}`);
+      setFulfillModal(false);
+      setCompletedSaleId(data.saleId);
+      queryClient.invalidateQueries({ queryKey: ['demand', id] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to complete sale'),
   });
 
   const requestDelivery = useMutation({
@@ -301,6 +324,31 @@ export default function DemandDetailPage() {
               </div>
             )}
 
+            {/* Seller: Complete Sale */}
+            {isSeller && demand.status === 'MATCHED' && acceptedOffer?.stallId === stallId && (
+              <div className="px-5 py-4 border-t border-gray-100 space-y-2">
+                <p className="text-xs text-gray-500">Goods handed over and payment received? Record the sale to generate a receipt.</p>
+                <button
+                  onClick={() => setFulfillModal(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-brand-green text-white text-sm font-bold rounded-xl hover:bg-green-600 transition-colors"
+                >
+                  <PackageCheck className="w-4 h-4" /> Record Sale &amp; Get Receipt
+                </button>
+              </div>
+            )}
+
+            {/* Show receipt link after completion */}
+            {isSeller && demand.status === 'FULFILLED' && completedSaleId && (
+              <div className="px-5 py-4 border-t border-gray-100">
+                <Link
+                  href={`/receipts/${completedSaleId}`}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-navy-700 text-white text-sm font-bold rounded-xl hover:bg-navy-800 transition-colors"
+                >
+                  <Receipt className="w-4 h-4" /> View Receipt
+                </Link>
+              </div>
+            )}
+
             {/* Delivery section */}
             {isBuyer && (
               <div className="px-5 py-4 border-t border-gray-100">
@@ -487,6 +535,64 @@ export default function DemandDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Complete Sale Modal */}
+      {fulfillModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-4 sm:pb-0">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-black text-navy-700">Record Sale</h3>
+                <p className="text-xs text-gray-400 mt-0.5">How did the buyer pay?</p>
+              </div>
+              <button onClick={() => setFulfillModal(false)} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
+              {/* Amount */}
+              {acceptedOffer && (
+                <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <span className="text-sm text-gray-500">Amount received</span>
+                  <span className="font-black text-xl text-navy-700">{formatCurrency(parseFloat(acceptedOffer.totalPrice))}</span>
+                </div>
+              )}
+
+              {/* Payment method */}
+              <div className="grid grid-cols-3 gap-2">
+                {PAYMENT_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setPaymentMethod(opt.value)}
+                    className={`py-3 rounded-xl text-sm font-bold border-2 transition-all ${
+                      paymentMethod === opt.value
+                        ? 'border-brand-green bg-green-50 text-brand-green'
+                        : 'border-gray-100 bg-white text-navy-600 hover:border-gray-200'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              <p className="text-xs text-gray-400 text-center">
+                A 2.5% platform commission will be charged from your wallet.
+              </p>
+
+              <button
+                onClick={() => completeSale.mutate()}
+                disabled={completeSale.isPending}
+                className="w-full flex items-center justify-center gap-2 py-3.5 bg-brand-green text-white font-black rounded-xl hover:bg-green-600 transition-colors disabled:opacity-60"
+              >
+                {completeSale.isPending
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
+                  : <><PackageCheck className="w-4 h-4" /> Complete &amp; Generate Receipt</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

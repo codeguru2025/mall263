@@ -6,6 +6,7 @@ import { v4 as uuid } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RegisterDto, LoginDto, AuthResponseDto } from './dto/auth.dto';
 import { UserRole, UserStatus } from '@prisma/client';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class AuthService {
@@ -13,6 +14,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private config: ConfigService,
+    private subscriptions: SubscriptionsService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
@@ -69,7 +71,11 @@ export class AuthService {
       return newUser;
     });
 
+    // Start 7-day free trial for new users (fire-and-forget, don't block registration)
+    this.subscriptions.initTrial(user.id).catch(() => {});
+
     const tokens = await this.generateTokens(user.id, user.role);
+    const subscription = await this.subscriptions.getStatus(user.id).catch(() => null);
 
     return {
       ...tokens,
@@ -80,6 +86,7 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        subscription,
       },
     };
   }
@@ -107,6 +114,7 @@ export class AuthService {
     });
 
     const tokens = await this.generateTokens(user.id, user.role);
+    const subscription = await this.subscriptions.getStatus(user.id).catch(() => null);
 
     return {
       ...tokens,
@@ -117,6 +125,7 @@ export class AuthService {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        subscription,
       },
     };
   }

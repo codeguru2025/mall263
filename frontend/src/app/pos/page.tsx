@@ -9,6 +9,7 @@ import { formatCurrency } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { Logo } from '@/components/Logo';
+import FeatureGate from '@/components/FeatureGate';
 
 export default function POSPage() {
   const [stallId, setStallId] = useState('');
@@ -72,6 +73,7 @@ export default function POSPage() {
   };
 
   return (
+    <FeatureGate>
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -192,5 +194,6 @@ export default function POSPage() {
         </div>
       )}
     </div>
+    </FeatureGate>
   );
 }

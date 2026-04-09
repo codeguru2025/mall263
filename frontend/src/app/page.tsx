@@ -170,10 +170,10 @@ export default function HomePage() {
               </form>
 
               <div className="flex items-center gap-3 flex-wrap">
-                <Link href="/auth/register?role=buyer" className="inline-flex items-center gap-2 bg-brand-blue hover:bg-blue-600 text-white text-sm font-bold py-2.5 px-5 rounded-xl transition-all shadow-md">
+                <Link href={isAuthenticated ? '/marketplace' : '/auth/register?role=buyer'} className="inline-flex items-center gap-2 bg-brand-blue hover:bg-blue-600 text-white text-sm font-bold py-2.5 px-5 rounded-xl transition-all shadow-md">
                   I want to Buy <ArrowRight className="w-4 h-4" />
                 </Link>
-                <Link href="/auth/register?role=seller" className="inline-flex items-center gap-2 bg-brand-green hover:bg-green-600 text-white text-sm font-bold py-2.5 px-5 rounded-xl transition-all shadow-md">
+                <Link href={isAuthenticated ? '/dashboard' : '/auth/register?role=seller'} className="inline-flex items-center gap-2 bg-brand-green hover:bg-green-600 text-white text-sm font-bold py-2.5 px-5 rounded-xl transition-all shadow-md">
                   I want to Sell <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -343,12 +343,20 @@ export default function HomePage() {
             <p className="text-white/50 mt-1 text-sm">Join thousands of buyers and sellers across Zimbabwe</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <Link href="/auth/register?role=buyer" className="inline-flex items-center gap-2 bg-brand-blue hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg">
-              Join as Buyer <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link href="/auth/register?role=seller" className="inline-flex items-center gap-2 bg-brand-green hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg">
-              Join as Seller <ArrowRight className="w-4 h-4" />
-            </Link>
+            {isAuthenticated ? (
+              <Link href="/dashboard" className="inline-flex items-center gap-2 bg-brand-orange hover:bg-orange-500 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg">
+                Go to Dashboard <ArrowRight className="w-4 h-4" />
+              </Link>
+            ) : (
+              <>
+                <Link href="/auth/register?role=buyer" className="inline-flex items-center gap-2 bg-brand-blue hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg">
+                  Join as Buyer <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link href="/auth/register?role=seller" className="inline-flex items-center gap-2 bg-brand-green hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg">
+                  Join as Seller <ArrowRight className="w-4 h-4" />
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>

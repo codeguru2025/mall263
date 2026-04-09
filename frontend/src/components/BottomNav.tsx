@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { Home, Search, Gavel, Wallet, LayoutDashboard, Store, Package, Bell } from 'lucide-react';
+import { Home, Search, Gavel, Wallet, LayoutDashboard, Store, Package, BarChart3 } from 'lucide-react';
 
 const CUSTOMER_TABS = [
   { href: '/',               icon: Home,            label: 'Home' },
@@ -18,7 +18,7 @@ const SELLER_TABS = [
   { href: '/pos',            icon: Store,           label: 'POS' },
   { href: '/wallet/deposit', icon: Wallet,          label: 'Top Up' },
   { href: '/inventory',      icon: Package,         label: 'Stock' },
-  { href: '/notifications',  icon: Bell,            label: 'Alerts' },
+  { href: '/seller/reports', icon: BarChart3,       label: 'Reports' },
 ];
 
 export default function BottomNav() {

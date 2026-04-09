@@ -23,6 +23,7 @@ import { HealthModule } from './modules/health/health.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { ChatModule } from './modules/chat/chat.module';
     UploadModule,
     PaymentsModule,
     ChatModule,
+    SubscriptionsModule,
   ],
 })
 export class AppModule {}

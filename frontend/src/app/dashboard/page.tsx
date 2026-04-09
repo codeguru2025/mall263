@@ -5,7 +5,7 @@ import { useAuthStore } from '@/lib/store';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight, LogOut } from 'lucide-react';
+import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight, LogOut, Receipt, TrendingUp, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import { Logo } from '@/components/Logo';
@@ -49,6 +49,25 @@ export default function DashboardPage() {
     queryKey: ['my-merchant'],
     queryFn: () => api.get('/api/v1/merchants/me').then((r) => r.data).catch(() => null),
     enabled: isAuthenticated && isSeller,
+  });
+
+  const { data: myStalls } = useQuery({
+    queryKey: ['my-stalls-dash', merchant?.id],
+    queryFn: () => api.get(`/api/v1/stalls/merchant/${merchant.id}`).then((r) => r.data),
+    enabled: isSeller && !!merchant?.id,
+  });
+  const sellerStallId = myStalls?.[0]?.id;
+
+  const { data: todaySummary } = useQuery({
+    queryKey: ['daily-summary-dash', sellerStallId],
+    queryFn: () => api.get(`/api/v1/pos/summary/stall/${sellerStallId}`).then((r) => r.data),
+    enabled: isSeller && !!sellerStallId,
+  });
+
+  const { data: lowStockItems } = useQuery({
+    queryKey: ['low-stock-dash', sellerStallId],
+    queryFn: () => api.get(`/api/v1/inventory/stall/${sellerStallId}/low-stock`).then((r) => r.data),
+    enabled: isSeller && !!sellerStallId,
   });
 
   useEffect(() => {
@@ -139,6 +158,37 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Seller Today's Stats */}
+        {isSeller && todaySummary && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-black text-lg text-navy-700">Today&apos;s Performance</h2>
+              <Link href="/seller/reports" className="text-xs font-bold text-brand-blue hover:underline">Full Report</Link>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white rounded-2xl border-2 border-gray-100 p-4 text-center">
+                <p className="text-xl font-black text-navy-700">{todaySummary.salesCount ?? 0}</p>
+                <p className="text-xs text-gray-400 mt-1">Sales</p>
+              </div>
+              <div className="bg-white rounded-2xl border-2 border-gray-100 p-4 text-center">
+                <p className="text-xl font-black text-brand-green">{formatCurrency(todaySummary.totalRevenue ?? 0)}</p>
+                <p className="text-xs text-gray-400 mt-1">Revenue</p>
+              </div>
+              <div className="bg-white rounded-2xl border-2 border-gray-100 p-4 text-center">
+                <p className="text-xl font-black text-brand-blue">{formatCurrency(todaySummary.netProfit ?? 0)}</p>
+                <p className="text-xs text-gray-400 mt-1">Profit</p>
+              </div>
+            </div>
+            {(lowStockItems?.length ?? 0) > 0 && (
+              <Link href="/inventory" className="mt-3 flex items-center gap-2 bg-amber-50 border-2 border-amber-100 rounded-xl px-4 py-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                <span className="text-sm font-bold text-amber-700">{lowStockItems.length} item{lowStockItems.length !== 1 ? 's' : ''} low on stock</span>
+                <span className="ml-auto text-xs text-amber-500 font-semibold">Fix →</span>
+              </Link>
+            )}
+          </div>
+        )}
+
         {/* Quick Actions */}
         <h2 className="font-black text-lg text-navy-700 mb-3">Quick Actions</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
@@ -180,7 +230,19 @@ export default function DashboardPage() {
                 <div className="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-yellow transition-colors">
                   <Package className="w-6 h-6 text-brand-yellow" />
                 </div>
-                <span className="text-sm font-bold text-navy-700">Inventory</span>
+                <span className="text-sm font-bold text-navy-700">Stock</span>
+              </Link>
+              <Link href="/seller/reports" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-blue hover:shadow-md transition-all group">
+                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-blue group-hover:text-white transition-colors">
+                  <TrendingUp className="w-6 h-6 text-brand-blue group-hover:text-white transition-colors" />
+                </div>
+                <span className="text-sm font-bold text-navy-700">Reports</span>
+              </Link>
+              <Link href="/sales" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-orange hover:shadow-md transition-all group">
+                <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-orange group-hover:text-white transition-colors">
+                  <Receipt className="w-6 h-6 text-brand-orange group-hover:text-white transition-colors" />
+                </div>
+                <span className="text-sm font-bold text-navy-700">Sales</span>
               </Link>
             </>
           )}

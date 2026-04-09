@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DemandStatus, DemandUrgency, OfferStatus, WalletTransactionType, WalletTransactionStatus, WalletLockReason, WalletLockStatus, Prisma } from '@prisma/client';
+import { DemandStatus, DemandUrgency, OfferStatus, WalletTransactionType, WalletTransactionStatus, WalletLockReason, WalletLockStatus, Prisma, PaymentMethod, POSSaleStatus } from '@prisma/client';
 
 const BUYER_FEE_RATE = 0.025; // 2.5% platform fee charged to buyer on purchase
 const BID_LOCK_HOURS = 1;     // BID lock released after 1 hour if demand not matched
@@ -438,6 +438,240 @@ export class DemandsService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * Seller completes a demand sale after physically meeting the buyer.
+   * This atomically:
+   *   1. Validates the demand is MATCHED and this stall won
+   *   2. Deducts inventory for any offer items with known variants
+   *   3. Creates a full POS sale record with receipt number
+   *   4. Charges 2.5% commission from seller wallet
+   *   5. Marks demand as FULFILLED
+   *   6. Notifies the buyer
+   */
+  async completeDemandSale(demandId: string, stallId: string, cashierId: string, paymentMethod: PaymentMethod) {
+    // Load demand + accepted offer + offer items outside tx first
+    const demand = await this.prisma.buyerDemand.findUnique({
+      where: { id: demandId },
+      include: {
+        offers: {
+          where: { status: OfferStatus.ACCEPTED },
+          include: { items: { include: { variant: { include: { inventory: true, product: { select: { name: true } } } } } } },
+        },
+        buyer: { select: { id: true, firstName: true } },
+      },
+    });
+    if (!demand) throw new NotFoundException('Demand not found');
+    if (demand.status !== DemandStatus.MATCHED) {
+      throw new BadRequestException('Only a MATCHED demand can be completed');
+    }
+
+    const offer = demand.offers[0];
+    if (!offer) throw new BadRequestException('No accepted offer found');
+    if (offer.stallId !== stallId) {
+      throw new ForbiddenException('Only the winning seller can complete this sale');
+    }
+
+    return this.prisma.$retryTransaction(async (tx) => {
+      const stall = await tx.stall.findUnique({
+        where: { id: stallId },
+        include: { merchant: { include: { user: true } } },
+      });
+      if (!stall) throw new NotFoundException('Stall not found');
+
+      const totalAmount = new Prisma.Decimal(offer.totalPrice);
+      const commissionRate = new Prisma.Decimal(0.025);
+      const commissionAmount = totalAmount.mul(commissionRate);
+
+      // Check seller commission balance
+      const sellerWallet = await tx.wallet.findUnique({ where: { userId: stall.merchant.userId } });
+      if (!sellerWallet) throw new NotFoundException('Seller wallet not found');
+      if (sellerWallet.availableBalance.lessThan(commissionAmount)) {
+        throw new BadRequestException(
+          `Insufficient commission balance. Requires $${commissionAmount.toFixed(2)}. ` +
+          `Available: $${sellerWallet.availableBalance.toFixed(2)}. Please top up your wallet.`,
+        );
+      }
+
+      // Build sale items — use offer items if present, otherwise a single aggregated line
+      const saleItems: Array<{
+        variantId: string;
+        productName: string;
+        variantName: string;
+        quantity: number;
+        unitPrice: Prisma.Decimal;
+        costPrice: Prisma.Decimal;
+        discount: Prisma.Decimal;
+        totalPrice: Prisma.Decimal;
+      }> = [];
+
+      if (offer.items && offer.items.length > 0) {
+        for (const item of offer.items) {
+          if (!item.variant) continue;
+          const itemPrice = new Prisma.Decimal(item.price);
+          const lineTotal = itemPrice.mul(item.quantity);
+
+          saleItems.push({
+            variantId: item.variantId,
+            productName: item.variant.product.name,
+            variantName: item.variant.name,
+            quantity: item.quantity,
+            unitPrice: itemPrice,
+            costPrice: item.variant.costPrice ?? new Prisma.Decimal(0),
+            discount: new Prisma.Decimal(0),
+            totalPrice: lineTotal,
+          });
+
+          // Deduct inventory for known variants
+          if (item.variant.inventory) {
+            const available = item.variant.inventory.quantity - item.variant.inventory.reservedQty;
+            if (available < item.quantity) {
+              throw new BadRequestException(
+                `Insufficient stock for ${item.variant.product.name}. Available: ${available}, needed: ${item.quantity}`,
+              );
+            }
+            await tx.inventory.update({
+              where: { id: item.variant.inventory.id },
+              data: { quantity: { decrement: item.quantity } },
+            });
+            await tx.inventoryLog.create({
+              data: {
+                inventoryId: item.variant.inventory.id,
+                changeQty: -item.quantity,
+                previousQty: item.variant.inventory.quantity,
+                newQty: item.variant.inventory.quantity - item.quantity,
+                reason: 'DEMAND_SALE',
+                referenceId: demandId,
+                referenceType: 'buyer_demand',
+                performedBy: cashierId,
+              },
+            });
+          }
+        }
+      }
+
+      // If no variant items — use the demand title as a single line item
+      if (saleItems.length === 0) {
+        // Find any variant in the stall to attach the sale to (required by schema)
+        const anyVariant = await tx.productVariant.findFirst({
+          where: { product: { stallId } },
+          include: { product: { select: { name: true } } },
+        });
+        if (!anyVariant) throw new BadRequestException('No products found in stall to record the sale against. Add at least one product first.');
+
+        saleItems.push({
+          variantId: anyVariant.id,
+          productName: demand.title,
+          variantName: 'Demand Sale',
+          quantity: 1,
+          unitPrice: totalAmount,
+          costPrice: new Prisma.Decimal(0),
+          discount: new Prisma.Decimal(0),
+          totalPrice: totalAmount,
+        });
+      }
+
+      // Generate receipt number
+      const now = new Date();
+      const yyyy = now.getUTCFullYear();
+      const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(now.getUTCDate()).padStart(2, '0');
+      const today = `${yyyy}${mm}${dd}`;
+      const startOfDayUTC = new Date(Date.UTC(yyyy, now.getUTCMonth(), now.getUTCDate()));
+      const todayCount = await tx.pOSSale.count({
+        where: { stallId, createdAt: { gte: startOfDayUTC } },
+      });
+      const receiptNumber = `M263-${today}-${(todayCount + 1).toString().padStart(4, '0')}`;
+
+      // Create the POS sale record
+      const sale = await tx.pOSSale.create({
+        data: {
+          stallId,
+          cashierId,
+          receiptNumber,
+          subtotal: totalAmount,
+          discountAmount: new Prisma.Decimal(0),
+          taxAmount: 0,
+          totalAmount,
+          commissionAmount,
+          commissionRate,
+          currency: 'USD',
+          paymentMethod,
+          status: POSSaleStatus.COMPLETED,
+          notes: `Demand: ${demand.title}`,
+          items: { create: saleItems },
+          receipt: {
+            create: {
+              data: {
+                stallName: stall.name,
+                stallNumber: stall.stallNumber,
+                items: saleItems.map((i) => ({
+                  name: `${i.productName}${i.variantName !== 'Demand Sale' ? ` - ${i.variantName}` : ''}`,
+                  qty: i.quantity,
+                  price: i.unitPrice.toString(),
+                  total: i.totalPrice.toString(),
+                })),
+                subtotal: totalAmount.toString(),
+                discount: '0',
+                total: totalAmount.toString(),
+                paymentMethod,
+                cashier: cashierId,
+                date: now.toISOString(),
+                demandTitle: demand.title,
+              },
+            },
+          },
+        },
+        include: { items: true, receipt: true },
+      });
+
+      // Deduct commission
+      const sellerNewBalance = sellerWallet.availableBalance.sub(commissionAmount);
+      await tx.wallet.update({
+        where: { id: sellerWallet.id },
+        data: { availableBalance: sellerNewBalance, lastActivityAt: now },
+      });
+      await tx.walletTransaction.create({
+        data: {
+          walletId: sellerWallet.id,
+          type: WalletTransactionType.COMMISSION_DEDUCTION,
+          amount: commissionAmount,
+          balanceBefore: sellerWallet.availableBalance,
+          balanceAfter: sellerNewBalance,
+          status: WalletTransactionStatus.COMPLETED,
+          description: `Commission for demand sale (${demand.title})`,
+          referenceId: sale.id,
+          referenceType: 'pos_sale',
+          completedAt: now,
+        },
+      });
+
+      // Mark demand as FULFILLED
+      await tx.buyerDemand.update({
+        where: { id: demandId },
+        data: { status: DemandStatus.FULFILLED },
+      });
+
+      // Notify buyer
+      await tx.notification.create({
+        data: {
+          userId: demand.buyer.id,
+          type: 'SALE_COMPLETED' as any,
+          title: 'Order Fulfilled',
+          body: `Your demand "${demand.title}" has been fulfilled. Receipt: ${receiptNumber}`,
+          data: { demandId, saleId: sale.id, receiptNumber },
+        },
+      });
+
+      return {
+        sale,
+        receiptNumber,
+        saleId: sale.id,
+        commission: commissionAmount.toNumber(),
+        total: totalAmount.toNumber(),
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   /**

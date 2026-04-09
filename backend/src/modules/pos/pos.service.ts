@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { InventoryService } from '../inventory/inventory.service';
-import { POSSaleStatus, PaymentMethod, Prisma, WalletTransactionType, WalletTransactionStatus } from '@prisma/client';
+import { POSSaleStatus, PaymentMethod, Prisma, WalletTransactionType, WalletTransactionStatus, NotificationType } from '@prisma/client';
 
 interface CartItem {
   variantId: string;
@@ -122,6 +122,31 @@ export class POSService {
               performedBy: data.cashierId,
             },
           });
+
+          // Low stock notification: trigger if new quantity is at or below threshold
+          const newQty = variant.inventory.quantity - item.quantity;
+          const threshold = variant.inventory.lowStockThreshold ?? 5;
+          if (newQty <= threshold && newQty > 0) {
+            await tx.notification.create({
+              data: {
+                userId: stall.merchant.userId,
+                type: NotificationType.LOW_STOCK,
+                title: `Low Stock: ${variant.product.name}`,
+                body: `${variant.name} has only ${newQty} unit${newQty !== 1 ? 's' : ''} left. Restock soon.`,
+                data: { variantId: item.variantId, productName: variant.product.name, quantity: newQty, stallId: data.stallId },
+              },
+            });
+          } else if (newQty === 0) {
+            await tx.notification.create({
+              data: {
+                userId: stall.merchant.userId,
+                type: NotificationType.LOW_STOCK,
+                title: `Out of Stock: ${variant.product.name}`,
+                body: `${variant.name} is now out of stock. Add more inventory to keep selling.`,
+                data: { variantId: item.variantId, productName: variant.product.name, quantity: 0, stallId: data.stallId },
+              },
+            });
+          }
         }
 
         // 4. Calculate totals

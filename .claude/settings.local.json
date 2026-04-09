@@ -15,7 +15,12 @@
       "Bash(node -e ':*)",
       "Bash(npx tsc:*)",
       "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
-      "Bash(grep -E \"\\\\.ts$\")"
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(curl -s -X POST https://mall263-r99jz.ondigitalocean.app/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"phone\":\"+263773665350\",\"password\":\"*Amell.Max1#\"}')",
+      "Bash(curl -s -X POST https://mall263-r99jz.ondigitalocean.app/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"ausiziba@gmail.com\",\"password\":\"*Amell.Max1#\"}')",
+      "Bash(npx ts-node -e ':*)",
+      "Bash(node:*)",
+      "Bash(curl -s -X POST https://mall263-r99jz.ondigitalocean.app/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"phone\":\"+263773665350\",\"password\":\"*Amell.Max1\"}')"
     ]
   }
 }
