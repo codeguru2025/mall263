@@ -84,6 +84,20 @@ export class MerchantsService {
     });
   }
 
+  async suspendMerchant(merchantId: string) {
+    return this.prisma.merchant.update({
+      where: { id: merchantId },
+      data: { status: MerchantStatus.SUSPENDED },
+    });
+  }
+
+  async activateMerchant(merchantId: string) {
+    return this.prisma.merchant.update({
+      where: { id: merchantId },
+      data: { status: MerchantStatus.VERIFIED },
+    });
+  }
+
   async getMerchantByUserId(userId: string) {
     const merchant = await this.prisma.merchant.findUnique({
       where: { userId },
@@ -96,10 +110,17 @@ export class MerchantsService {
     return merchant;
   }
 
-  async listMerchants(params: { status?: MerchantStatus; page?: number; limit?: number }) {
-    const { status, page = 1, limit = 20 } = params;
+  async listMerchants(params: { status?: MerchantStatus; search?: string; page?: number; limit?: number }) {
+    const { status, search, page = 1, limit = 20 } = params;
     const where: any = {};
     if (status) where.status = status;
+    if (search) {
+      where.OR = [
+        { businessName: { contains: search, mode: 'insensitive' } },
+        { user: { phone: { contains: search, mode: 'insensitive' } } },
+        { user: { firstName: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.merchant.findMany({

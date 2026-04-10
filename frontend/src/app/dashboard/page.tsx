@@ -5,10 +5,12 @@ import { useAuthStore } from '@/lib/store';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight, LogOut, Receipt, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight, LogOut, Receipt, TrendingUp, AlertTriangle, Gift, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import { Logo } from '@/components/Logo';
+import { useSubscription } from '@/lib/useSubscription';
+import SubscribeModal from '@/components/SubscribeModal';
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -17,6 +19,9 @@ export default function DashboardPage() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [showSubModal, setShowSubModal] = useState(false);
+  const [trialBannerDismissed, setTrialBannerDismissed] = useState(false);
+  const { trialActive, trialEndsAt, fullyAccess, isLoading: subLoading } = useSubscription();
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -82,6 +87,7 @@ export default function DashboardPage() {
   const isAgent = user.role === 'FIELD_AGENT';
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50">
       {/* Top Nav */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
@@ -130,6 +136,53 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-black text-navy-700">Hi, {user.firstName}</h1>
           <p className="text-sm text-gray-500">Here&apos;s your Mall263 overview</p>
         </div>
+
+        {/* Trial / subscription banner for sellers */}
+        {isSeller && !subLoading && (() => {
+          if (trialActive && trialEndsAt && !trialBannerDismissed) {
+            const daysLeft = Math.max(0, Math.ceil((trialEndsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+            if (daysLeft <= 5) {
+              return (
+                <div className="mb-5 rounded-2xl bg-gradient-to-r from-brand-orange/10 to-orange-50 border border-orange-200 px-4 py-3.5 flex items-center gap-3">
+                  <Gift className="w-5 h-5 text-brand-orange flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-bold text-navy-700">
+                      {daysLeft === 0 ? 'Your free trial ends today!' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left in your free trial`}
+                    </span>
+                    <span className="text-xs text-gray-500 block">Subscribe now to keep all features at $5/month.</span>
+                  </div>
+                  <button
+                    onClick={() => setShowSubModal(true)}
+                    className="text-xs font-black text-brand-orange bg-white border border-orange-200 rounded-xl px-3 py-1.5 hover:bg-orange-50 transition-colors flex-shrink-0"
+                  >
+                    Subscribe
+                  </button>
+                  <button onClick={() => setTrialBannerDismissed(true)} className="text-gray-400 hover:text-gray-600 flex-shrink-0">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              );
+            }
+          }
+          if (!fullyAccess) {
+            return (
+              <div className="mb-5 rounded-2xl bg-red-50 border border-red-200 px-4 py-3.5 flex items-center gap-3">
+                <Lock className="w-5 h-5 text-brand-red flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-bold text-navy-700">Your free trial has ended</span>
+                  <span className="text-xs text-gray-500 block">Subscribe to restore full access to all seller features.</span>
+                </div>
+                <button
+                  onClick={() => setShowSubModal(true)}
+                  className="text-xs font-black text-white bg-brand-red rounded-xl px-3 py-1.5 hover:bg-red-600 transition-colors flex-shrink-0"
+                >
+                  Subscribe
+                </button>
+              </div>
+            );
+          }
+          return null;
+        })()}
 
         {/* Wallet Card */}
         <div className="rounded-2xl bg-gradient-to-br from-navy-700 via-navy-800 to-navy-900 text-white p-6 mb-6 relative overflow-hidden">
@@ -312,5 +365,13 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+    {showSubModal && (
+      <SubscribeModal
+        onClose={() => setShowSubModal(false)}
+        trialExpired={!trialActive}
+        trialEndsAt={trialEndsAt?.toISOString()}
+      />
+    )}
+    </>
   );
 }

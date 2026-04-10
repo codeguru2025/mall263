@@ -15,11 +15,11 @@ interface FeatureGateProps {
 /**
  * Wraps seller-only features. If the user's subscription has lapsed,
  * renders a subscribe prompt instead of the feature.
- * During trial or active subscription, renders children normally.
+ * During the 7-day free trial or an active subscription, renders children normally.
  */
 export default function FeatureGate({ children, overlay = false }: FeatureGateProps) {
   const user = useAuthStore((s) => s.user);
-  const { fullyAccess, isLoading } = useSubscription();
+  const { fullyAccess, isLoading, trialActive, trialEndsAt } = useSubscription();
   const [showModal, setShowModal] = useState(false);
 
   // Only gate sellers (buyers don't need a subscription)
@@ -30,6 +30,7 @@ export default function FeatureGate({ children, overlay = false }: FeatureGatePr
     return <>{children}</>;
   }
 
+  // Trial has expired or no subscription — gate access
   if (overlay) {
     return (
       <div className="relative">
@@ -42,9 +43,15 @@ export default function FeatureGate({ children, overlay = false }: FeatureGatePr
             <Lock className="w-5 h-5 text-white" />
           </div>
           <span className="text-sm font-black text-navy-700">Subscribe to unlock</span>
-          <span className="text-xs text-gray-500">$5/month</span>
+          <span className="text-xs text-gray-500">$5/month · Free 7-day trial</span>
         </button>
-        {showModal && <SubscribeModal onClose={() => setShowModal(false)} />}
+        {showModal && (
+          <SubscribeModal
+            onClose={() => setShowModal(false)}
+            trialExpired={!trialActive}
+            trialEndsAt={trialEndsAt?.toISOString()}
+          />
+        )}
       </div>
     );
   }
@@ -59,9 +66,15 @@ export default function FeatureGate({ children, overlay = false }: FeatureGatePr
           <Lock className="w-6 h-6 text-white" />
         </div>
         <span className="font-black text-navy-700">Subscribe to use this feature</span>
-        <span className="text-sm text-gray-400">$5/month · EcoCash</span>
+        <span className="text-sm text-gray-400">$5/month · EcoCash · 7-day free trial</span>
       </button>
-      {showModal && <SubscribeModal onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <SubscribeModal
+          onClose={() => setShowModal(false)}
+          trialExpired={!trialActive}
+          trialEndsAt={trialEndsAt?.toISOString()}
+        />
+      )}
     </>
   );
 }

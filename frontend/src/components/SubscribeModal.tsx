@@ -3,16 +3,25 @@
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { Loader2, CheckCircle2, Smartphone, AlertCircle } from 'lucide-react';
+import { Loader2, CheckCircle2, Smartphone, AlertCircle, Gift, Lock, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface SubscribeModalProps {
   onClose?: () => void;
   /** If true, show a dismiss button. If false, modal is mandatory. */
   dismissible?: boolean;
+  /** Show trial-ended messaging vs. generic subscribe messaging */
+  trialExpired?: boolean;
+  /** ISO date string for when trial ends */
+  trialEndsAt?: string;
 }
 
-export default function SubscribeModal({ onClose, dismissible = true }: SubscribeModalProps) {
+export default function SubscribeModal({
+  onClose,
+  dismissible = true,
+  trialExpired = false,
+  trialEndsAt,
+}: SubscribeModalProps) {
   const queryClient = useQueryClient();
   const [phone, setPhone] = useState('');
   const [step, setStep] = useState<'phone' | 'waiting' | 'done' | 'timeout'>('phone');
@@ -23,7 +32,6 @@ export default function SubscribeModal({ onClose, dismissible = true }: Subscrib
     mutationFn: (ecocashNumber: string) =>
       api.post('/api/v1/subscriptions/ecocash', { ecocashNumber }).then((r) => r.data),
     onSuccess: () => {
-      // Now trigger payment
       payMutation.mutate();
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to save number'),
@@ -73,21 +81,58 @@ export default function SubscribeModal({ onClose, dismissible = true }: Subscrib
 
   const busy = saveMutation.isPending || payMutation.isPending;
 
+  const trialEndDate = trialEndsAt ? new Date(trialEndsAt) : null;
+  const daysLeft = trialEndDate
+    ? Math.max(0, Math.ceil((trialEndDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : 0;
+
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 px-4 pb-4 sm:pb-0">
       <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
 
         {step === 'phone' && (
           <>
-            <div className="bg-gradient-to-br from-navy-700 to-navy-900 px-6 pt-8 pb-6 text-white text-center">
-              <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Smartphone className="w-7 h-7 text-white" />
+            {/* Header */}
+            {trialExpired ? (
+              <div className="bg-gradient-to-br from-brand-orange to-orange-600 px-6 pt-8 pb-6 text-white text-center">
+                <div className="w-14 h-14 bg-white/15 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Lock className="w-7 h-7 text-white" />
+                </div>
+                <h2 className="text-xl font-black mb-1">Your Free Trial Ended</h2>
+                <p className="text-white/75 text-sm">Subscribe to keep full access to all features</p>
               </div>
-              <h2 className="text-xl font-black mb-1">Subscribe to Continue</h2>
-              <p className="text-white/60 text-sm">$5 / month · Billed via EcoCash</p>
+            ) : (
+              <div className="bg-gradient-to-br from-navy-700 to-navy-900 px-6 pt-8 pb-6 text-white text-center">
+                <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Gift className="w-7 h-7 text-white" />
+                </div>
+                <h2 className="text-xl font-black mb-1">Subscribe &amp; Keep Going</h2>
+                <p className="text-white/60 text-sm">
+                  {daysLeft > 0 ? `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left in your free trial` : 'Unlock all features'}
+                </p>
+              </div>
+            )}
+
+            {/* Feature bullets */}
+            <div className="px-6 pt-4 pb-2">
+              <ul className="space-y-2 mb-4">
+                {[
+                  'Full POS & sales management',
+                  'Inventory tracking & reports',
+                  'Customer chat & demand alerts',
+                ].map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-sm text-navy-700">
+                    <Star className="w-3.5 h-3.5 text-brand-orange flex-shrink-0" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <div className="text-center text-xs text-gray-400 mb-3 font-semibold">
+                Only <span className="text-navy-700 font-black">$5 / month</span> · Billed via EcoCash
+              </div>
             </div>
 
-            <div className="px-6 py-5 space-y-4">
+            <div className="px-6 pb-6 space-y-3">
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1.5">EcoCash Number</label>
                 <input

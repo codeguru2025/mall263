@@ -23,7 +23,7 @@ interface Props {
 }
 
 export default function ProductCard({ product, priority = false }: Props) {
-  const imageUrl = product.imageUrl || product.images?.[0]?.url;
+  const imageUrl = product.imageUrl || (product.images?.[0] as any)?.cdnUrl || product.images?.[0]?.url;
   const stallName = product.stallName || product.stall?.mall?.name || product.stall?.name || 'Market Stall';
 
   return (
@@ -52,9 +52,14 @@ export default function ProductCard({ product, priority = false }: Props) {
           <h3 className="font-bold text-xs sm:text-sm text-navy-700 line-clamp-2 mb-1 group-hover:text-brand-orange transition-colors leading-tight">
             {product.name}
           </h3>
-          <p className="text-sm sm:text-base font-black text-brand-orange mb-1">
-            {formatCurrency(parseFloat(product.minPrice))}
-          </p>
+          {(() => {
+            const p = parseFloat(product.minPrice);
+            return isFinite(p) && p > 0 ? (
+              <p className="text-sm sm:text-base font-black text-brand-orange mb-1">
+                {formatCurrency(p)}
+              </p>
+            ) : null;
+          })()}
           <div className="flex items-center gap-1 text-[10px] text-gray-400">
             <MapPin className="w-2.5 h-2.5" />
             <span className="truncate">{stallName}</span>

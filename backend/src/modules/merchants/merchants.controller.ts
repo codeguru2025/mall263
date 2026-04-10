@@ -57,14 +57,29 @@ export class MerchantsController {
     return this.merchantsService.verifyMerchant(id);
   }
 
+  @Patch(':id/suspend')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
+  @ApiOperation({ summary: 'Suspend a merchant' })
+  async suspend(@Param('id') id: string) {
+    return this.merchantsService.suspendMerchant(id);
+  }
+
+  @Patch(':id/activate')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
+  @ApiOperation({ summary: 'Activate/reinstate a suspended merchant' })
+  async activate(@Param('id') id: string) {
+    return this.merchantsService.activateMerchant(id);
+  }
+
   @Get()
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS, UserRole.FIELD_AGENT)
   @ApiOperation({ summary: 'List merchants' })
   async list(
     @Query('status') status?: MerchantStatus,
+    @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.merchantsService.listMerchants({ status, page, limit });
+    return this.merchantsService.listMerchants({ status, search, page, limit });
   }
 }

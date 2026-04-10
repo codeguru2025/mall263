@@ -12,13 +12,104 @@ import { Logo } from '@/components/Logo';
 import { useAuthStore } from '@/lib/store';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 
-// Resolve image URL regardless of source shape (Meilisearch flat vs DB nested)
+// Resolve image URL — handles Meilisearch flat shape, DB nested, and cdnUrl vs url
 function resolveImageUrl(product: any): string {
   return (
     product.imageUrl ||
-    product.images?.[0]?.url ||
     product.images?.[0]?.cdnUrl ||
+    product.images?.[0]?.url ||
     ''
+  );
+}
+
+// Safely format a price — returns null when the value is missing or zero
+function safePrice(raw: any): string | null {
+  const n = typeof raw === 'number' ? raw : parseFloat(raw);
+  if (!isFinite(n) || n <= 0) return null;
+  return formatCurrency(n);
+}
+
+// Individual card — needs its own state for image-load errors
+function ProductCard({ product }: { product: any }) {
+  const [imgError, setImgError] = useState(false);
+  const imgUrl = resolveImageUrl(product);
+  const hasImage = !!imgUrl && !imgError;
+  const stallName = product.stallName || product.stall?.name || 'Market Stall';
+  const priceLabel = safePrice(product.minPrice);
+
+  return (
+    <Link
+      href={`/marketplace/${product.id}`}
+      className="group relative block aspect-[3/4] rounded-[18px] overflow-hidden shadow-[0_2px_14px_rgba(0,0,0,0.10)] hover:shadow-[0_10px_40px_rgba(0,0,0,0.20)] transition-shadow duration-300 active:scale-[0.97] select-none"
+      style={{ WebkitTapHighlightColor: 'transparent' }}
+    >
+      {/* Background — white so transparent PNGs look clean */}
+      <div className="absolute inset-0 bg-white" />
+
+      {/* Full-bleed image */}
+      {hasImage ? (
+        <Image
+          src={imgUrl}
+          alt={product.name || 'Product'}
+          fill
+          sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+          className="object-cover group-hover:scale-[1.06] transition-transform duration-500 ease-out"
+          priority={product.trustScore >= 70}
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+          <ShoppingBag className="w-12 h-12 text-gray-300" />
+        </div>
+      )}
+
+      {/* Gradient overlay — only when we have an image, so the ShoppingBag fallback stays visible */}
+      {hasImage && (
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+      )}
+
+      {/* Trusted badge — glassmorphism, top-right */}
+      {product.trustScore >= 70 && (
+        <div className="absolute top-2.5 right-2.5 flex items-center gap-1 bg-white/20 backdrop-blur-md border border-white/30 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
+          <Star className="w-2.5 h-2.5 fill-white text-white" />
+          Trusted
+        </div>
+      )}
+
+      {/* Info overlay — only rendered when there's an image so text is on the gradient */}
+      {hasImage ? (
+        <div className="absolute bottom-0 left-0 right-0 px-3 pb-3 pt-8">
+          <p className="text-white font-semibold text-[13px] leading-[1.3] line-clamp-2 mb-1.5 drop-shadow">
+            {product.name || 'Unnamed product'}
+          </p>
+          <div className="flex items-end justify-between gap-2">
+            <span className="text-white/60 text-[11px] font-medium truncate flex items-center gap-0.5">
+              <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-brand-orange" />
+              {stallName}
+            </span>
+            <span className="text-white font-black text-sm flex-shrink-0 drop-shadow">
+              {priceLabel ?? '—'}
+            </span>
+          </div>
+        </div>
+      ) : (
+        /* Fallback info below the icon when no image */
+        <div className="absolute bottom-0 left-0 right-0 bg-white px-3 pb-3 pt-2">
+          <p className="font-semibold text-[13px] text-navy-700 line-clamp-2 leading-[1.3] mb-1">
+            {product.name || 'Unnamed product'}
+          </p>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-gray-400 text-[11px] truncate flex items-center gap-0.5">
+              <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-brand-orange" />
+              {stallName}
+            </span>
+            <span className="text-navy-700 font-black text-sm flex-shrink-0">
+              {priceLabel ?? '—'}
+            </span>
+          </div>
+        </div>
+      )}
+    </Link>
   );
 }
 
@@ -149,89 +240,37 @@ function MarketplaceContent() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 pb-safe">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-5 pb-safe">
         {isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl p-4 animate-pulse border border-gray-100">
-                <div className="bg-gray-100 rounded-xl h-48 mb-3" />
-                <div className="bg-gray-100 rounded-lg h-4 mb-2 w-3/4" />
-                <div className="bg-gray-100 rounded-lg h-4 w-1/2" />
-              </div>
+              <div key={i} className="rounded-[18px] overflow-hidden animate-pulse bg-gray-200 aspect-[3/4]" />
             ))}
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h1 className="text-xl font-black text-navy-700">
+                <h1 className="text-lg font-black text-navy-700 tracking-tight">
                   {activeCategoryName
                     ? activeCategoryName
                     : debouncedQuery
-                    ? `Results for "${debouncedQuery}"`
-                    : 'Browse Products'}
+                    ? `"${debouncedQuery}"`
+                    : 'Browse'}
                 </h1>
-                <p className="text-sm text-gray-500">{data?.total || 0} products</p>
+                <p className="text-xs text-gray-400 font-medium">{data?.total || 0} products</p>
               </div>
               {!isSeller && (
-                <Link href="/demands/new" className="btn-bid text-sm py-2.5 px-4 flex items-center gap-2">
-                  <Gavel className="w-4 h-4" /> Post Demand
+                <Link href="/demands/new" className="btn-bid text-xs py-2 px-3.5 flex items-center gap-1.5">
+                  <Gavel className="w-3.5 h-3.5" /> Post Demand
                 </Link>
               )}
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {products.map((product: any) => {
-                const imgUrl = resolveImageUrl(product);
-                const stallName = product.stallName || product.stall?.name || 'Market Stall';
-                const price = typeof product.minPrice === 'number'
-                  ? product.minPrice
-                  : parseFloat(product.minPrice);
-                return (
-                  <Link
-                    key={product.id}
-                    href={`/marketplace/${product.id}`}
-                    className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden hover:border-brand-blue hover:shadow-lg transition-all group"
-                  >
-                    <div className="bg-white h-48 flex items-center justify-center overflow-hidden relative border-b border-gray-50">
-                      {imgUrl ? (
-                        <Image
-                          src={imgUrl}
-                          alt={product.name}
-                          fill
-                          sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
-                          className="object-contain p-2 group-hover:scale-105 transition-transform"
-                          priority={product.trustScore >= 70}
-                        />
-                      ) : (
-                        <ShoppingBag className="w-12 h-12 text-gray-200" />
-                      )}
-                      {product.trustScore >= 70 && (
-                        <div className="absolute top-2 left-2 badge-success flex items-center gap-1">
-                          <Star className="w-3 h-3" /> Trusted
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <h3 className="font-bold text-sm text-navy-700 line-clamp-2 mb-1 group-hover:text-brand-blue transition-colors leading-tight">
-                        {product.name}
-                      </h3>
-                      <div className="flex items-center gap-1 text-xs text-gray-400 mb-2">
-                        <MapPin className="w-3 h-3 text-brand-orange flex-shrink-0" />
-                        <span className="truncate">{stallName}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-base font-black text-navy-700">
-                          {formatCurrency(isNaN(price) ? 0 : price)}
-                        </span>
-                        <span className="text-xs font-semibold text-brand-green bg-green-50 px-2 py-0.5 rounded-lg">
-                          Available
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
+              {products.map((product: any) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
             </div>
 
             {products.length === 0 && (
