@@ -34,7 +34,7 @@ export default function LocationFilterBar({ selectedMallId, onSelectMall }: Prop
   };
 
   return (
-    <div className="sticky top-[57px] z-40 bg-white border-b border-gray-100">
+    <div className="sticky top-[calc(57px+env(safe-area-inset-top,0px))] z-40 bg-white border-b border-gray-100">
       <div className="max-w-7xl mx-auto px-4 py-3">
         {/* Search bar */}
         <form onSubmit={handleSearch} className="mb-3">

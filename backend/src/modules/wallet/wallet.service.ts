@@ -1,16 +1,12 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletTransactionType, WalletTransactionStatus, WalletLockReason, WalletLockStatus, Prisma } from '@prisma/client';
-import { RedisService } from '../../redis/redis.service';
 
 @Injectable()
 export class WalletService {
   private readonly COMMISSION_RATE = 0.025;
 
-  constructor(
-    private prisma: PrismaService,
-    private redis: RedisService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   async getWallet(userId: string) {
     const wallet = await this.prisma.wallet.findUnique({

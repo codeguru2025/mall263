@@ -119,21 +119,32 @@ function MarketplaceContent() {
 
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const debouncedQuery = useDebounce(query, 300);
-  const [selectedMall, setSelectedMall] = useState(searchParams.get('mall') || '');
+  const [selectedMall, setSelectedMall] = useState(
+    () => searchParams.get('mallId') || searchParams.get('mall') || '',
+  );
   const [selectedCategoryId, setSelectedCategoryId] = useState(searchParams.get('categoryId') || '');
   const [sortBy, setSortBy] = useState('newest');
   const [page, setPage] = useState(1);
   const user = useAuthStore((s) => s.user);
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
 
-  useEffect(() => { setPage(1); }, [debouncedQuery, selectedCategoryId]);
+  useEffect(() => { setPage(1); }, [debouncedQuery, selectedCategoryId, selectedMall]);
+
+  const urlSig = searchParams.toString();
+  useEffect(() => {
+    const params = new URLSearchParams(urlSig);
+    const m = params.get('mallId') || params.get('mall') || '';
+    const c = params.get('categoryId') || '';
+    setSelectedMall(m);
+    setSelectedCategoryId(c);
+  }, [urlSig]);
 
   // Keep URL in sync so shares / back-button work
   useEffect(() => {
     const params = new URLSearchParams();
     if (debouncedQuery) params.set('q', debouncedQuery);
     if (selectedCategoryId) params.set('categoryId', selectedCategoryId);
-    if (selectedMall) params.set('mall', selectedMall);
+    if (selectedMall) params.set('mallId', selectedMall);
     const qs = params.toString();
     router.replace(qs ? `/marketplace?${qs}` : '/marketplace', { scroll: false });
   }, [debouncedQuery, selectedCategoryId, selectedMall, router]);
@@ -155,7 +166,7 @@ function MarketplaceContent() {
       api.get('/api/v1/search', {
         params: {
           q: debouncedQuery.trim() || undefined,
-          mall: selectedMall || undefined,
+          mallId: selectedMall || undefined,
           categoryId: selectedCategoryId || undefined,
           sortBy,
           page,
@@ -172,10 +183,14 @@ function MarketplaceContent() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 safe-area-top">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex-shrink-0"><Logo size={30} /></Link>
+            <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-navy-600">
+              <Link href="/for-you" className="px-2 py-1 rounded-lg hover:bg-gray-50 whitespace-nowrap">For You</Link>
+              <Link href="/services" className="px-2 py-1 rounded-lg hover:bg-gray-50 whitespace-nowrap">Services</Link>
+            </div>
             <div className="flex-1 relative">
               <div className="bg-gray-50 rounded-xl flex items-center gap-3 px-4 border-2 border-gray-100 focus-within:border-brand-blue focus-within:bg-white transition-all">
                 <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -210,6 +225,14 @@ function MarketplaceContent() {
           </div>
 
           {/* Category filter strip */}
+          <div className="sm:hidden flex items-center gap-3 pt-2 pb-1 px-1">
+            <Link href="/for-you" className="text-xs font-bold text-brand-orange whitespace-nowrap">
+              For You
+            </Link>
+            <Link href="/services" className="text-xs font-bold text-brand-blue whitespace-nowrap">
+              Services
+            </Link>
+          </div>
           {topCategories.length > 0 && (
             <div className="flex gap-2 overflow-x-auto no-scrollbar pt-2 pb-1 -mx-1 px-1">
               <button

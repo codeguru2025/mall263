@@ -14,7 +14,6 @@ async function check() {
       select: {
         id: true,
         phone: true,
-        email: true,
         firstName: true,
         lastName: true,
         role: true,
@@ -32,7 +31,6 @@ async function check() {
     console.log('\nUser found:');
     console.log('  ID:', user.id);
     console.log('  Phone:', user.phone);
-    console.log('  Email:', user.email);
     console.log('  Name:', user.firstName, user.lastName);
     console.log('  Role:', user.role);
     console.log('  Status:', user.status);

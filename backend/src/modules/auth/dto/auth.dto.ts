@@ -1,17 +1,12 @@
-import { IsString, IsEmail, IsOptional, IsEnum, MinLength, Matches } from 'class-validator';
+import { IsString, IsOptional, IsEnum, MinLength, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { UserRole, UserStatus } from '@prisma/client';
 
 export class RegisterDto {
   @ApiProperty({ example: '+263771234567' })
   @IsString()
   @Matches(/^\+?[0-9]{10,15}$/, { message: 'Invalid phone number format' })
   phone: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsEmail()
-  email?: string;
 
   @ApiProperty()
   @IsString()
@@ -38,15 +33,10 @@ export class RegisterDto {
 }
 
 export class LoginDto {
-  @ApiProperty({ example: '+263771234567', required: false })
-  @IsOptional()
+  @ApiProperty({ example: '+263771234567' })
   @IsString()
-  phone?: string;
-
-  @ApiProperty({ example: 'user@example.com', required: false })
-  @IsOptional()
-  @IsEmail()
-  email?: string;
+  @Matches(/^\+?[0-9]{10,15}$/, { message: 'Invalid phone number format' })
+  phone: string;
 
   @ApiProperty()
   @IsString()
@@ -65,9 +55,10 @@ export class AuthResponseDto {
   user: {
     id: string;
     phone: string;
-    email?: string;
     firstName: string;
     lastName: string;
+    avatarUrl?: string;
+    status?: UserStatus;
     role: UserRole;
     subscription?: any;
   };

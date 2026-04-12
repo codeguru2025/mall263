@@ -243,6 +243,79 @@ export class ProductsService {
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
+  /** TikTok-style ranking: exploration noise + views + trust + category/mall affinity from client hints */
+  async forYou(params: {
+    categoryIds?: string[];
+    mallId?: string;
+    excludeProductIds?: string[];
+    page?: number;
+    limit?: number;
+  }) {
+    const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
+    const limit = Number.isFinite(params.limit) ? Math.max(1, Math.min(40, params.limit!)) : 20;
+    const catSet = new Set((params.categoryIds || []).filter(Boolean));
+    const exclude = new Set((params.excludeProductIds || []).filter(Boolean));
+
+    const include = {
+      images: { where: { isPrimary: true }, take: 1 },
+      category: { select: { name: true, slug: true } },
+      stall: {
+        select: {
+          id: true,
+          name: true,
+          mallId: true,
+          mall: { select: { name: true, city: true } },
+          merchant: { include: { user: { include: { trustScore: true } } } },
+        },
+      },
+      variants: { select: { sellingPrice: true, color: true, size: true }, where: { isActive: true } },
+    } as const;
+
+    const [popular, recent] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { status: ProductStatus.ACTIVE },
+        take: 130,
+        orderBy: { viewCount: 'desc' },
+        include,
+      }),
+      this.prisma.product.findMany({
+        where: { status: ProductStatus.ACTIVE },
+        take: 130,
+        orderBy: { createdAt: 'desc' },
+        include,
+      }),
+    ]);
+
+    const merged = new Map<string, (typeof popular)[0]>();
+    for (const p of popular) merged.set(p.id, p);
+    for (const p of recent) if (!merged.has(p.id)) merged.set(p.id, p);
+    const pool = [...merged.values()];
+
+    const scored = pool.map((p) => {
+      let s = Math.random() * 1.8;
+      s += Math.log1p(p.viewCount) * 0.42;
+      if (p.categoryId && catSet.has(p.categoryId)) s += 5;
+      if (params.mallId && p.stall.mallId === params.mallId) s += 3.6;
+      const trust = parseFloat(p.stall.merchant.user.trustScore?.overallScore?.toString() || '50');
+      s += (trust / 100) * 2.2;
+      if (exclude.has(p.id)) s -= 3.5;
+      return { p, s };
+    });
+
+    scored.sort((a, b) => b.s - a.s);
+    const ordered = scored.map((x) => x.p);
+    const start = (page - 1) * limit;
+    const slice = ordered.slice(start, start + limit);
+
+    return {
+      data: slice,
+      total: ordered.length,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(ordered.length / limit)),
+    };
+  }
+
   async getCategories() {
     return this.prisma.category.findMany({
       where: { isActive: true },

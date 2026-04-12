@@ -18,7 +18,7 @@ export class MerchantsController {
   @Roles(UserRole.FIELD_AGENT, UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
   @ApiOperation({ summary: 'Onboard a new merchant (agent/admin)' })
   async onboard(
-    @Body() data: { userId: string; businessName: string; businessPhone?: string; businessEmail?: string },
+    @Body() data: { userId: string; businessName: string; businessPhone?: string },
     @CurrentUser('id') agentId: string,
   ) {
     return this.merchantsService.onboardMerchant({ ...data, agentId });
@@ -32,7 +32,6 @@ export class MerchantsController {
     @Body() data: {
       businessName: string;
       businessPhone?: string;
-      businessEmail?: string;
       stallName: string;
       stallNumber: string;
       mallId?: string;

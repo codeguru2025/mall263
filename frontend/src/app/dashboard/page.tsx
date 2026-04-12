@@ -5,23 +5,52 @@ import { useAuthStore } from '@/lib/store';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight, LogOut, Receipt, TrendingUp, AlertTriangle, Gift, X } from 'lucide-react';
+import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight, LogOut, Receipt, TrendingUp, AlertTriangle, Gift, X, Camera, Loader2 } from 'lucide-react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
 import { Logo } from '@/components/Logo';
 import { useSubscription } from '@/lib/useSubscription';
 import SubscribeModal from '@/components/SubscribeModal';
+import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const logout = useAuthStore((s) => s.logout);
+  const loadUser = useAuthStore((s) => s.loadUser);
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [showSubModal, setShowSubModal] = useState(false);
   const [trialBannerDismissed, setTrialBannerDismissed] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const { trialActive, trialEndsAt, fullyAccess, isLoading: subLoading } = useSubscription();
+
+  const onAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Photo must be under 2MB');
+      return;
+    }
+    setAvatarBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await api.post('/api/v1/upload/avatar', fd);
+      const url = up.data.cdnUrl || up.data.url;
+      await api.patch('/api/v1/users/me', { avatarUrl: url });
+      await loadUser();
+      toast.success('Profile photo updated');
+    } catch {
+      toast.error('Could not update photo');
+    } finally {
+      setAvatarBusy(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -90,7 +119,7 @@ export default function DashboardPage() {
     <>
     <div className="min-h-screen bg-gray-50">
       {/* Top Nav */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50 safe-area-top">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <Logo size={30} />
           <div className="flex items-center gap-4">
@@ -107,9 +136,15 @@ export default function DashboardPage() {
                 onClick={() => setMenuOpen((o) => !o)}
                 className="flex items-center gap-3 rounded-xl p-1 hover:bg-gray-50 transition-colors"
               >
-                <div className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-green rounded-full flex items-center justify-center text-white font-bold text-sm">
-                  {user.firstName?.[0]}{user.lastName?.[0]}
-                </div>
+                {user.avatarUrl ? (
+                  <div className="relative w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
+                    <Image src={user.avatarUrl} alt="" fill className="object-cover" sizes="36px" />
+                  </div>
+                ) : (
+                  <div className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-green rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                    {user.firstName?.[0]}{user.lastName?.[0]}
+                  </div>
+                )}
                 <div className="text-sm text-right hidden sm:block">
                   <div className="font-bold text-navy-700">{user.firstName} {user.lastName}</div>
                   <div className="text-xs text-gray-500 capitalize">{user.role.replace(/_/g, ' ').toLowerCase()}</div>
@@ -131,10 +166,38 @@ export default function DashboardPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-6 pb-safe">
-        {/* Greeting */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-black text-navy-700">Hi, {user.firstName}</h1>
-          <p className="text-sm text-gray-500">Here&apos;s your Mall263 overview</p>
+        {/* Profile + greeting */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-4">
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={avatarBusy}
+            className="relative w-20 h-20 rounded-2xl overflow-hidden border-2 border-gray-100 bg-gray-50 flex-shrink-0 shadow-sm text-left"
+          >
+            {user.avatarUrl ? (
+              <Image src={user.avatarUrl} alt="" fill className="object-cover" sizes="80px" />
+            ) : (
+              <span className="absolute inset-0 flex items-center justify-center text-white font-black text-2xl bg-gradient-to-br from-brand-blue to-brand-green">
+                {user.firstName?.[0]}
+                {user.lastName?.[0]}
+              </span>
+            )}
+            {avatarBusy && (
+              <span className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                <Loader2 className="w-7 h-7 text-white animate-spin" />
+              </span>
+            )}
+            <span className="absolute bottom-1 right-1 w-8 h-8 bg-navy-700 rounded-full flex items-center justify-center shadow border-2 border-white pointer-events-none">
+              <Camera className="w-4 h-4 text-white" />
+            </span>
+          </button>
+          <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={onAvatarFile} />
+          <div>
+            <h1 className="text-2xl font-black text-navy-700">Hi, {user.firstName}</h1>
+            <p className="text-sm text-gray-500">
+              Here&apos;s your Mall263 overview — tap your photo to update it
+            </p>
+          </div>
         </div>
 
         {/* Trial / subscription banner for sellers */}

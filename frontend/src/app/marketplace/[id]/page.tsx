@@ -8,7 +8,8 @@ import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
 import { ArrowLeft, MapPin, Star, Package, Gavel, ShoppingBag, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { recordProductEngagement } from '@/lib/forYouSignals';
 
 // Resolve the best available URL from a product image object
 function resolveImageSrc(img: any): string {
@@ -33,6 +34,16 @@ export default function ProductDetailPage() {
     queryFn: () => api.get(`/api/v1/products/${id}`).then((r) => r.data),
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (!product?.id) return;
+    const mallId = product.stall?.mallId ?? product.stall?.mall?.id ?? null;
+    recordProductEngagement({
+      productId: product.id,
+      categoryId: product.categoryId ?? product.category?.id,
+      mallId,
+    });
+  }, [product?.id, product?.categoryId, product?.category?.id, product?.stall?.mallId, product?.stall?.mall?.id]);
 
   if (isLoading) {
     return (
@@ -80,7 +91,8 @@ export default function ProductDetailPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-2xl mx-auto">
 
-        {/* Hero image */}
+        {/* Safe area sits above the image so the photo keeps a clean aspect ratio */}
+        <div className="bg-white w-full pt-[env(safe-area-inset-top)]">
         <div className="relative w-full aspect-[4/3] sm:aspect-[16/9] overflow-hidden bg-white">
           {hasHero ? (
             <Image
@@ -101,7 +113,7 @@ export default function ProductDetailPage() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/55" />
 
           {/* Floating back + logo */}
-          <div className="absolute top-0 left-0 right-0 px-4 pt-4 flex items-center gap-3 safe-area-top">
+          <div className="absolute top-0 left-0 right-0 px-4 pt-3 flex items-center gap-3 sm:pt-4">
             <Link
               href="/marketplace"
               className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow text-white hover:bg-white/30 transition-colors flex-shrink-0"
@@ -113,7 +125,7 @@ export default function ProductDetailPage() {
 
           {/* Trusted badge */}
           {product.trustScore >= 70 && (
-            <div className="absolute top-4 right-4 flex items-center gap-1 bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow">
+            <div className="absolute right-4 top-4 flex items-center gap-1 bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow">
               <Star className="w-3 h-3 fill-white text-white" /> Trusted Seller
             </div>
           )}
@@ -156,6 +168,7 @@ export default function ProductDetailPage() {
               </div>
             </>
           )}
+        </div>
         </div>
 
         {/* Thumbnail strip — visible when 2+ images */}

@@ -22,7 +22,6 @@ export default function SellerSetupPage() {
   const [form, setForm] = useState({
     businessName: '',
     businessPhone: '',
-    businessEmail: '',
     stallName: '',
     stallNumber: '',
     mallId: '',
@@ -54,7 +53,6 @@ export default function SellerSetupPage() {
     mutationFn: () => api.post('/api/v1/merchants/me/setup', {
       businessName: form.businessName,
       businessPhone: form.businessPhone || undefined,
-      businessEmail: form.businessEmail || undefined,
       stallName: form.stallName,
       stallNumber: form.stallNumber,
       mallId: form.mallId || undefined,
@@ -128,16 +126,6 @@ export default function SellerSetupPage() {
                   placeholder="+263 77 ..."
                   value={form.businessPhone}
                   onChange={(e) => update('businessPhone', e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="label">Business Email</label>
-                <input
-                  className="input"
-                  type="email"
-                  placeholder="optional"
-                  value={form.businessEmail}
-                  onChange={(e) => update('businessEmail', e.target.value)}
                 />
               </div>
             </div>

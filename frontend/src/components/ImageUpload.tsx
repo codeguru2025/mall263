@@ -65,9 +65,7 @@ export function ImageUpload({ images, onChange, maxImages = 5 }: ImageUploadProp
       const formData = new FormData();
       formData.append('file', blob, 'product.webp');
 
-      const response = await api.post('/api/v1/upload/image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await api.post('/api/v1/upload/image', formData);
 
       const newImage: UploadedImage = {
         url: response.data.url,

@@ -10,7 +10,6 @@ export class MerchantsService {
     userId: string;
     businessName: string;
     businessPhone?: string;
-    businessEmail?: string;
     agentId?: string;
   }) {
     return this.prisma.$transaction(async (tx) => {
@@ -27,7 +26,6 @@ export class MerchantsService {
           userId: data.userId,
           businessName: data.businessName,
           businessPhone: data.businessPhone,
-          businessEmail: data.businessEmail,
           onboardedById: data.agentId,
           status: MerchantStatus.PENDING,
           subscriptionTier: 'basic',
@@ -40,7 +38,6 @@ export class MerchantsService {
   async selfSetup(userId: string, data: {
     businessName: string;
     businessPhone?: string;
-    businessEmail?: string;
     stallName: string;
     stallNumber: string;
     mallId?: string;
@@ -55,7 +52,6 @@ export class MerchantsService {
           userId,
           businessName: data.businessName,
           businessPhone: data.businessPhone,
-          businessEmail: data.businessEmail,
           status: MerchantStatus.PENDING,
           subscriptionTier: 'basic',
         },

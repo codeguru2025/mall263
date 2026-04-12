@@ -27,15 +27,9 @@ export class AuthService {
       const existing = await tx.user.findUnique({ where: { phone: dto.phone } });
       if (existing) throw new ConflictException('Phone number already registered');
 
-      if (dto.email) {
-        const emailExists = await tx.user.findUnique({ where: { email: dto.email } });
-        if (emailExists) throw new ConflictException('Email already registered');
-      }
-
       const newUser = await tx.user.create({
         data: {
           phone: dto.phone,
-          email: dto.email,
           passwordHash,
           firstName: dto.firstName,
           lastName: dto.lastName,
@@ -82,9 +76,10 @@ export class AuthService {
       user: {
         id: user.id,
         phone: user.phone,
-        email: user.email ?? undefined,
         firstName: user.firstName,
         lastName: user.lastName,
+        avatarUrl: user.avatarUrl ?? undefined,
+        status: user.status,
         role: user.role,
         subscription,
       },
@@ -92,10 +87,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<AuthResponseDto> {
-    if (!dto.phone && !dto.email) throw new UnauthorizedException('Phone or email is required');
-    const user = dto.email
-      ? await this.prisma.user.findUnique({ where: { email: dto.email } })
-      : await this.prisma.user.findUnique({ where: { phone: dto.phone } });
+    const user = await this.prisma.user.findUnique({ where: { phone: dto.phone } });
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
@@ -121,9 +113,10 @@ export class AuthService {
       user: {
         id: user.id,
         phone: user.phone,
-        email: user.email ?? undefined,
         firstName: user.firstName,
         lastName: user.lastName,
+        avatarUrl: user.avatarUrl ?? undefined,
+        status: user.status,
         role: user.role,
         subscription,
       },

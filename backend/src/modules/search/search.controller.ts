@@ -19,6 +19,7 @@ export class SearchController {
     @Query('q') query: string,
     @Query('categoryId') categoryId?: string,
     @Query('mallId') mallId?: string,
+    @Query('mall') mallLegacy?: string,
     @Query('city') city?: string,
     @Query('minPrice') minPrice?: number,
     @Query('maxPrice') maxPrice?: number,
@@ -27,7 +28,8 @@ export class SearchController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.searchService.search(query || '', { categoryId, mallId, city, minPrice, maxPrice, inStock, sortBy, page, limit });
+    const resolvedMall = mallId || mallLegacy;
+    return this.searchService.search(query || '', { categoryId, mallId: resolvedMall, city, minPrice, maxPrice, inStock, sortBy, page, limit });
   }
 
   @Get('suggestions')

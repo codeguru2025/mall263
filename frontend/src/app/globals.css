@@ -29,6 +29,11 @@
   .safe-area-top {
     padding-top: env(safe-area-inset-top);
   }
+
+  /* Minimum top inset for fixed/fullscreen UI (status bar + notch) */
+  .pt-safe-top {
+    padding-top: max(env(safe-area-inset-top), 0.75rem);
+  }
   .pb-safe {
     padding-bottom: calc(env(safe-area-inset-bottom) + 5rem);
   }

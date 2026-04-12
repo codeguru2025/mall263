@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Gavel, LogOut, User } from 'lucide-react';
@@ -33,11 +34,13 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-24 sm:pb-6">
       {/* Header */}
-      <header className="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky top-0 z-50">
+      <header className="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky top-0 z-50 safe-area-top">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <Logo size={36} />
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-navy-600">
             <Link href="/marketplace" className="hover:text-brand-orange transition-colors">Browse</Link>
+            <Link href="/for-you" className="hover:text-brand-orange transition-colors">For You</Link>
+            <Link href="/services" className="hover:text-brand-orange transition-colors">Services</Link>
             <Link href="/demands" className="flex items-center gap-1 hover:text-brand-orange transition-colors">
               <Gavel className="w-3.5 h-3.5" /> Demands
             </Link>
@@ -49,9 +52,15 @@ export default function HomePage() {
                   onClick={() => setMenuOpen((o) => !o)}
                   className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-gray-50 transition-colors"
                 >
-                  <div className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-green rounded-full flex items-center justify-center text-white font-bold text-sm">
-                    {user.firstName?.[0]}{user.lastName?.[0]}
-                  </div>
+                  {user.avatarUrl ? (
+                    <div className="relative w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
+                      <Image src={user.avatarUrl} alt="" fill className="object-cover" sizes="36px" />
+                    </div>
+                  ) : (
+                    <div className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-green rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                      {user.firstName?.[0]}{user.lastName?.[0]}
+                    </div>
+                  )}
                   <div className="hidden sm:block text-left">
                     <div className="text-sm font-bold text-navy-700">{user.firstName} {user.lastName}</div>
                     <div className="text-xs text-gray-500 capitalize">{user.role.replace(/_/g, ' ').toLowerCase()}</div>
@@ -92,6 +101,19 @@ export default function HomePage() {
       {/* Alibaba/FB Marketplace Layout */}
       <LocationFilterBar selectedMallId={selectedMallId} onSelectMall={setSelectedMallId} />
       <CategoryGrid selectedCategoryId={selectedCategoryId} onSelectCategory={setSelectedCategoryId} />
+      {(selectedMallId || selectedCategoryId) && (
+        <div className="max-w-7xl mx-auto px-4 pb-2 -mt-1">
+          <Link
+            href={`/marketplace?${new URLSearchParams({
+              ...(selectedMallId ? { mallId: selectedMallId } : {}),
+              ...(selectedCategoryId ? { categoryId: selectedCategoryId } : {}),
+            }).toString()}`}
+            className="inline-flex text-sm font-bold text-brand-blue hover:underline"
+          >
+            Open same filters in Browse (full grid) →
+          </Link>
+        </div>
+      )}
       <BannerCarousel />
       <DemandCTA />
       <InfiniteProductFeed mallId={selectedMallId} categoryId={selectedCategoryId} />
@@ -122,7 +144,6 @@ export default function HomePage() {
           <div>
             <div className="font-bold text-white mb-3 text-sm">Connect</div>
             <div className="space-y-2 text-sm">
-              <div>Email: info@mall263.com</div>
               <div>Web: www.mall263.com</div>
             </div>
           </div>

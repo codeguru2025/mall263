@@ -35,7 +35,6 @@ function RegisterForm() {
     confirmPassword: '',
     businessName: '',
     businessPhone: '',
-    businessEmail: '',
     stallName: '',
     stallNumber: '',
     mallId: '',
@@ -64,7 +63,7 @@ function RegisterForm() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const { data } = await api.post('/api/v1/upload/avatar', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const { data } = await api.post('/api/v1/upload/avatar', fd);
       setAvatarUrl(data.url);
     } catch {
       toast.error('Failed to upload photo');
@@ -113,7 +112,6 @@ function RegisterForm() {
         await api.post('/api/v1/merchants/me/setup', {
           businessName: form.businessName,
           businessPhone: form.businessPhone || undefined,
-          businessEmail: form.businessEmail || undefined,
           stallName: form.stallName,
           stallNumber: form.stallNumber,
           mallId: form.mallId || undefined,
@@ -258,7 +256,7 @@ function RegisterForm() {
                     <div className="relative">
                       <div
                         onClick={() => avatarInputRef.current?.click()}
-                        className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-brand-blue transition-colors overflow-hidden"
+                        className="relative w-20 h-20 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 border-2 border-dashed border-gray-300 flex items-center justify-center cursor-pointer hover:border-brand-blue transition-colors overflow-hidden"
                       >
                         {avatarUploading ? (
                           <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
@@ -360,16 +358,6 @@ function RegisterForm() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="label">Business Email <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
-                    <input
-                      type="email"
-                      className="input"
-                      placeholder="business@email.com"
-                      value={form.businessEmail}
-                      onChange={(e) => update('businessEmail', e.target.value)}
-                    />
-                  </div>
                 </>
               )}
 

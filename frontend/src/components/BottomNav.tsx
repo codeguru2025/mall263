@@ -5,10 +5,11 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/lib/store';
 import { useHaptic } from '@/lib/hooks/useHaptic';
-import { Home, Search, Gavel, Wallet, LayoutDashboard, Store, Package, BarChart3, Shield, Users, Settings } from 'lucide-react';
+import { Home, Search, Gavel, Wallet, LayoutDashboard, Store, Package, BarChart3, Shield, Users, Settings, Sparkles } from 'lucide-react';
 
 const CUSTOMER_TABS = [
   { href: '/',               icon: Home,            label: 'Home' },
+  { href: '/for-you',       icon: Sparkles,        label: 'For You' },
   { href: '/marketplace',    icon: Search,          label: 'Browse' },
   { href: '/demands',        icon: Gavel,           label: 'Demands' },
   { href: '/wallet/deposit', icon: Wallet,          label: 'Top Up' },
@@ -37,7 +38,7 @@ export default function BottomNav() {
   const user = useAuthStore((s) => s.user);
   const haptic = useHaptic();
 
-  const hide = ['/auth/', '/wallet/deposit/return', '/chat/'].some((p) => pathname.startsWith(p));
+  const hide = ['/auth/', '/wallet/deposit/return', '/chat/', '/services/new'].some((p) => pathname.startsWith(p));
   if (hide) return null;
 
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
@@ -74,7 +75,7 @@ export default function BottomNav() {
           return (
             <Link
               key={href}
-              href={!isAuthenticated && href !== '/' && href !== '/marketplace' ? '/auth/login' : href}
+                href={!isAuthenticated && href !== '/' && href !== '/marketplace' && href !== '/for-you' && href !== '/services' ? '/auth/login' : href}
               onClick={() => haptic.light()}
               className={`relative flex-1 flex flex-col items-center justify-center py-3 gap-0.5 transition-colors ${
                 active ? 'text-brand-orange' : 'text-gray-400'

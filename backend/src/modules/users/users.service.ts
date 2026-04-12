@@ -24,11 +24,11 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { phone } });
   }
 
-  async updateProfile(userId: string, data: { firstName?: string; lastName?: string; email?: string; avatarUrl?: string }) {
+  async updateProfile(userId: string, data: { firstName?: string; lastName?: string; avatarUrl?: string }) {
     return this.prisma.user.update({
       where: { id: userId },
       data,
-      select: { id: true, phone: true, email: true, firstName: true, lastName: true, avatarUrl: true, role: true },
+      select: { id: true, phone: true, firstName: true, lastName: true, avatarUrl: true, role: true, status: true },
     });
   }
 
@@ -51,7 +51,7 @@ export class UsersService {
         skip: (page - 1) * limit,
         take: limit,
         select: {
-          id: true, phone: true, email: true, firstName: true, lastName: true,
+          id: true, phone: true, firstName: true, lastName: true,
           role: true, status: true, createdAt: true, lastLoginAt: true,
         },
         orderBy: { createdAt: 'desc' },

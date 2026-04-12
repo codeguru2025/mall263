@@ -215,10 +215,10 @@ export function ImageEditorModal({ imageSrc, onApply, onCancel }: Props) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-white flex flex-col"
+      className="fixed inset-0 z-50 bg-white flex flex-col min-h-dvh"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+      {/* Header — pt-safe-top keeps Apply / close clear of the device status bar */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0 pt-safe-top">
         <button
           onClick={onCancel}
           className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 transition-colors"

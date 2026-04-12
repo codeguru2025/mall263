@@ -24,7 +24,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Update current user profile' })
   async updateProfile(
     @CurrentUser('id') userId: string,
-    @Body() data: { firstName?: string; lastName?: string; email?: string },
+    @Body() data: { firstName?: string; lastName?: string; avatarUrl?: string },
   ) {
     return this.usersService.updateProfile(userId, data);
   }

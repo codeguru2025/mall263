@@ -136,7 +136,10 @@ export class PaymentsService {
 
     const pending = await this.getPending(reference);
     if (!pending) {
-      this.logger.warn(`Webhook for unknown reference: ${reference}`);
+      this.logger.warn(
+        `Webhook for unknown or expired reference: ${reference} — pending key missing (TTL expired or Redis loss). ` +
+          `If status is PAID, reconcile via Paynow and credit manually using external_ref=${reference} if needed.`,
+      );
       return { ok: true, credited: false };
     }
 
@@ -196,7 +199,7 @@ export class PaymentsService {
         `paynow:pending:${reference}`,
         JSON.stringify({ ...pending, credited: true }),
         'EX',
-        3600, // keep for 1 hour, enough for any in-flight poll to resolve
+        7200, // 2h after credit so late polls / flaky clients still see PAID
       );
     } catch (err) {
       this.logger.error(`Failed to credit wallet for ref ${reference}`, err);
@@ -209,7 +212,7 @@ export class PaymentsService {
       `paynow:pending:${reference}`,
       JSON.stringify(data),
       'EX',
-      7200, // 2 hours
+      86_400, // 24h — mobile-money approvals can be slow; avoids webhook arriving after key expiry
     );
   }
 

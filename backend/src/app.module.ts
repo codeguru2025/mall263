@@ -24,6 +24,7 @@ import { UploadModule } from './modules/upload/upload.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { SubscriptionsModule } from './modules/subscriptions/subscriptions.module';
+import { ServicesModule } from './modules/services/services.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
     PaymentsModule,
     ChatModule,
     SubscriptionsModule,
+    ServicesModule,
   ],
 })
 export class AppModule {}

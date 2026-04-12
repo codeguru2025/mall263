@@ -63,7 +63,6 @@ export class AgentsService {
         userId: taskData.userId,
         businessName: taskData.businessName,
         businessPhone: taskData.businessPhone,
-        businessEmail: taskData.businessEmail,
         agentId: task.agentId,
       });
 

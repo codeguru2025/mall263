@@ -10,7 +10,6 @@ async function main() {
   // Create owner superuser — credentials come from environment variables only
   const ownerPassword = process.env.SUPERADMIN_PASSWORD;
   const ownerPhone    = process.env.SUPERADMIN_PHONE;
-  const ownerEmail    = process.env.SUPERADMIN_EMAIL;
   const ownerFirst    = process.env.SUPERADMIN_FIRST_NAME || 'Super';
   const ownerLast     = process.env.SUPERADMIN_LAST_NAME  || 'Admin';
 
@@ -24,7 +23,6 @@ async function main() {
     update: { passwordHash: ownerHash, role: 'SUPER_ADMIN', status: 'ACTIVE' },
     create: {
       phone: ownerPhone,
-      ...(ownerEmail ? { email: ownerEmail } : {}),
       passwordHash: ownerHash,
       firstName: ownerFirst,
       lastName:  ownerLast,

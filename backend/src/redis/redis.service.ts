@@ -1,9 +1,23 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
+/**
+ * Mall263 uses Redis / DigitalOcean Valkey only for **ephemeral payment session state**,
+ * not as a system of record for money or inventory.
+ *
+ * - **Payments (Paynow):** keys `paynow:pending:{reference}` hold { userId, amount, pollUrl, method, credited? }
+ *   with TTL so the app can poll Paynow and correlate webhooks. Wallet balances stay **ACID in PostgreSQL**
+ *   (`WalletService.deposit` uses RepeatableRead + idempotent `externalRef`).
+ * - **Health:** `PING` for readiness / degraded reporting (`/health`).
+ *
+ * If Valkey is unavailable, deposits cannot be *initiated* (no pending metadata); already-recorded wallet
+ * rows remain correct. A paid webhook arriving after the pending key TTL expires cannot auto-credit —
+ * operations should reconcile via Paynow dashboard + `wallet_transactions.external_ref`.
+ */
 @Injectable()
 export class RedisService implements OnModuleDestroy {
+  private readonly logger = new Logger(RedisService.name);
   private client: Redis;
 
   constructor(private config: ConfigService) {
@@ -13,8 +27,21 @@ export class RedisService implements OnModuleDestroy {
       port: parseInt(this.config.get('REDIS_PORT', '6379'), 10),
       password: this.config.get('REDIS_PASSWORD', '') || undefined,
       maxRetriesPerRequest: 3,
-      // Required for DigitalOcean Valkey / Redis managed clusters
+      connectTimeout: 10_000,
+      // Fail fast when disconnected instead of buffering commands indefinitely (API latency / overload)
+      enableOfflineQueue: false,
+      retryStrategy(times: number) {
+        const delay = Math.min(times * 200, 2000);
+        return delay;
+      },
       tls: tlsEnabled ? { rejectUnauthorized: false } : undefined,
+    });
+
+    this.client.on('error', (err: Error) => {
+      this.logger.warn(`Redis/Valkey client error: ${err.message}`);
+    });
+    this.client.on('connect', () => {
+      this.logger.debug(`Redis/Valkey socket ready (${this.config.get('REDIS_HOST')}:${this.config.get('REDIS_PORT', '6379')})`);
     });
   }
 

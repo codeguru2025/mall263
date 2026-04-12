@@ -36,6 +36,25 @@ export class ProductsController {
     return this.productsService.browse({ categoryId, mallId, minPrice, maxPrice, page, limit, sortBy });
   }
 
+  @Get('for-you')
+  @Public()
+  @ApiOperation({ summary: 'Ranked feed blending popularity, trust, and client interest signals' })
+  async forYou(
+    @Query('categoryIds') categoryIds?: string,
+    @Query('mallId') mallId?: string,
+    @Query('excludeIds') excludeIds?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.productsService.forYou({
+      categoryIds: categoryIds?.split(',').map((s) => s.trim()).filter(Boolean),
+      mallId,
+      excludeProductIds: excludeIds?.split(',').map((s) => s.trim()).filter(Boolean),
+      page,
+      limit,
+    });
+  }
+
   @Get('categories')
   @Public()
   @ApiOperation({ summary: 'Get all categories' })
