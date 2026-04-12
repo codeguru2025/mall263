@@ -328,6 +328,7 @@ model Stall {
   attendants    StallAttendant[]
   posSales      POSSale[]
   sellerOffers  SellerOffer[]    @relation("OfferStall")
+  buyerDemands  BuyerDemand[]    @relation("DemandStall")
   serviceListings ServiceListing[]
   expenses          StallExpense[]
   analyticsEvents   StallAnalyticsEvent[]
@@ -431,6 +432,7 @@ model Product {
   variants ProductVariant[]
   images   ProductImage[]
   analyticsEvents StallAnalyticsEvent[]
+  demands  BuyerDemand[]
 
   @@index([stallId])
   @@index([categoryId])
@@ -635,6 +637,8 @@ model BuyerDemand {
   title       String
   description String?
   categoryId  String?       @map("category_id") @db.Uuid
+  productId   String?       @map("product_id") @db.Uuid
+  stallId     String?       @map("stall_id") @db.Uuid
   preferredSize    String?  @map("preferred_size")
   preferredColor   String?  @map("preferred_color")
   preferredBrand   String?  @map("preferred_brand")
@@ -648,12 +652,16 @@ model BuyerDemand {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  buyer  User          @relation(fields: [buyerId], references: [id], onDelete: Cascade)
-  offers SellerOffer[]
+  buyer   User          @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  product Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  stall   Stall?        @relation("DemandStall", fields: [stallId], references: [id], onDelete: SetNull)
+  offers  SellerOffer[]
 
   @@index([buyerId])
   @@index([status])
   @@index([categoryId])
+  @@index([productId])
+  @@index([stallId])
   @@index([createdAt])
   @@index([expiresAt])
   @@map("buyer_demands")

@@ -23,6 +23,8 @@ export class DemandsService {
     title: string;
     description?: string;
     categoryId?: string;
+    productId?: string;
+    stallId?: string;
     preferredSize?: string;
     preferredColor?: string;
     preferredBrand?: string;
@@ -54,6 +56,24 @@ export class DemandsService {
           }
         }
 
+        // If linked to a product, resolve stall and category from it
+        let productId = data.productId || undefined;
+        let stallId = data.stallId || undefined;
+        let categoryId = data.categoryId || undefined;
+        let mallId = data.mallId || undefined;
+
+        if (productId) {
+          const product = await tx.product.findUnique({
+            where: { id: productId },
+            select: { stallId: true, categoryId: true, stall: { select: { mallId: true } } },
+          });
+          if (product) {
+            stallId = stallId || product.stallId;
+            categoryId = categoryId || product.categoryId || undefined;
+            mallId = mallId || product.stall.mallId || undefined;
+          }
+        }
+
         // --- Create the demand ---
         const expiresAt = new Date(Date.now() + (data.expiresInHours || 72) * 60 * 60 * 1000);
 
@@ -62,7 +82,9 @@ export class DemandsService {
             buyerId,
             title: data.title,
             description: data.description,
-            categoryId: data.categoryId,
+            categoryId,
+            productId,
+            stallId,
             preferredSize: data.preferredSize,
             preferredColor: data.preferredColor,
             preferredBrand: data.preferredBrand,
@@ -71,7 +93,7 @@ export class DemandsService {
             currency: 'USD',
             urgency: data.urgency || DemandUrgency.MEDIUM,
             status: DemandStatus.OPEN,
-            mallId: data.mallId,
+            mallId,
             expiresAt,
           },
         });
@@ -143,6 +165,8 @@ export class DemandsService {
         take: limit,
         include: {
           buyer: { select: { id: true, firstName: true } },
+          product: { select: { id: true, name: true, minPrice: true, maxPrice: true, images: { where: { isPrimary: true }, take: 1, select: { url: true } } } },
+          stall: { select: { id: true, name: true } },
           offers: { where: { status: OfferStatus.PENDING }, select: { id: true } },
         },
         orderBy: [{ urgency: 'desc' }, { createdAt: 'desc' }],
@@ -158,6 +182,8 @@ export class DemandsService {
       where: { id },
       include: {
         buyer: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+        product: { select: { id: true, name: true, minPrice: true, maxPrice: true, images: { where: { isPrimary: true }, take: 1, select: { url: true } } } },
+        stall: { select: { id: true, name: true, stallNumber: true } },
         offers: {
           include: {
             stall: {

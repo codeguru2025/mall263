@@ -299,10 +299,22 @@ export default function ProductDetailPage() {
             </div>
           )}
 
-          {/* Post demand CTA */}
+          {/* I Want This — creates a demand linked to this product */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-5 border-2 border-blue-100">
+            <p className="font-bold text-navy-700 mb-1">Want this product?</p>
+            <p className="text-sm text-gray-600 mb-4">Post a demand for this item and the seller will respond with an offer. You agree on the price and pay in person or via wallet.</p>
+            <Link
+              href={`/demands/new?productId=${product.id}&title=${encodeURIComponent(product.name || '')}&brand=${encodeURIComponent(product.brand || '')}&categoryId=${product.categoryId || ''}&stallId=${stallId || ''}&minPrice=${product.minPrice || ''}&maxPrice=${product.maxPrice || ''}`}
+              className="btn-primary text-sm py-2.5 px-5 flex items-center gap-2 w-fit"
+            >
+              <Gavel className="w-4 h-4" /> I Want This
+            </Link>
+          </div>
+
+          {/* Generic demand CTA */}
           <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-2xl p-5 border-2 border-orange-100">
-            <p className="font-bold text-navy-700 mb-1">Can&apos;t find exactly what you need?</p>
-            <p className="text-sm text-gray-600 mb-4">Post a demand and let sellers come to you with their best offers.</p>
+            <p className="font-bold text-navy-700 mb-1">Looking for something different?</p>
+            <p className="text-sm text-gray-600 mb-4">Post a general demand and let sellers come to you with their best offers.</p>
             <Link href="/demands/new" className="btn-bid text-sm py-2.5 px-5 flex items-center gap-2 w-fit">
               <Gavel className="w-4 h-4" /> Post a Demand
             </Link>
