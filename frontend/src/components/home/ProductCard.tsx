@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { MapPin, ShoppingBag } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { resolveStoreLogo } from '@/lib/storeBranding';
 
 interface Product {
   id: string;
@@ -14,7 +15,8 @@ interface Product {
   imageUrl?: string;
   images?: { url: string }[];
   stallName?: string;
-  stall?: { name: string; mall?: { name: string } };
+  storeLogoUrl?: string;
+  stall?: { name: string; logoUrl?: string | null; merchant?: { logoUrl?: string | null }; mall?: { name: string } };
 }
 
 interface Props {
@@ -24,7 +26,9 @@ interface Props {
 
 export default function ProductCard({ product, priority = false }: Props) {
   const imageUrl = product.imageUrl || (product.images?.[0] as any)?.cdnUrl || product.images?.[0]?.url;
-  const stallName = product.stallName || product.stall?.mall?.name || product.stall?.name || 'Market Stall';
+  const stallName = product.stallName || product.stall?.name || product.stall?.mall?.name || 'Market Stall';
+  const storeLogo =
+    product.storeLogoUrl || resolveStoreLogo(product.stall, product.stall?.merchant);
 
   return (
     <motion.div whileTap={{ scale: 0.98 }}>
@@ -60,8 +64,14 @@ export default function ProductCard({ product, priority = false }: Props) {
               </p>
             ) : null;
           })()}
-          <div className="flex items-center gap-1 text-[10px] text-gray-400">
-            <MapPin className="w-2.5 h-2.5" />
+          <div className="flex items-center gap-1 text-[10px] text-gray-400 min-w-0">
+            {storeLogo ? (
+              <span className="relative w-4 h-4 rounded overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-gray-200">
+                <Image src={storeLogo} alt="" fill className="object-contain p-px" sizes="16px" />
+              </span>
+            ) : (
+              <MapPin className="w-2.5 h-2.5 flex-shrink-0" />
+            )}
             <span className="truncate">{stallName}</span>
           </div>
         </div>

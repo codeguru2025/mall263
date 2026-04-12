@@ -83,31 +83,6 @@ export class DemandsController {
     return this.demandsService.getMyDemands(buyerId, status);
   }
 
-  @Get(':id')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Get demand by ID with offers' })
-  async getDemandById(@Param('id') id: string) {
-    return this.demandsService.getDemandById(id);
-  }
-
-  @Post(':demandId/offers')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
-  @ApiOperation({ summary: 'Submit an offer for a demand (seller)' })
-  async submitOffer(@Param('demandId') demandId: string, @Body() data: any) {
-    return this.demandsService.submitOffer(data.stallId, demandId, data);
-  }
-
-  @Post('offers/:offerId/accept')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Accept an offer (buyer)' })
-  async acceptOffer(@CurrentUser('id') buyerId: string, @Param('offerId') offerId: string) {
-    return this.demandsService.acceptOffer(buyerId, offerId);
-  }
-
   @Get('stall/:stallId/offers')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -122,6 +97,31 @@ export class DemandsController {
   @ApiOperation({ summary: 'Get current delivery rate per km' })
   async getDeliveryRate() {
     return this.demandsService.getDeliveryRate();
+  }
+
+  @Get(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get demand by ID with offers' })
+  async getDemandById(@Param('id') id: string) {
+    return this.demandsService.getDemandById(id);
+  }
+
+  @Post('offers/:offerId/accept')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Accept an offer (buyer)' })
+  async acceptOffer(@CurrentUser('id') buyerId: string, @Param('offerId') offerId: string) {
+    return this.demandsService.acceptOffer(buyerId, offerId);
+  }
+
+  @Post(':demandId/offers')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
+  @ApiOperation({ summary: 'Submit an offer for a demand (seller)' })
+  async submitOffer(@Param('demandId') demandId: string, @Body() data: any) {
+    return this.demandsService.submitOffer(data.stallId, demandId, data);
   }
 
   @Post('offers/:offerId/delivery')

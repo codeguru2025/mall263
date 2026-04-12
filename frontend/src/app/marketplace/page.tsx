@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearchParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { resolveStoreLogo } from '@/lib/storeBranding';
 import { Logo } from '@/components/Logo';
 import { useAuthStore } from '@/lib/store';
 import { useDebounce } from '@/lib/hooks/useDebounce';
@@ -36,6 +37,8 @@ function ProductCard({ product }: { product: any }) {
   const hasImage = !!imgUrl && !imgError;
   const stallName = product.stallName || product.stall?.name || 'Market Stall';
   const priceLabel = safePrice(product.minPrice);
+  const storeLogoUrl =
+    product.storeLogoUrl || resolveStoreLogo(product.stall, product.stall?.merchant);
 
   return (
     <Link
@@ -83,8 +86,14 @@ function ProductCard({ product }: { product: any }) {
             {product.name || 'Unnamed product'}
           </p>
           <div className="flex items-end justify-between gap-2">
-            <span className="text-white/60 text-[11px] font-medium truncate flex items-center gap-0.5">
-              <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-brand-orange" />
+            <span className="text-white/60 text-[11px] font-medium truncate flex items-center gap-1 min-w-0">
+              {storeLogoUrl ? (
+                <span className="relative w-5 h-5 rounded-md overflow-hidden bg-white/20 flex-shrink-0 ring-1 ring-white/30">
+                  <Image src={storeLogoUrl} alt="" fill className="object-contain p-0.5" sizes="20px" />
+                </span>
+              ) : (
+                <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-brand-orange" />
+              )}
               {stallName}
             </span>
             <span className="text-white font-black text-sm flex-shrink-0 drop-shadow">
@@ -99,8 +108,14 @@ function ProductCard({ product }: { product: any }) {
             {product.name || 'Unnamed product'}
           </p>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-gray-400 text-[11px] truncate flex items-center gap-0.5">
-              <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-brand-orange" />
+            <span className="text-gray-400 text-[11px] truncate flex items-center gap-1 min-w-0">
+              {storeLogoUrl ? (
+                <span className="relative w-5 h-5 rounded-md overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-gray-200">
+                  <Image src={storeLogoUrl} alt="" fill className="object-contain p-0.5" sizes="20px" />
+                </span>
+              ) : (
+                <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-brand-orange" />
+              )}
               {stallName}
             </span>
             <span className="text-navy-700 font-black text-sm flex-shrink-0">

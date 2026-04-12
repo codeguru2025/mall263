@@ -27,13 +27,14 @@ export class ProductsController {
   async browse(
     @Query('categoryId') categoryId?: string,
     @Query('mallId') mallId?: string,
+    @Query('stallId') stallId?: string,
     @Query('minPrice') minPrice?: number,
     @Query('maxPrice') maxPrice?: number,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('sortBy') sortBy?: string,
   ) {
-    return this.productsService.browse({ categoryId, mallId, minPrice, maxPrice, page, limit, sortBy });
+    return this.productsService.browse({ categoryId, mallId, stallId, minPrice, maxPrice, page, limit, sortBy });
   }
 
   @Get('for-you')
@@ -82,15 +83,6 @@ export class ProductsController {
     return this.productsService.findById(id, 'FREE');
   }
 
-  @Patch(':id')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
-  @ApiOperation({ summary: 'Update product' })
-  async update(@Param('id') id: string, @Body() data: any) {
-    return this.productsService.updateProduct(id, data.stallId, data);
-  }
-
   @Patch('variants/:variantId')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -98,5 +90,14 @@ export class ProductsController {
   @ApiOperation({ summary: 'Update product variant' })
   async updateVariant(@Param('variantId') variantId: string, @Body() data: any) {
     return this.productsService.updateVariant(variantId, data);
+  }
+
+  @Patch(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
+  @ApiOperation({ summary: 'Update product' })
+  async update(@Param('id') id: string, @Body() data: any) {
+    return this.productsService.updateProduct(id, data.stallId, data);
   }
 }

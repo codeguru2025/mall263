@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SearchService } from '../search/search.service';
-import { ProductStatus } from '@prisma/client';
+import { ProductStatus, StallAnalyticsEventType } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
@@ -107,7 +107,9 @@ export class ProductsService {
           include: {
             mall: { select: { id: true, name: true, city: true } },
             merchant: {
-              include: {
+              select: {
+                businessName: true,
+                logoUrl: true,
                 user: { select: { firstName: true, lastName: true, phone: true } },
               },
             },
@@ -121,6 +123,18 @@ export class ProductsService {
     // Increment view count
     await this.prisma.product.update({ where: { id }, data: { viewCount: { increment: 1 } } });
 
+    if (product.status === ProductStatus.ACTIVE) {
+      void this.prisma.stallAnalyticsEvent
+        .create({
+          data: {
+            stallId: product.stallId,
+            type: StallAnalyticsEventType.PRODUCT_DETAIL_VIEW,
+            productId: product.id,
+          },
+        })
+        .catch(() => {});
+    }
+
     // Apply buying power visibility rules
     if (buyerTier === 'FREE') {
       return {
@@ -129,8 +143,13 @@ export class ProductsService {
           id: product.stall.id,
           name: '🔒 Fund wallet to see seller',
           stallNumber: '***',
+          logoUrl: null,
           mall: product.stall.mall ? { city: product.stall.mall.city } : null,
-          merchant: { user: { firstName: '***', lastName: '***', phone: '***' } },
+          merchant: {
+            businessName: '***',
+            logoUrl: null,
+            user: { firstName: '***', lastName: '***', phone: '***' },
+          },
         },
       };
     }
@@ -202,20 +221,22 @@ export class ProductsService {
   async browse(params: {
     categoryId?: string;
     mallId?: string;
+    stallId?: string;
     minPrice?: number;
     maxPrice?: number;
     page?: number;
     limit?: number;
     sortBy?: string;
   }) {
-    const { categoryId, mallId, sortBy } = params;
+    const { categoryId, mallId, stallId, sortBy } = params;
     // Guard against NaN — enableImplicitConversion can turn missing query params into NaN
     const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
     const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
     const where: any = { status: ProductStatus.ACTIVE };
 
     if (categoryId) where.categoryId = categoryId;
-    if (mallId) where.stall = { mallId };
+    if (stallId) where.stallId = stallId;
+    else if (mallId) where.stall = { mallId };
     if (Number.isFinite(params.minPrice)) where.minPrice = { gte: params.minPrice };
     if (Number.isFinite(params.maxPrice)) where.maxPrice = { lte: params.maxPrice };
 
@@ -232,7 +253,15 @@ export class ProductsService {
         include: {
           images: { where: { isPrimary: true }, take: 1 },
           category: { select: { name: true, slug: true } },
-          stall: { select: { id: true, name: true, mall: { select: { name: true, city: true } } } },
+          stall: {
+            select: {
+              id: true,
+              name: true,
+              logoUrl: true,
+              mall: { select: { name: true, city: true } },
+              merchant: { select: { logoUrl: true } },
+            },
+          },
           variants: { select: { sellingPrice: true, color: true, size: true }, where: { isActive: true } },
         },
         orderBy,
@@ -264,6 +293,7 @@ export class ProductsService {
           id: true,
           name: true,
           mallId: true,
+          logoUrl: true,
           mall: { select: { name: true, city: true } },
           merchant: { include: { user: { include: { trustScore: true } } } },
         },

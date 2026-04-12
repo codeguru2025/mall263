@@ -167,6 +167,24 @@ enum AgentTaskStatus {
   SYNCING
 }
 
+enum ExpenseCategory {
+  SALARY
+  TRANSPORT
+  MEALS
+  RENT
+  UTILITIES
+  SUPPLIES
+  MARKETING
+  FEES
+  TAXES
+  OTHER
+}
+
+enum StallAnalyticsEventType {
+  STORE_PAGE_VIEW
+  PRODUCT_DETAIL_VIEW
+}
+
 // ============================================================
 // USER & AUTH
 // ============================================================
@@ -199,6 +217,7 @@ model User {
   chatMessages   ChatMessage[]    @relation("ChatMessages")
   subscription   Subscription?
   serviceListings ServiceListing[]
+  recordedStallExpenses StallExpense[] @relation("ExpenseRecordedBy")
 
   @@index([phone])
   @@index([role])
@@ -243,6 +262,7 @@ model Merchant {
   id             String         @id @default(uuid()) @db.Uuid
   userId         String         @unique @map("user_id") @db.Uuid
   businessName   String         @map("business_name")
+  logoUrl        String?        @map("logo_url")
   businessPhone  String?        @map("business_phone")
   taxId          String?        @map("tax_id")
   status         MerchantStatus @default(PENDING)
@@ -296,6 +316,8 @@ model Stall {
   latitude      Float?
   longitude     Float?
   imageUrl      String?     @map("image_url")
+  logoUrl       String?     @map("logo_url")
+  viewCount     Int         @default(0) @map("view_count")
   status        StallStatus @default(ACTIVE)
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
@@ -307,6 +329,8 @@ model Stall {
   posSales      POSSale[]
   sellerOffers  SellerOffer[]    @relation("OfferStall")
   serviceListings ServiceListing[]
+  expenses          StallExpense[]
+  analyticsEvents   StallAnalyticsEvent[]
 
   @@unique([mallId, stallNumber])
   @@index([merchantId])
@@ -406,6 +430,7 @@ model Product {
   category Category?        @relation(fields: [categoryId], references: [id])
   variants ProductVariant[]
   images   ProductImage[]
+  analyticsEvents StallAnalyticsEvent[]
 
   @@index([stallId])
   @@index([categoryId])
@@ -414,6 +439,42 @@ model Product {
   @@index([minPrice])
   @@index([createdAt])
   @@map("products")
+}
+
+model StallExpense {
+  id           String          @id @default(uuid()) @db.Uuid
+  stallId      String          @map("stall_id") @db.Uuid
+  category     ExpenseCategory
+  amount       Decimal         @db.Decimal(14, 2)
+  currency     String          @default("USD")
+  description  String?
+  occurredAt   DateTime        @map("occurred_at")
+  recordedById String?         @map("recorded_by_id") @db.Uuid
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  stall      Stall @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  recordedBy User? @relation("ExpenseRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([stallId, occurredAt])
+  @@index([category])
+  @@map("stall_expenses")
+}
+
+model StallAnalyticsEvent {
+  id        String                  @id @default(uuid()) @db.Uuid
+  stallId   String                  @map("stall_id") @db.Uuid
+  type      StallAnalyticsEventType
+  productId String?                 @map("product_id") @db.Uuid
+  createdAt DateTime                @default(now()) @map("created_at")
+
+  stall   Stall    @relation(fields: [stallId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([stallId, createdAt])
+  @@index([stallId, type, createdAt])
+  @@index([productId])
+  @@map("stall_analytics_events")
 }
 
 model ProductVariant {

@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { resolveStoreLogo } from '../../common/utils/store-branding';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MeiliSearch, Index } from 'meilisearch';
 import { ProductStatus } from '@prisma/client';
@@ -26,6 +27,7 @@ interface ProductSearchDoc {
   viewCount: number;
   createdAt: number;
   imageUrl: string;
+  storeLogoUrl: string;
 }
 
 @Injectable()
@@ -174,6 +176,7 @@ export class SearchService implements OnModuleInit {
       viewCount: product.viewCount,
       createdAt: product.createdAt.getTime(),
       imageUrl: product.images[0]?.url || '',
+      storeLogoUrl: resolveStoreLogo(product.stall, product.stall.merchant) || '',
     };
 
     try {
@@ -261,8 +264,14 @@ export class SearchService implements OnModuleInit {
               id: true,
               name: true,
               mallId: true,
+              logoUrl: true,
               mall: { select: { id: true, name: true, city: true } },
-              merchant: { select: { user: { select: { trustScore: { select: { overallScore: true } } } } } },
+              merchant: {
+                select: {
+                  logoUrl: true,
+                  user: { select: { trustScore: { select: { overallScore: true } } } },
+                },
+              },
             },
           },
           variants: { select: { sellingPrice: true }, where: { isActive: true } },
@@ -294,6 +303,7 @@ export class SearchService implements OnModuleInit {
       trustScore: parseFloat((p.stall.merchant as any)?.user?.trustScore?.overallScore?.toString() || '50'),
       viewCount: p.viewCount,
       createdAt: p.createdAt.getTime(),
+      storeLogoUrl: resolveStoreLogo(p.stall, p.stall.merchant) || '',
     }));
 
     return { data, total, query, processingTimeMs: 0, page, limit };

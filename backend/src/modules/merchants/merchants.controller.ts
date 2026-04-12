@@ -49,6 +49,13 @@ export class MerchantsController {
     return this.merchantsService.getMerchantByUserId(userId);
   }
 
+  @Patch('me/branding')
+  @Roles(UserRole.STALL_OWNER)
+  @ApiOperation({ summary: 'Update merchant logo (fallback for all stalls)' })
+  async patchMyBranding(@CurrentUser('id') userId: string, @Body() data: { logoUrl?: string | null }) {
+    return this.merchantsService.updateMyBranding(userId, data);
+  }
+
   @Patch(':id/verify')
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
   @ApiOperation({ summary: 'Verify a merchant' })

@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { resolveStoreLogo } from '../../common/utils/store-branding';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { InventoryService } from '../inventory/inventory.service';
@@ -213,6 +214,8 @@ export class POSService {
                 data: {
                   stallName: stall.name,
                   stallNumber: stall.stallNumber,
+                  businessName: stall.merchant.businessName,
+                  storeLogoUrl: resolveStoreLogo(stall, stall.merchant),
                   items: saleItems.map(i => ({
                     name: `${i.productName} - ${i.variantName}`,
                     qty: i.quantity,
@@ -273,7 +276,14 @@ export class POSService {
       include: {
         items: true,
         receipt: true,
-        stall: { select: { name: true, stallNumber: true } },
+        stall: {
+          select: {
+            name: true,
+            stallNumber: true,
+            logoUrl: true,
+            merchant: { select: { businessName: true, logoUrl: true } },
+          },
+        },
       },
     });
     if (!sale) throw new NotFoundException('Sale not found');

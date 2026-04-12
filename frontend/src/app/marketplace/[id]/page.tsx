@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { resolveStoreLogo } from '@/lib/storeBranding';
 import { Logo } from '@/components/Logo';
 import { ArrowLeft, MapPin, Star, Package, Gavel, ShoppingBag, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -84,6 +85,11 @@ export default function ProductDetailPage() {
   const maxP = parseFloat(product.maxPrice);
   const hasRange = isFinite(minP) && isFinite(maxP) && Math.abs(maxP - minP) > 0.001;
 
+  const storeLogoUrl = product.stall
+    ? resolveStoreLogo(product.stall, product.stall.merchant)
+    : null;
+  const stallId = product.stall?.id;
+
   const prevImg = () => { setImgIndex((i) => Math.max(0, i - 1)); setHeroError(false); };
   const nextImg = () => { setImgIndex((i) => Math.min(sortedImages.length - 1, i + 1)); setHeroError(false); };
 
@@ -99,6 +105,7 @@ export default function ProductDetailPage() {
               src={heroSrc}
               alt={product.name ?? 'Product'}
               fill
+              sizes="(max-width: 640px) 100vw, 672px"
               className="object-cover"
               priority
               onError={() => setHeroError(true)}
@@ -256,10 +263,19 @@ export default function ProductDetailPage() {
             <div className="bg-white rounded-2xl border-2 border-gray-100 p-5">
               <h3 className="font-bold text-navy-700 mb-3">Available at</h3>
               <div className="flex items-start gap-3">
-                <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <MapPin className="w-6 h-6 text-brand-orange" />
+                <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden relative">
+                  {storeLogoUrl ? (
+                    <Image src={storeLogoUrl} alt="" fill className="object-contain p-1" sizes="48px" />
+                  ) : (
+                    <MapPin className="w-6 h-6 text-brand-orange" />
+                  )}
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
+                  {product.stall.merchant?.businessName && (
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      {product.stall.merchant.businessName}
+                    </p>
+                  )}
                   <p className="font-bold text-navy-700">{product.stall.name}</p>
                   {product.stall.stallNumber && (
                     <p className="text-sm text-gray-500">Stall {product.stall.stallNumber}</p>
@@ -269,6 +285,14 @@ export default function ProductDetailPage() {
                   )}
                 </div>
               </div>
+              {stallId && (
+                <Link
+                  href={`/stores/${stallId}`}
+                  className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-brand-blue hover:underline"
+                >
+                  View store and browse products →
+                </Link>
+              )}
               <p className="text-sm text-gray-500 mt-3 bg-gray-50 rounded-xl px-4 py-3">
                 Visit this stall to purchase. Pay the seller directly in person.
               </p>

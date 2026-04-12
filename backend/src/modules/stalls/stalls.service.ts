@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { StallStatus } from '@prisma/client';
+import { StallAnalyticsEventType, StallStatus } from '@prisma/client';
 
 @Injectable()
 export class StallsService {
@@ -47,12 +47,35 @@ export class StallsService {
       where: { id },
       include: {
         mall: true,
-        merchant: { include: { user: { select: { firstName: true, lastName: true, phone: true } } } },
+        merchant: {
+          select: {
+            id: true,
+            businessName: true,
+            logoUrl: true,
+            user: { select: { firstName: true, lastName: true, phone: true } },
+          },
+        },
         _count: { select: { products: true, posSales: true } },
       },
     });
     if (!stall) throw new NotFoundException('Stall not found');
     return stall;
+  }
+
+  async recordVisit(stallId: string) {
+    const exists = await this.prisma.stall.findUnique({ where: { id: stallId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Stall not found');
+    const updated = await this.prisma.stall.update({
+      where: { id: stallId },
+      data: { viewCount: { increment: 1 } },
+      select: { viewCount: true },
+    });
+    void this.prisma.stallAnalyticsEvent
+      .create({
+        data: { stallId, type: StallAnalyticsEventType.STORE_PAGE_VIEW },
+      })
+      .catch(() => {});
+    return { ok: true as const, viewCount: updated.viewCount };
   }
 
   async findByMerchant(merchantId: string) {
@@ -69,6 +92,7 @@ export class StallsService {
   async update(stallId: string, userId: string, data: Partial<{
     name: string; description: string; phone: string;
     openTime: string; closeTime: string; operatingDays: string[];
+    imageUrl: string; logoUrl: string | null;
   }>) {
     const stall = await this.prisma.stall.findUnique({
       where: { id: stallId },

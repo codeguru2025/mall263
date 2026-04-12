@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { resolveStoreLogo } from '../../common/utils/store-branding';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DemandStatus, DemandUrgency, OfferStatus, WalletTransactionType, WalletTransactionStatus, WalletLockReason, WalletLockStatus, Prisma, PaymentMethod, POSSaleStatus } from '@prisma/client';
 
@@ -606,6 +607,8 @@ export class DemandsService {
               data: {
                 stallName: stall.name,
                 stallNumber: stall.stallNumber,
+                businessName: stall.merchant.businessName,
+                storeLogoUrl: resolveStoreLogo(stall, stall.merchant),
                 items: saleItems.map((i) => ({
                   name: `${i.productName}${i.variantName !== 'Demand Sale' ? ` - ${i.variantName}` : ''}`,
                   qty: i.quantity,

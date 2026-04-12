@@ -3,8 +3,10 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import Image from 'next/image';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { resolveStoreLogo } from '@/lib/storeBranding';
 import { Logo } from '@/components/Logo';
 import { Printer, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
@@ -46,7 +48,13 @@ export default function ReceiptPage() {
     );
   }
 
-  const receiptData = sale.receipt?.data as any;
+  const receiptData = sale.receipt?.data as Record<string, unknown> | undefined;
+  const storeLogoUrl =
+    (typeof receiptData?.storeLogoUrl === 'string' && receiptData.storeLogoUrl) ||
+    resolveStoreLogo(sale.stall, sale.stall?.merchant);
+  const businessName =
+    (typeof receiptData?.businessName === 'string' && receiptData.businessName) ||
+    sale.stall?.merchant?.businessName;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -74,9 +82,18 @@ export default function ReceiptPage() {
           {/* Header */}
           <div className="bg-navy-700 text-white px-6 pt-8 pb-6 text-center print:bg-white print:text-navy-700">
             <div className="flex justify-center mb-3">
-              <Logo size={40} />
+              {storeLogoUrl ? (
+                <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-white ring-2 ring-white/30 print:ring-gray-200">
+                  <Image src={storeLogoUrl} alt="" fill className="object-contain p-1" sizes="64px" />
+                </div>
+              ) : (
+                <Logo size={40} />
+              )}
             </div>
             <p className="text-white/70 text-sm print:text-gray-500">Mall263 Marketplace</p>
+            {businessName ? (
+              <p className="text-sm font-bold text-white/90 print:text-navy-800 mt-1">{businessName}</p>
+            ) : null}
             <h2 className="text-xl font-black mt-2">{sale.stall?.name}</h2>
             {sale.stall?.stallNumber && (
               <p className="text-white/60 text-xs print:text-gray-400">Stall #{sale.stall.stallNumber}</p>

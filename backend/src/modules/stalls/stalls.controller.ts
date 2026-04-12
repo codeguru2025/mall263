@@ -73,6 +73,13 @@ export class StallsController {
     return this.stallsService.findByMerchant(merchantId);
   }
 
+  @Post(':id/visit')
+  @Public()
+  @ApiOperation({ summary: 'Record a public storefront view' })
+  async recordVisit(@Param('id') id: string) {
+    return this.stallsService.recordVisit(id);
+  }
+
   @Get(':id')
   @Public()
   @ApiOperation({ summary: 'Get stall by ID' })

@@ -106,6 +106,17 @@ export class MerchantsService {
     return merchant;
   }
 
+  async updateMyBranding(userId: string, data: { logoUrl?: string | null }) {
+    const merchant = await this.prisma.merchant.findUnique({ where: { userId } });
+    if (!merchant) throw new NotFoundException('Merchant not found');
+    const update: { logoUrl?: string | null } = {};
+    if (data.logoUrl !== undefined) update.logoUrl = data.logoUrl;
+    return this.prisma.merchant.update({
+      where: { id: merchant.id },
+      data: update,
+    });
+  }
+
   async listMerchants(params: { status?: MerchantStatus; search?: string; page?: number; limit?: number }) {
     const { status, search, page = 1, limit = 20 } = params;
     const where: any = {};

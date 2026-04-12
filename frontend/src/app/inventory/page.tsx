@@ -98,7 +98,14 @@ export default function InventoryPage() {
               <p className="text-xs text-gray-500">Manage your products and inventory</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/seller/branding"
+              className="flex items-center gap-2 border-2 border-gray-100 text-navy-700 text-sm font-bold py-2.5 px-3 sm:px-4 rounded-xl hover:border-brand-green transition-colors"
+              title="Store and stall logos"
+            >
+              <Store className="w-4 h-4" /> <span className="hidden sm:inline">Logos</span>
+            </Link>
             <Link
               href={`/inventory/new${stallId ? `?stallId=${stallId}` : ''}`}
               className="flex items-center gap-2 bg-brand-green text-white text-sm font-bold py-2.5 px-4 rounded-xl hover:bg-green-600 transition-colors"
@@ -188,7 +195,7 @@ export default function InventoryPage() {
                     {primaryImage && (
                       <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden bg-white border border-gray-100">
                         <img
-                          src={primaryImage.url}
+                          src={primaryImage.cdnUrl || primaryImage.url}
                           alt={primaryImage.alt || product.name}
                           className="w-full h-full object-contain p-1"
                         />
