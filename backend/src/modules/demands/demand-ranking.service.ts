@@ -189,6 +189,7 @@ export class DemandRankingService {
           where: { status: { in: ['PENDING', 'ACCEPTED'] } },
           select: { id: true, status: true },
         },
+        mall: { select: { latitude: true, longitude: true, name: true, city: true } },
         _count: {
           select: { offers: true },
         },
@@ -200,11 +201,20 @@ export class DemandRankingService {
       let distanceKm: number | undefined;
 
       // Calculate distance if coordinates provided
-      if (latitude !== undefined && longitude !== undefined) {
-        const mallLat = (demand as any).mall?.latitude;
-        const mallLng = (demand as any).mall?.longitude;
-        
-        if (mallLat !== null && mallLng !== null) {
+      if (
+        latitude !== undefined &&
+        longitude !== undefined &&
+        Number.isFinite(latitude) &&
+        Number.isFinite(longitude)
+      ) {
+        const mallLat = demand.mall?.latitude;
+        const mallLng = demand.mall?.longitude;
+        if (
+          mallLat != null &&
+          mallLng != null &&
+          Number.isFinite(mallLat) &&
+          Number.isFinite(mallLng)
+        ) {
           distanceKm = this.haversine(latitude, longitude, mallLat, mallLng);
         }
       }
@@ -223,7 +233,12 @@ export class DemandRankingService {
 
     // Filter by distance if specified
     let filteredDemands = demandsWithScores;
-    if (latitude !== undefined && longitude !== undefined) {
+    if (
+      latitude !== undefined &&
+      longitude !== undefined &&
+      Number.isFinite(latitude) &&
+      Number.isFinite(longitude)
+    ) {
       filteredDemands = demandsWithScores.filter(
         (d) => d.distanceKm === undefined || d.distanceKm <= maxDistanceKm
       );

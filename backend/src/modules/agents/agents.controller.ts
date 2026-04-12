@@ -27,10 +27,20 @@ export class AgentsController {
     return this.agentsService.syncOfflineTasks(agentId, data.tasks);
   }
 
+  @Get('onboarding-candidates')
+  @ApiOperation({ summary: 'Search buyers (no merchant yet) by phone digits for onboarding' })
+  async onboardingCandidates(@CurrentUser('id') agentId: string, @Query('q') q: string) {
+    return this.agentsService.findOnboardingCandidates(agentId, q || '');
+  }
+
   @Post('tasks/:id/process')
-  @ApiOperation({ summary: 'Process an onboarding task' })
-  async processTask(@Param('id') taskId: string) {
-    return this.agentsService.processOnboardingTask(taskId);
+  @ApiOperation({ summary: 'Process an onboarding task (creates merchant for user in task payload)' })
+  async processTask(
+    @Param('id') taskId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
+  ) {
+    return this.agentsService.processOnboardingTask(taskId, userId, role);
   }
 
   @Get('tasks')

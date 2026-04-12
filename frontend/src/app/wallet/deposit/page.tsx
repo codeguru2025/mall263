@@ -20,7 +20,7 @@ const METHODS: { id: Method; label: string; icon: string; desc: string }[] = [
   { id: 'web',      label: 'Card / Zipit', icon: '💳', desc: 'Visa, Mastercard or Zipit bank transfer' },
 ];
 
-type Stage = 'form' | 'processing' | 'success' | 'failed' | 'timeout';
+type Stage = 'form' | 'processing' | 'success' | 'failed' | 'timeout' | 'session_lost';
 
 export default function DepositPage() {
   const router = useRouter();
@@ -30,8 +30,10 @@ export default function DepositPage() {
   const [stage, setStage] = useState<Stage>('form');
   const [reference, setReference] = useState('');
   const [instructions, setInstructions] = useState('');
-  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const [pollHint, setPollHint] = useState('');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCount = useRef(0);
+  const notFoundStreak = useRef(0);
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
@@ -46,16 +48,17 @@ export default function DepositPage() {
   const mutation = useMutation({
     mutationFn: async () => {
       const idempotencyKey = generateIdempotencyKey();
+      const payTimeout = 45_000;
       if (isMobile) {
         return api.post('/api/v1/payments/initiate/mobile', {
           amount: parseFloat(amount),
           phone,
           method,
-        }, { headers: { 'Idempotency-Key': idempotencyKey } }).then((r) => r.data);
+        }, { headers: { 'Idempotency-Key': idempotencyKey }, timeout: payTimeout }).then((r) => r.data);
       } else {
         return api.post('/api/v1/payments/initiate/web', {
           amount: parseFloat(amount),
-        }, { headers: { 'Idempotency-Key': idempotencyKey } }).then((r) => r.data);
+        }, { headers: { 'Idempotency-Key': idempotencyKey }, timeout: payTimeout }).then((r) => r.data);
       }
     },
     onSuccess: (data) => {
@@ -70,31 +73,78 @@ export default function DepositPage() {
       setStage('processing');
       startPolling(data.reference);
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to initiate payment'),
+    onError: (err: any) => {
+      const msg =
+        err.code === 'ECONNABORTED'
+          ? 'Payment gateway timed out. Check your connection and try again.'
+          : err.response?.data?.message || 'Failed to initiate payment';
+      toast.error(msg);
+    },
   });
+
+  const pollOnce = async (ref: string): Promise<'paid' | 'failed' | 'retry' | 'auth' | 'lost'> => {
+    try {
+      const { data } = await api.get(`/api/v1/payments/status/${encodeURIComponent(ref)}`, { timeout: 20_000 });
+      if (data.paid) return 'paid';
+      if (['FAILED', 'CANCELLED', 'DISPUTED', 'REFUNDED'].includes(data.status)) return 'failed';
+      if (data.status === 'NOT_FOUND') {
+        notFoundStreak.current += 1;
+        if (notFoundStreak.current >= 8) return 'lost';
+        return 'retry';
+      }
+      notFoundStreak.current = 0;
+      if (data.status === 'POLL_ERROR') {
+        setPollHint('Payment gateway is slow — still checking…');
+        return 'retry';
+      }
+      setPollHint('Waiting for Paynow to confirm your PIN…');
+      return 'retry';
+    } catch (e: any) {
+      if (e?.response?.status === 401) return 'auth';
+      setPollHint('Network hiccup — retrying…');
+      return 'retry';
+    }
+  };
 
   const startPolling = (ref: string) => {
     if (pollRef.current) clearInterval(pollRef.current);
     pollCount.current = 0;
-    pollRef.current = setInterval(async () => {
+    notFoundStreak.current = 0;
+    setPollHint('Confirming with Paynow…');
+
+    const tick = async () => {
       pollCount.current++;
-      // Stop after 5 minutes (60 × 5s)
-      if (pollCount.current > 60) {
-        clearInterval(pollRef.current!);
+      // ~5 minutes at 3s interval
+      if (pollCount.current > 100) {
+        if (pollRef.current) clearInterval(pollRef.current);
         setStage('timeout');
         return;
       }
-      try {
-        const { data } = await api.get(`/api/v1/payments/status/${ref}`);
-        if (data.paid) {
-          clearInterval(pollRef.current!);
-          setStage('success');
-        } else if (['FAILED', 'CANCELLED', 'DISPUTED'].includes(data.status)) {
-          clearInterval(pollRef.current!);
-          setStage('failed');
-        }
-      } catch { /* ignore poll errors — keep trying */ }
-    }, 5000);
+      const result = await pollOnce(ref);
+      if (result === 'paid') {
+        if (pollRef.current) clearInterval(pollRef.current);
+        setStage('success');
+        return;
+      }
+      if (result === 'failed') {
+        if (pollRef.current) clearInterval(pollRef.current);
+        setStage('failed');
+        return;
+      }
+      if (result === 'auth') {
+        if (pollRef.current) clearInterval(pollRef.current);
+        toast.error('Session expired. Log in again and check your wallet balance.');
+        setStage('failed');
+        return;
+      }
+      if (result === 'lost') {
+        if (pollRef.current) clearInterval(pollRef.current);
+        setStage('session_lost');
+      }
+    };
+
+    void tick();
+    pollRef.current = setInterval(() => void tick(), 3000);
   };
 
   useEffect(() => {
@@ -155,6 +205,34 @@ export default function DepositPage() {
     );
   }
 
+  // ── Lost session in Redis but payment may have succeeded (wallet check) ─────
+  if (stage === 'session_lost') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="bg-white rounded-3xl border-2 border-gray-100 p-8 max-w-sm w-full text-center shadow-sm">
+          <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-5">
+            <Wallet className="w-10 h-10 text-brand-blue" />
+          </div>
+          <h2 className="text-2xl font-black text-navy-700 mb-2">Check your wallet</h2>
+          <p className="text-gray-500 mb-4 text-sm leading-relaxed">
+            We could not reload your payment session from the server, but your deposit may still have gone through.
+            Open your dashboard and check your balance. If the money arrived, you&apos;re all set.
+          </p>
+          <div className="bg-gray-50 rounded-2xl p-4 mb-6 text-left">
+            <p className="text-xs text-gray-400 mb-1">Reference (for support)</p>
+            <p className="font-mono text-sm text-navy-700 font-bold break-all">{reference}</p>
+          </div>
+          <button onClick={() => router.push('/dashboard')} className="btn-primary w-full py-4 text-base mb-3">
+            Open dashboard
+          </button>
+          <button onClick={() => setStage('form')} className="btn-secondary w-full py-4 text-base">
+            Back to deposit
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ── Timeout screen ─────────────────────────────────────────────────────────
   if (stage === 'timeout') {
     return (
@@ -199,7 +277,12 @@ export default function DepositPage() {
             <p className="text-xs text-gray-400 mt-3 mb-1">Amount</p>
             <p className="font-black text-xl text-navy-700">${parseFloat(amount).toFixed(2)}</p>
           </div>
-          <p className="text-xs text-gray-400">This page will update automatically once payment is confirmed. Do not close it.</p>
+          {pollHint ? (
+            <p className="text-sm text-brand-blue font-semibold mb-2">{pollHint}</p>
+          ) : null}
+          <p className="text-xs text-gray-400">
+            Checking every few seconds — this page updates automatically. You can safely leave it open while you approve the prompt on your phone.
+          </p>
         </div>
       </div>
     );

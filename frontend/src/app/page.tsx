@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Gavel, LogOut, User } from 'lucide-react';
+import { Gavel, LogOut, User, MapPin } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useAuthStore } from '@/lib/store';
 import LocationFilterBar from '@/components/home/LocationFilterBar';
@@ -38,6 +38,11 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <Logo size={36} />
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-navy-600">
+            {user?.role === 'FIELD_AGENT' && (
+              <Link href="/agent" className="flex items-center gap-1 hover:text-brand-orange transition-colors">
+                <MapPin className="w-3.5 h-3.5" /> Agent
+              </Link>
+            )}
             <Link href="/marketplace" className="hover:text-brand-orange transition-colors">Browse</Link>
             <Link href="/for-you" className="hover:text-brand-orange transition-colors">For You</Link>
             <Link href="/services" className="hover:text-brand-orange transition-colors">Services</Link>

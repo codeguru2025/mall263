@@ -67,6 +67,7 @@ export default function POSPage() {
       setStallId(first);
       if (cart.stallId !== first) cart.setStall(first);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to stalls/stallId; cart.setStall is stable from zustand
   }, [stalls, stallId]);
 
   // Warn before leaving with items in cart

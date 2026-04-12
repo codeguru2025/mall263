@@ -164,7 +164,15 @@ export class DemandsService {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-          buyer: { select: { id: true, firstName: true } },
+          buyer: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true,
+              trustScore: { select: { overallScore: true } },
+            },
+          },
           product: { select: { id: true, name: true, minPrice: true, maxPrice: true, images: { where: { isPrimary: true }, take: 1, select: { url: true } } } },
           stall: { select: { id: true, name: true } },
           offers: { where: { status: OfferStatus.PENDING }, select: { id: true } },
@@ -181,7 +189,15 @@ export class DemandsService {
     const demand = await this.prisma.buyerDemand.findUnique({
       where: { id },
       include: {
-        buyer: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+        buyer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+            trustScore: { select: { overallScore: true } },
+          },
+        },
         product: { select: { id: true, name: true, minPrice: true, maxPrice: true, images: { where: { isPrimary: true }, take: 1, select: { url: true } } } },
         stall: { select: { id: true, name: true, stallNumber: true } },
         offers: {

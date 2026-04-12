@@ -152,6 +152,10 @@ export class PaymentsService {
    * Returns { paid, status } — frontend stops polling when paid === true.
    */
   async pollStatus(reference: string) {
+    if (await this.walletService.hasCompletedDepositByExternalRef(reference)) {
+      return { paid: true, status: 'PAID' };
+    }
+
     const pending = await this.getPending(reference);
 
     // Key was already deleted or is missing entirely
@@ -168,15 +172,27 @@ export class PaymentsService {
       return { paid: false, status: 'POLL_ERROR' };
     }
 
-    // Paynow library returns `paid` as a boolean property, not a function
-    const paid = statusResponse.paid === true || statusResponse.paid?.() === true;
-    const status: string = statusResponse.status || 'UNKNOWN';
+    // paynow.pollTransaction() returns InitResponse: there is no `paid` field.
+    // Completed payments report status "paid" (lowercased by the library).
+    const st = String(statusResponse?.status ?? '').toLowerCase();
+    const paid =
+      statusResponse?.paid === true ||
+      (typeof statusResponse?.paid === 'function' && statusResponse.paid() === true) ||
+      st === 'paid';
+
+    const terminalFail = ['cancelled', 'canceled', 'failed', 'disputed', 'refunded'].includes(st);
+    const statusOut = String(statusResponse?.status || 'UNKNOWN').toUpperCase();
+
+    if (terminalFail) {
+      return { paid: false, status: statusOut };
+    }
 
     if (paid) {
       await this.creditWallet(pending, reference);
+      return { paid: true, status: 'PAID' };
     }
 
-    return { paid, status: status.toUpperCase() };
+    return { paid: false, status: statusOut };
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────

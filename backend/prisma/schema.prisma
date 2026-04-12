@@ -295,6 +295,7 @@ model Mall {
 
   stalls          Stall[]
   serviceListings ServiceListing[]
+  buyerDemands    BuyerDemand[]
 
   @@index([city])
   @@map("malls")
@@ -655,6 +656,7 @@ model BuyerDemand {
   buyer   User          @relation(fields: [buyerId], references: [id], onDelete: Cascade)
   product Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
   stall   Stall?        @relation("DemandStall", fields: [stallId], references: [id], onDelete: SetNull)
+  mall    Mall?         @relation(fields: [mallId], references: [id], onDelete: SetNull)
   offers  SellerOffer[]
 
   @@index([buyerId])
@@ -662,6 +664,7 @@ model BuyerDemand {
   @@index([categoryId])
   @@index([productId])
   @@index([stallId])
+  @@index([mallId])
   @@index([createdAt])
   @@index([expiresAt])
   @@map("buyer_demands")

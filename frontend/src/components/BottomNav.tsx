@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/lib/store';
 import { useHaptic } from '@/lib/hooks/useHaptic';
-import { Home, Search, Gavel, Wallet, LayoutDashboard, Store, Package, BarChart3, Shield, Users, Settings, Sparkles } from 'lucide-react';
+import { Home, Search, Gavel, Wallet, LayoutDashboard, Store, Package, BarChart3, Shield, Users, Settings, Sparkles, MapPin } from 'lucide-react';
 
 const CUSTOMER_TABS = [
   { href: '/',               icon: Home,            label: 'Home' },
@@ -19,6 +19,7 @@ const CUSTOMER_TABS = [
 const SELLER_TABS = [
   { href: '/dashboard',      icon: LayoutDashboard, label: 'Home' },
   { href: '/pos',            icon: Store,           label: 'POS' },
+  { href: '/demands',        icon: Gavel,           label: 'Demands' },
   { href: '/wallet/deposit', icon: Wallet,          label: 'Top Up' },
   { href: '/inventory',      icon: Package,         label: 'Stock' },
   { href: '/seller/reports', icon: BarChart3,       label: 'Reports' },
@@ -32,6 +33,14 @@ const ADMIN_TABS = [
   { href: '/admin/settings', icon: Settings,        label: 'Settings' },
 ];
 
+/** Field agents: core workflows without seller POS/inventory. */
+const AGENT_TABS = [
+  { href: '/dashboard',      icon: LayoutDashboard, label: 'Home' },
+  { href: '/agent',          icon: MapPin,          label: 'Agent' },
+  { href: '/marketplace',    icon: Search,          label: 'Browse' },
+  { href: '/wallet/deposit', icon: Wallet,          label: 'Top Up' },
+];
+
 export default function BottomNav() {
   const pathname = usePathname();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -43,7 +52,8 @@ export default function BottomNav() {
 
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
   const isAdmin = user ? ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'].includes(user.role) : false;
-  const TABS = isAdmin ? ADMIN_TABS : isSeller ? SELLER_TABS : CUSTOMER_TABS;
+  const isFieldAgent = user?.role === 'FIELD_AGENT';
+  const TABS = isAdmin ? ADMIN_TABS : isSeller ? SELLER_TABS : isFieldAgent ? AGENT_TABS : CUSTOMER_TABS;
   const TOP_UP_HREF = '/wallet/deposit';
 
   return (
@@ -75,7 +85,17 @@ export default function BottomNav() {
           return (
             <Link
               key={href}
-                href={!isAuthenticated && href !== '/' && href !== '/marketplace' && href !== '/for-you' && href !== '/services' ? '/auth/login' : href}
+                href={
+                !isAuthenticated &&
+                href !== '/' &&
+                href !== '/marketplace' &&
+                href !== '/for-you' &&
+                href !== '/services' &&
+                href !== '/demands' &&
+                href !== '/agent'
+                  ? '/auth/login'
+                  : href
+              }
               onClick={() => haptic.light()}
               className={`relative flex-1 flex flex-col items-center justify-center py-3 gap-0.5 transition-colors ${
                 active ? 'text-brand-orange' : 'text-gray-400'

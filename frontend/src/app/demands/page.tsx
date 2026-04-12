@@ -14,7 +14,8 @@ import DemandCard from '@/components/DemandCard';
 import UrgencyCountdown from '@/components/UrgencyCountdown';
 
 export default function DemandsPage() {
-  const [tab, setTab] = useState<'ranked' | 'open' | 'my' | 'urgent'>('ranked');
+  // Default to full open list so sellers always see every live demand; ranked/urgent are optional views.
+  const [tab, setTab] = useState<'ranked' | 'open' | 'my' | 'urgent'>('open');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);

@@ -216,13 +216,24 @@ export class SubscriptionsService {
       return { paid: false, status: 'POLL_ERROR' };
     }
 
-    const paid = statusResponse.paid === true || statusResponse.paid?.() === true;
+    const st = String(statusResponse?.status ?? '').toLowerCase();
+    const paid =
+      statusResponse?.paid === true ||
+      (typeof statusResponse?.paid === 'function' && statusResponse.paid() === true) ||
+      st === 'paid';
+
+    const terminalFail = ['cancelled', 'canceled', 'failed', 'disputed', 'refunded'].includes(st);
+    const statusOut = String(statusResponse?.status || 'UNKNOWN').toUpperCase();
+
+    if (terminalFail) {
+      return { paid: false, status: statusOut };
+    }
 
     if (paid) {
       await this.onPaymentSuccess(payment.subscriptionId, reference);
     }
 
-    return { paid, status: (statusResponse.status || 'UNKNOWN').toUpperCase() };
+    return { paid, status: statusOut };
   }
 
   // ── Cron Jobs ─────────────────────────────────────────────────────────────
@@ -248,7 +259,9 @@ export class SubscriptionsService {
       try {
         if (!payment.pollUrl) continue;
         const res = await this.paynow.pollTransaction(payment.pollUrl);
-        const paid = res.paid === true || res.paid?.() === true;
+        const st = String(res?.status ?? '').toLowerCase();
+        const paid =
+          res?.paid === true || (typeof res?.paid === 'function' && res.paid() === true) || st === 'paid';
         if (paid) {
           await this.onPaymentSuccess(payment.subscriptionId, payment.paynowRef!);
         }

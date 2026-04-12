@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MerchantsService } from '../merchants/merchants.service';
-import { AgentTaskType, AgentTaskStatus } from '@prisma/client';
+import { AgentTaskType, AgentTaskStatus, UserRole, UserStatus } from '@prisma/client';
 
 @Injectable()
 export class AgentsService {
@@ -44,9 +44,40 @@ export class AgentsService {
     return { synced: results.length, tasks: results };
   }
 
-  async processOnboardingTask(taskId: string) {
+  /**
+   * Buyers without a merchant profile — for field agents to find who they can onboard.
+   */
+  async findOnboardingCandidates(_agentId: string, query: string) {
+    const digits = query.replace(/\D/g, '');
+    if (digits.length < 5) {
+      throw new BadRequestException('Enter at least 5 digits of the seller phone number');
+    }
+    const users = await this.prisma.user.findMany({
+      where: {
+        role: UserRole.BUYER,
+        phone: { contains: digits },
+        merchant: { is: null },
+        status: { not: UserStatus.SUSPENDED },
+      },
+      select: {
+        id: true,
+        phone: true,
+        firstName: true,
+        lastName: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+    });
+    return { data: users };
+  }
+
+  async processOnboardingTask(taskId: string, requesterId: string, requesterRole: UserRole) {
     const task = await this.prisma.agentTask.findUnique({ where: { id: taskId } });
     if (!task) throw new NotFoundException('Task not found');
+    if (task.agentId !== requesterId && requesterRole !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('You can only process your own tasks');
+    }
     if (task.type !== AgentTaskType.MERCHANT_ONBOARDING) {
       throw new BadRequestException('Task is not a merchant onboarding task');
     }

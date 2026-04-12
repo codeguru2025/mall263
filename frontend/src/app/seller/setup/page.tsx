@@ -31,7 +31,14 @@ export default function SellerSetupPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
-    if (user && !['STALL_OWNER', 'ATTENDANT', 'FIELD_AGENT'].includes(user.role)) { router.push('/dashboard'); return; }
+    if (user?.role === 'FIELD_AGENT') {
+      router.replace('/agent');
+      return;
+    }
+    if (user && !['STALL_OWNER', 'ATTENDANT'].includes(user.role)) {
+      router.push('/dashboard');
+      return;
+    }
   }, [authLoading, isAuthenticated, user, router]);
 
   // Pre-fill business name from user's name

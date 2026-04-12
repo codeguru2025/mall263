@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
+import { compressImageForAvatarUpload } from '@/lib/imageCompress';
 import { Logo } from '@/components/Logo';
 import {
   Phone, Lock, User, ArrowRight, ArrowLeft,
@@ -58,15 +59,15 @@ function RegisterForm() {
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast.error('Photo must be under 2MB'); return; }
     setAvatarUploading(true);
     try {
+      const toSend = await compressImageForAvatarUpload(file, { fileBaseName: 'profile' });
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', toSend);
       const { data } = await api.post('/api/v1/upload/avatar', fd);
-      setAvatarUrl(data.url);
-    } catch {
-      toast.error('Failed to upload photo');
+      setAvatarUrl(data.cdnUrl || data.url);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to upload photo');
     } finally {
       setAvatarUploading(false);
     }

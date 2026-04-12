@@ -34,7 +34,7 @@ export class UploadController {
   @Post('avatar')
   @Public()
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 3 * 1024 * 1024 } }))
   async uploadAvatar(@UploadedFile() file: Express.Multer.File): Promise<UploadResult> {
     if (!file) throw new BadRequestException('No file provided');
     return this.uploadService.uploadThumbnail(file, 'avatars');

@@ -117,8 +117,8 @@ export class SearchService implements OnModuleInit {
         attributesToHighlight: ['name', 'description'],
       });
 
-      // If Meilisearch returns nothing for a real query, try the DB too
-      if (results.estimatedTotalHits === 0 && query.trim()) {
+      // If Meilisearch returns nothing, use DB (covers empty index, stale index, and typed queries)
+      if (results.estimatedTotalHits === 0) {
         return this.dbFallbackSearch(query, { ...params, page, limit, minPrice, maxPrice });
       }
 
@@ -251,6 +251,19 @@ export class SearchService implements OnModuleInit {
     if (minPrice !== undefined) where.minPrice = { gte: minPrice };
     if (maxPrice !== undefined) where.maxPrice = { lte: maxPrice };
 
+    const sortBy = params.sortBy as string | undefined;
+    let orderBy: any = { createdAt: 'desc' };
+    if (sortBy === 'price_asc') orderBy = { minPrice: 'asc' };
+    else if (sortBy === 'price_desc') orderBy = { maxPrice: 'desc' };
+    else if (sortBy === 'popular') orderBy = { viewCount: 'desc' };
+    else if (sortBy === 'trust') {
+      orderBy = {
+        stall: {
+          merchant: { user: { trustScore: { overallScore: 'desc' } } },
+        },
+      };
+    } else if (sortBy === 'newest') orderBy = { createdAt: 'desc' };
+
     const [rows, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
@@ -276,7 +289,7 @@ export class SearchService implements OnModuleInit {
           },
           variants: { select: { sellingPrice: true }, where: { isActive: true } },
         },
-        orderBy: { viewCount: 'desc' },
+        orderBy,
       }),
       this.prisma.product.count({ where }),
     ]);

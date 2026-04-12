@@ -18,6 +18,19 @@ interface TimeLeft {
   isExpired: boolean;
 }
 
+function computeTimeLeft(endTime: number): TimeLeft {
+  const now = Date.now();
+  const total = endTime - now;
+  if (!Number.isFinite(endTime) || total <= 0) {
+    return { days: 0, hours: 0, minutes: 0, seconds: 0, total: 0, isExpired: true };
+  }
+  const days = Math.floor(total / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((total % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((total % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((total % (1000 * 60)) / 1000);
+  return { days, hours, minutes, seconds, total, isExpired: false };
+}
+
 const urgencyConfig = {
   URGENT: {
     color: 'text-brand-red',
@@ -50,39 +63,23 @@ const urgencyConfig = {
 };
 
 export function useCountdown(expiresAt: string | Date): TimeLeft {
-  const endTime = useMemo(() => new Date(expiresAt).getTime(), [expiresAt]);
-  
-  const calculateTimeLeft = (): TimeLeft => {
-    const now = Date.now();
-    const total = endTime - now;
-    
-    if (total <= 0) {
-      return { days: 0, hours: 0, minutes: 0, seconds: 0, total: 0, isExpired: true };
-    }
-    
-    const days = Math.floor(total / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((total % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((total % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((total % (1000 * 60)) / 1000);
-    
-    return { days, hours, minutes, seconds, total, isExpired: false };
-  };
-  
-  const [timeLeft, setTimeLeft] = useState<TimeLeft>(calculateTimeLeft());
-  
+  const endTime = useMemo(() => {
+    const t = new Date(expiresAt).getTime();
+    return Number.isFinite(t) ? t : 0;
+  }, [expiresAt]);
+
+  const [timeLeft, setTimeLeft] = useState<TimeLeft>(() => computeTimeLeft(endTime));
+
   useEffect(() => {
+    setTimeLeft(computeTimeLeft(endTime));
     const timer = setInterval(() => {
-      const remaining = calculateTimeLeft();
+      const remaining = computeTimeLeft(endTime);
       setTimeLeft(remaining);
-      
-      if (remaining.isExpired) {
-        clearInterval(timer);
-      }
+      if (remaining.isExpired) clearInterval(timer);
     }, 1000);
-    
     return () => clearInterval(timer);
   }, [endTime]);
-  
+
   return timeLeft;
 }
 

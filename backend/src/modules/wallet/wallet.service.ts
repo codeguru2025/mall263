@@ -97,6 +97,18 @@ export class WalletService {
     );
   }
 
+  /** Used by payment polling when Redis pending key expired but wallet was already credited. */
+  async hasCompletedDepositByExternalRef(externalRef: string): Promise<boolean> {
+    const row = await this.prisma.walletTransaction.findFirst({
+      where: {
+        externalRef,
+        type: WalletTransactionType.DEPOSIT,
+        status: WalletTransactionStatus.COMPLETED,
+      },
+    });
+    return !!row;
+  }
+
   /**
    * Lock funds for a bid (10% rule enforcement).
    * REPEATABLE READ ensures the balance we read is stable throughout the transaction.

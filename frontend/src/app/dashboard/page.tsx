@@ -13,6 +13,7 @@ import { Logo } from '@/components/Logo';
 import { useSubscription } from '@/lib/useSubscription';
 import SubscribeModal from '@/components/SubscribeModal';
 import toast from 'react-hot-toast';
+import { compressImageForAvatarUpload } from '@/lib/imageCompress';
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -31,21 +32,18 @@ export default function DashboardPage() {
   const onAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error('Photo must be under 2MB');
-      return;
-    }
     setAvatarBusy(true);
     try {
+      const toSend = await compressImageForAvatarUpload(file, { fileBaseName: 'profile' });
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', toSend);
       const up = await api.post('/api/v1/upload/avatar', fd);
       const url = up.data.cdnUrl || up.data.url;
       await api.patch('/api/v1/users/me', { avatarUrl: url });
       await loadUser();
       toast.success('Profile photo updated');
-    } catch {
-      toast.error('Could not update photo');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not update photo');
     } finally {
       setAvatarBusy(false);
       if (avatarInputRef.current) avatarInputRef.current.value = '';
@@ -342,6 +340,13 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-sm font-bold text-navy-700">POS</span>
               </Link>
+              <Link href="/demands" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-orange hover:shadow-md transition-all group">
+                <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-orange group-hover:text-white transition-colors">
+                  <Gavel className="w-6 h-6 text-brand-orange group-hover:text-white transition-colors" />
+                </div>
+                <span className="text-sm font-bold text-navy-700">Buyer demands</span>
+                <span className="block text-[10px] text-gray-400 font-semibold mt-1">Bid &amp; win sales</span>
+              </Link>
               <Link href="/inventory" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-yellow hover:shadow-md transition-all group">
                 <div className="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-yellow transition-colors">
                   <Package className="w-6 h-6 text-brand-yellow" />
@@ -388,13 +393,15 @@ export default function DashboardPage() {
                 <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-blue group-hover:text-white transition-colors">
                   <Users className="w-6 h-6 text-brand-blue group-hover:text-white transition-colors" />
                 </div>
-                <span className="text-sm font-bold text-navy-700">Agent Tasks</span>
+                <span className="text-sm font-bold text-navy-700">Field agent hub</span>
+                <span className="block text-[10px] text-gray-400 font-semibold mt-1">Onboard sellers &amp; tasks</span>
               </Link>
-              <Link href="/inventory" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-yellow hover:shadow-md transition-all group">
-                <div className="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-yellow transition-colors">
-                  <Package className="w-6 h-6 text-brand-yellow" />
+              <Link href="/agent?tab=merchants" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-green hover:shadow-md transition-all group">
+                <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-green group-hover:text-white transition-colors">
+                  <Store className="w-6 h-6 text-brand-green group-hover:text-white transition-colors" />
                 </div>
-                <span className="text-sm font-bold text-navy-700">Stock</span>
+                <span className="text-sm font-bold text-navy-700">Merchants</span>
+                <span className="block text-[10px] text-gray-400 font-semibold mt-1">Directory you can access</span>
               </Link>
             </>
           )}
