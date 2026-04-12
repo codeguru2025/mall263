@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SearchService } from '../search/search.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { ProductStatus, StallAnalyticsEventType } from '@prisma/client';
 
 @Injectable()
@@ -8,6 +9,7 @@ export class ProductsService {
   constructor(
     private prisma: PrismaService,
     private searchService: SearchService,
+    private subscriptionsService: SubscriptionsService,
   ) {}
 
   async create(stallId: string, data: {
@@ -96,7 +98,7 @@ export class ProductsService {
     });
   }
 
-  async findById(id: string, buyerTier?: 'FREE' | 'FUNDED' | 'ACTIVE_BUYER') {
+  async findById(id: string, userId?: string) {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
@@ -120,7 +122,6 @@ export class ProductsService {
 
     if (!product) throw new NotFoundException('Product not found');
 
-    // Increment view count
     await this.prisma.product.update({ where: { id }, data: { viewCount: { increment: 1 } } });
 
     if (product.status === ProductStatus.ACTIVE) {
@@ -135,8 +136,21 @@ export class ProductsService {
         .catch(() => {});
     }
 
-    // Apply buying power visibility rules
-    if (buyerTier === 'FREE') {
+    // Decide visibility: trial users, funded users, and active buyers see full details
+    let showSeller = false;
+    if (userId) {
+      const sub = await this.subscriptionsService.getStatus(userId);
+      if (sub.fullyAccess) {
+        showSeller = true;
+      } else {
+        const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+        if (wallet && parseFloat(wallet.availableBalance.toString()) > 0) {
+          showSeller = true;
+        }
+      }
+    }
+
+    if (!showSeller) {
       return {
         ...product,
         stall: {

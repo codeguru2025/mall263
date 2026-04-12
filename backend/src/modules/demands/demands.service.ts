@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException,
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { resolveStoreLogo } from '../../common/utils/store-branding';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { DemandStatus, DemandUrgency, OfferStatus, WalletTransactionType, WalletTransactionStatus, WalletLockReason, WalletLockStatus, Prisma, PaymentMethod, POSSaleStatus } from '@prisma/client';
 
 const BUYER_FEE_RATE = 0.025; // 2.5% platform fee charged to buyer on purchase
@@ -11,15 +12,16 @@ const BID_LOCK_HOURS = 1;     // BID lock released after 1 hour if demand not ma
 export class DemandsService {
   private readonly logger = new Logger(DemandsService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private subscriptionsService: SubscriptionsService,
+  ) {}
 
   /**
-   * Create a buyer demand and atomically lock 10% of the max budget.
-   *
-   * ATOMICITY FIX: Previously the demand was created first, then the wallet lock
-   * was run as a separate operation. If the lock failed, an orphaned demand remained
-   * in OPEN state with no locked funds. Now both operations happen in one
-   * RepeatableRead transaction — either both succeed or neither does.
+   * Create a buyer demand.
+   * During the 7-day free trial the 10% wallet lock is waived so new
+   * customers can explore the platform at zero cost.  After the trial
+   * ends the lock is enforced as before.
    */
   async createDemand(buyerId: string, data: {
     title: string;
@@ -34,20 +36,25 @@ export class DemandsService {
     mallId?: string;
     expiresInHours?: number;
   }) {
+    const sub = await this.subscriptionsService.getStatus(buyerId);
+    const onTrial = sub.fullyAccess && sub.trialActive;
     const lockAmountDec = new Prisma.Decimal(data.maxBudget).mul('0.10');
 
     return this.prisma.$retryTransaction(
       async (tx) => {
-        // --- Wallet checks (inside tx so reads are stable at RepeatableRead) ---
-        const wallet = await tx.wallet.findUnique({ where: { userId: buyerId } });
-        if (!wallet || wallet.availableBalance.lte(0)) {
-          throw new BadRequestException('You must fund your wallet to post demand requests');
-        }
+        // --- Wallet checks (skipped entirely during trial) ---
+        let wallet: any = null;
+        if (!onTrial) {
+          wallet = await tx.wallet.findUnique({ where: { userId: buyerId } });
+          if (!wallet || wallet.availableBalance.lte(0)) {
+            throw new BadRequestException('You must fund your wallet to post demand requests');
+          }
 
-        if (wallet.availableBalance.lessThan(lockAmountDec)) {
-          throw new BadRequestException(
-            `Need $${lockAmountDec.toFixed(2)} (10% of $${data.maxBudget}) in wallet. Available: $${wallet.availableBalance.toFixed(2)}`,
-          );
+          if (wallet.availableBalance.lessThan(lockAmountDec)) {
+            throw new BadRequestException(
+              `Need $${lockAmountDec.toFixed(2)} (10% of $${data.maxBudget}) in wallet. Available: $${wallet.availableBalance.toFixed(2)}`,
+            );
+          }
         }
 
         // --- Create the demand ---
@@ -72,7 +79,8 @@ export class DemandsService {
           },
         });
 
-        // --- Lock 10% of max budget (inline using tx — atomic with demand creation) ---
+        // --- Lock 10% of max budget (skipped during trial) ---
+        if (!onTrial && wallet) {
         const newAvailable = wallet.availableBalance.sub(lockAmountDec);
         const newLocked = wallet.lockedBalance.add(lockAmountDec);
 
@@ -89,7 +97,7 @@ export class DemandsService {
             status: WalletLockStatus.ACTIVE,
             referenceId: demand.id,
             referenceType: 'buyer_demand',
-            expiresAt: new Date(Date.now() + BID_LOCK_HOURS * 60 * 60 * 1000), // 1 hour
+            expiresAt: new Date(Date.now() + BID_LOCK_HOURS * 60 * 60 * 1000),
           },
         });
 
@@ -107,6 +115,7 @@ export class DemandsService {
             completedAt: new Date(),
           },
         });
+        }
 
         return demand;
       },

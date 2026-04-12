@@ -2,8 +2,10 @@ import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@ne
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { UserRole, ProductStatus } from '@prisma/client';
 
@@ -77,10 +79,10 @@ export class ProductsController {
   }
 
   @Get(':id')
-  @Public()
-  @ApiOperation({ summary: 'Get product by ID' })
-  async getById(@Param('id') id: string) {
-    return this.productsService.findById(id, 'FREE');
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Get product by ID (trial/funded users see full seller details)' })
+  async getById(@Param('id') id: string, @CurrentUser('id') userId?: string) {
+    return this.productsService.findById(id, userId);
   }
 
   @Patch('variants/:variantId')
