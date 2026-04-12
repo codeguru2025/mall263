@@ -1,15 +1,15 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SearchService } from '../search/search.service';
-import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { ProductStatus, StallAnalyticsEventType } from '@prisma/client';
+
+const BUYER_TRIAL_DAYS = 7;
 
 @Injectable()
 export class ProductsService {
   constructor(
     private prisma: PrismaService,
     private searchService: SearchService,
-    private subscriptionsService: SubscriptionsService,
   ) {}
 
   async create(stallId: string, data: {
@@ -136,16 +136,19 @@ export class ProductsService {
         .catch(() => {});
     }
 
-    // Decide visibility: trial users, funded users, and active buyers see full details
+    // Trial users (first 7 days) and funded users see full seller details
     let showSeller = false;
     if (userId) {
-      const sub = await this.subscriptionsService.getStatus(userId);
-      if (sub.fullyAccess) {
-        showSeller = true;
-      } else {
-        const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
-        if (wallet && parseFloat(wallet.availableBalance.toString()) > 0) {
+      const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
+      if (user) {
+        const accountAgeDays = (Date.now() - user.createdAt.getTime()) / 86_400_000;
+        if (accountAgeDays < BUYER_TRIAL_DAYS) {
           showSeller = true;
+        } else {
+          const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+          if (wallet && parseFloat(wallet.availableBalance.toString()) > 0) {
+            showSeller = true;
+          }
         }
       }
     }

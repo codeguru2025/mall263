@@ -2,26 +2,22 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException,
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { resolveStoreLogo } from '../../common/utils/store-branding';
 import { PrismaService } from '../../prisma/prisma.service';
-import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { DemandStatus, DemandUrgency, OfferStatus, WalletTransactionType, WalletTransactionStatus, WalletLockReason, WalletLockStatus, Prisma, PaymentMethod, POSSaleStatus } from '@prisma/client';
 
 const BUYER_FEE_RATE = 0.025; // 2.5% platform fee charged to buyer on purchase
 const BID_LOCK_HOURS = 1;     // BID lock released after 1 hour if demand not matched
+const BUYER_TRIAL_DAYS = 7;
 
 @Injectable()
 export class DemandsService {
   private readonly logger = new Logger(DemandsService.name);
 
-  constructor(
-    private prisma: PrismaService,
-    private subscriptionsService: SubscriptionsService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Create a buyer demand.
-   * During the 7-day free trial the 10% wallet lock is waived so new
-   * customers can explore the platform at zero cost.  After the trial
-   * ends the lock is enforced as before.
+   * During the first 7 days after signup the 10% wallet lock is waived
+   * so new customers can explore the platform at zero cost.
    */
   async createDemand(buyerId: string, data: {
     title: string;
@@ -36,8 +32,9 @@ export class DemandsService {
     mallId?: string;
     expiresInHours?: number;
   }) {
-    const sub = await this.subscriptionsService.getStatus(buyerId);
-    const onTrial = sub.fullyAccess && sub.trialActive;
+    const buyer = await this.prisma.user.findUnique({ where: { id: buyerId }, select: { createdAt: true } });
+    const accountAgeDays = buyer ? (Date.now() - buyer.createdAt.getTime()) / 86_400_000 : Infinity;
+    const onTrial = accountAgeDays < BUYER_TRIAL_DAYS;
     const lockAmountDec = new Prisma.Decimal(data.maxBudget).mul('0.10');
 
     return this.prisma.$retryTransaction(

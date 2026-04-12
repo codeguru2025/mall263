@@ -3,10 +3,9 @@ import { DemandsService } from './demands.service';
 import { DemandsController } from './demands.controller';
 import { DemandRankingService } from './demand-ranking.service';
 import { WalletModule } from '../wallet/wallet.module';
-import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
-  imports: [WalletModule, SubscriptionsModule],
+  imports: [WalletModule],
   controllers: [DemandsController],
   providers: [DemandsService, DemandRankingService],
   exports: [DemandsService, DemandRankingService],
