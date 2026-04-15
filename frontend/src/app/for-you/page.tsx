@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { buildForYouSearchParams, forYouCacheKey } from '@/lib/forYouSignals';
-import { ArrowLeft, ChevronRight, MapPin, ShoppingBag, Sparkles, Star } from 'lucide-react';
+import { ArrowLeft, Bookmark, ChevronRight, MapPin, Share2, ShoppingBag, Sparkles, Star, Store } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { resolveStoreLogo } from '@/lib/storeBranding';
 
@@ -27,6 +27,7 @@ function trustScore(product: any): number {
 
 function ForYouProductCard({ product, priority }: { product: any; priority?: boolean }) {
   const [imgError, setImgError] = useState(false);
+  const [saved, setSaved] = useState(false);
   const src = resolveImg(product);
   const hasImage = !!src && !imgError;
   const stallName = product.stall?.name || 'Market stall';
@@ -35,107 +36,154 @@ function ForYouProductCard({ product, priority }: { product: any; priority?: boo
   const storeLogo = resolveStoreLogo(product.stall, product.stall?.merchant);
   const trusted = trustScore(product) >= 70;
 
+  function handleShare() {
+    const url = `${window.location.origin}/marketplace/${product.id}`;
+    if (navigator.share) {
+      navigator.share({ title: product.name, url }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(url).catch(() => {});
+    }
+  }
+
   return (
-    <section className="snap-start shrink-0 h-[calc(100dvh-3.75rem)] min-h-[520px] w-full max-w-lg sm:max-w-xl lg:max-w-2xl mx-auto px-3 sm:px-4 py-2 sm:py-4">
-      <div className="relative h-full rounded-[1.35rem] sm:rounded-[1.75rem] overflow-hidden bg-navy-950 shadow-[0_32px_90px_rgba(0,0,0,0.55)] ring-1 ring-white/[0.12]">
-        {/* Image */}
+    /* True full-bleed — no padding, no rounded corners on mobile */
+    <div className="snap-start shrink-0 h-[calc(100dvh-3.5rem)] w-full relative bg-black overflow-hidden sm:px-3 sm:py-2 sm:h-[calc(100dvh-3.75rem)]">
+      {/* Inner wrapper: rounded on tablet+, full bleed on mobile */}
+      <div className="relative h-full w-full sm:rounded-2xl overflow-hidden">
+        {/* Full-bleed image */}
         <div className="absolute inset-0">
           {hasImage ? (
             <Image
               src={src}
               alt={product.name || 'Product'}
               fill
-              className="object-cover object-center scale-[1.02]"
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 36rem, 42rem"
+              className="object-cover object-center"
+              sizes="100vw"
               priority={priority}
               onError={() => setImgError(true)}
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-navy-800 to-navy-950">
-              <ShoppingBag className="w-20 h-20 text-white/[0.12]" strokeWidth={1} />
+            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-800 to-black">
+              <ShoppingBag className="w-24 h-24 text-white/10" strokeWidth={1} />
             </div>
           )}
         </div>
 
-        {/* Atmosphere */}
-        <div className="absolute inset-0 bg-gradient-to-t from-navy-950 via-navy-950/55 to-navy-950/20 pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-blue/5 via-transparent to-brand-orange/10 pointer-events-none" />
+        {/* Gradient layers — strong at bottom, soft vignette at top */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-black/35 pointer-events-none" />
 
-        {/* Top meta */}
-        <div className="absolute top-0 left-0 right-0 z-10 p-4 sm:p-5 flex items-start justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            {categoryName ? (
-              <span className="inline-flex items-center rounded-full bg-black/35 backdrop-blur-md border border-white/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/90">
-                {categoryName}
-              </span>
-            ) : null}
-            <span className="inline-flex items-center rounded-full bg-black/35 backdrop-blur-md border border-white/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/70">
-              For you
+        {/* ── Top badges ── */}
+        <div className="absolute top-3 left-3 z-10 flex flex-wrap gap-1.5">
+          {categoryName && (
+            <span className="inline-flex items-center rounded-full bg-black/45 backdrop-blur-md border border-white/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white/85">
+              {categoryName}
             </span>
-          </div>
-          {trusted ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 backdrop-blur-md border border-amber-300/35 text-amber-100 text-[10px] font-bold px-2.5 py-1 shadow-sm">
+          )}
+          {trusted && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/15 backdrop-blur-md border border-amber-300/30 text-amber-100 text-[10px] font-bold px-2.5 py-0.5">
               <Star className="w-3 h-3 fill-amber-300 text-amber-200" />
               Trusted
             </span>
-          ) : null}
+          )}
         </div>
 
-        {/* Bottom glass panel */}
-        <div className="absolute bottom-0 left-0 right-0 z-10 p-4 sm:p-5 pb-6 sm:pb-7 safe-area-bottom">
-          <div className="rounded-2xl sm:rounded-[1.35rem] bg-white/[0.09] backdrop-blur-2xl border border-white/[0.14] shadow-[0_12px_48px_rgba(0,0,0,0.35)] p-4 sm:p-5">
-            {/* Store row */}
-            <div className="flex items-center gap-3 mb-3 min-w-0">
-              <div className="relative h-11 w-11 sm:h-12 sm:w-12 rounded-xl overflow-hidden bg-white/10 ring-1 ring-white/20 flex-shrink-0">
-                {storeLogo ? (
-                  <Image src={storeLogo} alt="" fill className="object-cover" sizes="48px" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <MapPin className="w-5 h-5 text-brand-orange/90" />
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-white font-bold text-sm sm:text-base truncate leading-tight">{stallName}</p>
-                {mallLine ? (
-                  <p className="text-white/50 text-[11px] sm:text-xs font-medium truncate mt-0.5">{mallLine}</p>
-                ) : null}
-              </div>
+        {/* ── Right-side action column (TikTok-style) ── */}
+        <div className="absolute right-3 bottom-32 z-10 flex flex-col items-center gap-5">
+          {/* Save / Bookmark */}
+          <button
+            onClick={() => setSaved((v) => !v)}
+            className="flex flex-col items-center gap-1.5 group"
+            aria-label={saved ? 'Unsave product' : 'Save product'}
+          >
+            <div
+              className={`w-12 h-12 rounded-full backdrop-blur-xl flex items-center justify-center transition-colors ${
+                saved ? 'bg-brand-orange/25 ring-1 ring-brand-orange/40' : 'bg-black/40 ring-1 ring-white/15'
+              }`}
+            >
+              <Bookmark
+                className={`w-5 h-5 transition-all ${saved ? 'fill-brand-orange text-brand-orange scale-110' : 'text-white'}`}
+              />
             </div>
+            <span className="text-white text-[10px] font-semibold drop-shadow">{saved ? 'Saved' : 'Save'}</span>
+          </button>
 
-            <h2 className="text-white font-black text-xl sm:text-2xl leading-[1.15] tracking-tight line-clamp-2 mb-3">
-              {product.name || 'Product'}
-            </h2>
-
-            <div className="flex items-end justify-between gap-3 mb-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/45 mb-0.5">From</p>
-                <p className="text-brand-orange font-black text-2xl sm:text-3xl tabular-nums tracking-tight">
-                  {formatPrice(product)}
-                </p>
-              </div>
+          {/* Store avatar */}
+          <Link
+            href={`/marketplace?stallId=${product.stall?.id ?? ''}`}
+            className="flex flex-col items-center gap-1.5"
+            aria-label="Visit store"
+          >
+            <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-xl ring-2 ring-white/25 overflow-hidden relative flex items-center justify-center">
+              {storeLogo ? (
+                <Image src={storeLogo} alt="" fill className="object-cover" sizes="48px" />
+              ) : (
+                <Store className="w-5 h-5 text-white" />
+              )}
             </div>
+            <span className="text-white text-[10px] font-semibold drop-shadow">Store</span>
+          </Link>
 
+          {/* Share */}
+          <button onClick={handleShare} className="flex flex-col items-center gap-1.5" aria-label="Share product">
+            <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-xl ring-1 ring-white/15 flex items-center justify-center">
+              <Share2 className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-white text-[10px] font-semibold drop-shadow">Share</span>
+          </button>
+        </div>
+
+        {/* ── Bottom content — text directly over gradient, no panel box ── */}
+        <div className="absolute bottom-0 left-0 right-16 z-10 px-4 pb-6 pt-12 safe-area-bottom">
+          {/* Store identity row */}
+          <div className="flex items-center gap-2 mb-2.5">
+            <div className="w-8 h-8 rounded-full bg-white/15 ring-1 ring-white/30 overflow-hidden flex-shrink-0 relative flex items-center justify-center">
+              {storeLogo ? (
+                <Image src={storeLogo} alt="" fill className="object-cover" sizes="32px" />
+              ) : (
+                <MapPin className="w-4 h-4 text-white/60" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-white font-bold text-sm leading-tight truncate">{stallName}</p>
+              {mallLine ? (
+                <p className="text-white/50 text-[11px] font-medium truncate">{mallLine}</p>
+              ) : null}
+            </div>
+          </div>
+
+          {/* Product name */}
+          <h2 className="text-white font-black text-[1.65rem] sm:text-3xl leading-[1.1] tracking-tight line-clamp-2 mb-3 drop-shadow-sm">
+            {product.name || 'Product'}
+          </h2>
+
+          {/* Price + CTA */}
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-white/40 mb-0.5 leading-none">From</p>
+              <p className="text-brand-orange font-black text-[1.6rem] sm:text-3xl tabular-nums leading-none drop-shadow">
+                {formatPrice(product)}
+              </p>
+            </div>
             <Link
               href={`/marketplace/${product.id}`}
-              className="group flex w-full items-center justify-center gap-2 rounded-2xl bg-white text-navy-900 font-black text-sm sm:text-[15px] py-3.5 sm:py-4 shadow-[0_8px_30px_rgba(255,255,255,0.12)] active:scale-[0.98] transition-transform hover:bg-white/95"
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-2xl bg-white text-navy-900 font-black text-[13px] py-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.5)] active:scale-[0.97] transition-transform"
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               View product
-              <ChevronRight className="w-4 h-4 opacity-70 group-hover:translate-x-0.5 transition-transform" />
+              <ChevronRight className="w-4 h-4 opacity-60" />
             </Link>
           </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
 function FeedSkeleton() {
   return (
-    <div className="h-[calc(100dvh-3.75rem)] min-h-[520px] w-full max-w-lg sm:max-w-xl lg:max-w-2xl mx-auto px-3 sm:px-4 py-2 sm:py-4 shrink-0">
-      <div className="h-full rounded-[1.35rem] sm:rounded-[1.75rem] overflow-hidden bg-navy-800/80 ring-1 ring-white/10 animate-pulse">
-        <div className="h-full bg-gradient-to-t from-navy-900 via-navy-800/50 to-navy-800" />
+    <div className="snap-start shrink-0 h-[calc(100dvh-3.5rem)] w-full bg-black overflow-hidden sm:px-3 sm:py-2 sm:h-[calc(100dvh-3.75rem)]">
+      <div className="h-full w-full sm:rounded-2xl overflow-hidden animate-pulse">
+        <div className="h-full bg-gradient-to-t from-slate-900 via-slate-800/50 to-slate-800" />
       </div>
     </div>
   );
@@ -172,33 +220,32 @@ export default function ForYouPage() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
-    <div className="h-dvh flex flex-col bg-[radial-gradient(ellipse_120%_80%_at_50%_-20%,rgba(59,154,225,0.18),transparent_55%),radial-gradient(ellipse_80%_50%_at_100%_50%,rgba(247,148,29,0.08),transparent_45%),#0a101d]">
-      <header className="flex-shrink-0 safe-area-top z-20 px-4 py-3 flex items-center justify-between border-b border-white/[0.08] bg-navy-900/80 backdrop-blur-xl">
+    <div className="h-dvh flex flex-col bg-black">
+      {/* Ultra-minimal floating header */}
+      <header className="flex-shrink-0 safe-area-top z-20 px-4 py-2.5 flex items-center justify-between">
         <Link
           href="/"
-          className="text-white p-2 -ml-2 rounded-xl hover:bg-white/10 transition-colors"
+          className="text-white p-1.5 -ml-1.5 rounded-xl hover:bg-white/10 transition-colors"
           aria-label="Back home"
         >
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div className="flex items-center gap-2 text-white">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-brand-orange/30 to-brand-blue/25 ring-1 ring-white/15">
-            <Sparkles className="w-4 h-4 text-brand-orange" />
-          </div>
-          <div className="text-left">
-            <span className="font-black text-sm tracking-tight block leading-none">For You</span>
-            <span className="text-[9px] font-semibold text-white/40 uppercase tracking-widest">Curated feed</span>
-          </div>
+
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="w-4 h-4 text-brand-orange" />
+          <span className="text-white font-black text-sm tracking-tight">For You</span>
         </div>
+
         <Link
           href="/marketplace"
-          className="text-xs font-bold text-brand-orange hover:text-brand-orange/90 whitespace-nowrap py-2 px-1"
+          className="text-brand-orange text-xs font-bold py-1.5 px-1 hover:text-brand-orange/80 transition-colors"
         >
-          Browse all
+          Browse
         </Link>
       </header>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden snap-y snap-mandatory scroll-smooth overscroll-y-contain pb-24 sm:pb-6">
+      {/* Snap scroll feed */}
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden snap-y snap-mandatory scroll-smooth overscroll-y-contain pb-20 sm:pb-4">
         {isLoading ? (
           <>
             <FeedSkeleton />
@@ -210,12 +257,12 @@ export default function ForYouPage() {
               <ShoppingBag className="w-10 h-10 text-white/25" strokeWidth={1.25} />
             </div>
             <p className="font-black text-xl text-white mb-2 tracking-tight">Nothing here yet</p>
-            <p className="text-sm text-white/55 mb-8 max-w-sm leading-relaxed font-medium">
-              Browse products you like — we learn from what you view and mix in fresh picks tailored to you.
+            <p className="text-sm text-white/50 mb-8 max-w-sm leading-relaxed font-medium">
+              Browse products you like — we learn what you view and mix in fresh picks tailored to you.
             </p>
             <Link
               href="/marketplace"
-              className="inline-flex items-center justify-center rounded-2xl bg-white text-navy-900 font-black text-sm px-8 py-3.5 shadow-lg shadow-black/20 active:scale-[0.98] transition-transform"
+              className="inline-flex items-center justify-center rounded-2xl bg-white text-navy-900 font-black text-sm px-8 py-3.5 shadow-lg shadow-black/30 active:scale-[0.98] transition-transform"
             >
               Explore marketplace
             </Link>
@@ -223,9 +270,10 @@ export default function ForYouPage() {
         ) : (
           products.map((p: any, i: number) => <ForYouProductCard key={p.id} product={p} priority={i < 2} />)
         )}
+
         <div ref={sentinelRef} className="h-12 shrink-0" aria-hidden />
         {isFetchingNextPage ? (
-          <p className="text-center text-white/40 text-xs font-semibold py-6 tracking-wide">Loading more picks…</p>
+          <p className="text-center text-white/35 text-xs font-semibold py-6 tracking-wide">Loading more picks…</p>
         ) : null}
       </div>
     </div>

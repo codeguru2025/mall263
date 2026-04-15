@@ -19,6 +19,7 @@
     "test:e2e": "echo \"No E2E tests are defined yet\""
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.89.0",
     "@aws-sdk/client-s3": "^3.490.0",
     "@nestjs/common": "^10.3.0",
     "@nestjs/config": "^3.1.1",
@@ -49,6 +50,7 @@
     "reflect-metadata": "^0.2.1",
     "rxjs": "^7.8.1",
     "sharp": "^0.33.2",
+    "tesseract.js": "^7.0.0",
     "uuid": "^9.0.0"
   },
   "prisma": {

@@ -2,8 +2,21 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { PrismaService } from '../../prisma/prisma.service';
 import { SearchService } from '../search/search.service';
 import { ProductStatus, StallAnalyticsEventType } from '@prisma/client';
+import { containsContactInfo } from '../../common/contact-info.util';
 
 const BUYER_TRIAL_DAYS = 7;
+
+function assertNoContactInfo(fields: Record<string, string | undefined>) {
+  for (const [field, value] of Object.entries(fields)) {
+    if (value && containsContactInfo(value)) {
+      throw new BadRequestException(
+        `Your product ${field} contains information that is not allowed — phone numbers, WhatsApp, ` +
+        `emails, social handles, links, or contact phrases are not permitted. ` +
+        `Descriptions must only describe the product: what it is, its features, materials, and care instructions.`,
+      );
+    }
+  }
+}
 
 @Injectable()
 export class ProductsService {
@@ -35,6 +48,8 @@ export class ProductsService {
     if (!data.variants || data.variants.length === 0) {
       throw new BadRequestException('At least one variant is required');
     }
+
+    assertNoContactInfo({ name: data.name, description: data.description, brand: data.brand });
 
     const prices = data.variants.map(v => v.sellingPrice);
     const minPrice = Math.min(...prices);
@@ -207,6 +222,8 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Product not found');
     if (product.stallId !== stallId) throw new ForbiddenException('Not your product');
 
+    assertNoContactInfo({ name: data.name, description: data.description, brand: data.brand });
+
     // Only pass safe updatable scalar fields to avoid Prisma rejecting relation keys
     const { name, description, brand, tags, categoryId, status } = data as any;
     const updateData: any = {};
@@ -338,7 +355,12 @@ export class ProductsService {
     for (const p of recent) if (!merged.has(p.id)) merged.set(p.id, p);
     const pool = [...merged.values()];
 
-    const scored = pool.map((p) => {
+    // Remove any products whose descriptions leak contact info (historical data).
+    const clean = pool.filter(
+      (p) => !containsContactInfo(p.name) && !containsContactInfo(p.description ?? ''),
+    );
+
+    const scored = clean.map((p) => {
       let s = Math.random() * 1.8;
       s += Math.log1p(p.viewCount) * 0.42;
       if (p.categoryId && catSet.has(p.categoryId)) s += 5;

@@ -28,7 +28,7 @@ export class UploadController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 15 * 1024 * 1024 } }))
   async uploadImage(@UploadedFile() file: Express.Multer.File): Promise<UploadResult> {
     if (!file) throw new BadRequestException('No file provided');
-    return this.uploadService.uploadImage(file, 'products');
+    return this.uploadService.uploadImage(file, 'products', 900, true);
   }
 
   @Post('avatar')
@@ -53,7 +53,7 @@ export class UploadController {
   @UseInterceptors(FilesInterceptor('files', 5, { limits: { fileSize: 15 * 1024 * 1024 } }))
   async uploadMultipleImages(@UploadedFiles() files: Express.Multer.File[]): Promise<UploadResult[]> {
     if (!files || files.length === 0) throw new BadRequestException('No files provided');
-    return Promise.all(files.map((f) => this.uploadService.uploadImage(f, 'products')));
+    return Promise.all(files.map((f) => this.uploadService.uploadImage(f, 'products', 900, true)));
   }
 
   @Delete(':key(*)')

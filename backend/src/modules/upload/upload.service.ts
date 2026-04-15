@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { v4 as uuid } from 'uuid';
 import sharp from 'sharp';
+import { ImageModerationService } from './image-moderation.service';
 
 export interface UploadResult {
   key: string;
@@ -20,7 +21,10 @@ export class UploadService {
   private endpoint: string;
   private region: string;
 
-  constructor(private config: ConfigService) {
+  constructor(
+    private config: ConfigService,
+    private imageModeration: ImageModerationService,
+  ) {
     this.bucket = this.config.get('DO_SPACES_BUCKET', 'mall263-uploads');
     this.cdnUrl = this.config.get('DO_SPACES_CDN_URL', '');
     this.endpoint = this.config.get('DO_SPACES_ENDPOINT', 'https://lon1.digitaloceanspaces.com');
@@ -41,8 +45,15 @@ export class UploadService {
     file: Express.Multer.File,
     folder: string = 'images',
     maxWidth: number = 900,
+    moderateContact: boolean = false,
   ): Promise<UploadResult> {
     this.validateImage(file);
+
+    // OCR check on the original buffer BEFORE expensive processing.
+    // Using the original gives Tesseract the highest quality input for text recognition.
+    if (moderateContact) {
+      await this.imageModeration.assertNoContactInfoInImage(file.buffer);
+    }
 
     const optimized = await sharp(file.buffer)
       .resize({ width: maxWidth, withoutEnlargement: true })
