@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
@@ -10,7 +10,7 @@ import { Logo } from '@/components/Logo';
 import { ArrowLeft, Gavel, ShoppingBag } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-export default function NewDemandPage() {
+function NewDemandForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -210,5 +210,13 @@ export default function NewDemandPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function NewDemandPage() {
+  return (
+    <Suspense>
+      <NewDemandForm />
+    </Suspense>
   );
 }

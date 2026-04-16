@@ -54,10 +54,32 @@ export class AdminController {
     return this.adminService.activateUser(id);
   }
 
+  @Get('stalls')
+  @ApiOperation({ summary: 'List all stalls (admin)' })
+  async listStalls(
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.adminService.listStalls({ search, page, limit });
+  }
+
   @Patch('stalls/:id/suspend')
   @ApiOperation({ summary: 'Suspend a stall' })
   async suspendStall(@Param('id') id: string) {
     return this.adminService.suspendStall(id);
+  }
+
+  @Patch('stalls/:id/activate')
+  @ApiOperation({ summary: 'Reactivate a suspended stall' })
+  async activateStall(@Param('id') id: string) {
+    return this.adminService.activateStall(id);
+  }
+
+  @Patch('stalls/:id/approve')
+  @ApiOperation({ summary: 'Approve a pending stall (set to ACTIVE)' })
+  async approveStall(@Param('id') id: string) {
+    return this.adminService.activateStall(id);
   }
 
   @Patch('products/:id/suspend')

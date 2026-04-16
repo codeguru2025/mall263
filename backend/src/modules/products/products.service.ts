@@ -189,12 +189,19 @@ export class ProductsService {
     return product;
   }
 
-  async findByStall(stallId: string, params: { status?: ProductStatus; page?: number; limit?: number }) {
-    const { status } = params;
+  async findByStall(stallId: string, params: { status?: ProductStatus; page?: number; limit?: number; search?: string }) {
+    const { status, search } = params;
     const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
     const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
     const where: any = { stallId };
     if (status) where.status = status;
+    if (search?.trim()) {
+      where.OR = [
+        { name: { contains: search.trim(), mode: 'insensitive' } },
+        { brand: { contains: search.trim(), mode: 'insensitive' } },
+        { variants: { some: { sku: { contains: search.trim(), mode: 'insensitive' } } } },
+      ];
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.product.findMany({

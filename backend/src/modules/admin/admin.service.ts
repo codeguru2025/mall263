@@ -69,8 +69,39 @@ export class AdminService {
     return this.prisma.user.update({ where: { id: userId }, data: { status: UserStatus.ACTIVE } });
   }
 
+  async listStalls(params: { search?: string; page?: number; limit?: number }) {
+    const { search, page = 1, limit = 20 } = params;
+    const where: any = {};
+    if (search?.trim()) {
+      where.OR = [
+        { name: { contains: search.trim(), mode: 'insensitive' } },
+        { stallNumber: { contains: search.trim(), mode: 'insensitive' } },
+        { merchant: { businessName: { contains: search.trim(), mode: 'insensitive' } } },
+      ];
+    }
+    const [data, total] = await Promise.all([
+      this.prisma.stall.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          merchant: { select: { businessName: true, status: true, user: { select: { phone: true } } } },
+          mall: { select: { name: true, city: true } },
+          _count: { select: { products: true } },
+        },
+      }),
+      this.prisma.stall.count({ where }),
+    ]);
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
   async suspendStall(stallId: string) {
     return this.prisma.stall.update({ where: { id: stallId }, data: { status: StallStatus.SUSPENDED } });
+  }
+
+  async activateStall(stallId: string) {
+    return this.prisma.stall.update({ where: { id: stallId }, data: { status: StallStatus.ACTIVE } });
   }
 
   async suspendProduct(productId: string) {

@@ -74,11 +74,12 @@ function RegisterForm() {
     }
   };
 
+  const normalizedPhone = form.phone.trim().replace(/[\s\-().]/g, '');
   const step1Valid =
     form.firstName.trim().length > 0 &&
     form.lastName.trim().length > 0 &&
     form.phone.trim().length > 0 &&
-    /^(\+263|0)[0-9]{9}$/.test(form.phone.trim()) &&
+    /^(\+263|0)[0-9]{9}$/.test(normalizedPhone) &&
     form.password.length >= 8 &&
     form.password === form.confirmPassword;
 
@@ -102,7 +103,7 @@ function RegisterForm() {
     setLoading(true);
     try {
       await register({
-        phone: form.phone,
+        phone: normalizedPhone,
         password: form.password,
         firstName: form.firstName,
         lastName: form.lastName,

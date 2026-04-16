@@ -75,8 +75,9 @@ export class ProductsController {
     @Query('status') status?: ProductStatus,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('search') search?: string,
   ) {
-    return this.productsService.findByStall(stallId, { status, page, limit });
+    return this.productsService.findByStall(stallId, { status, page, limit, search });
   }
 
   @Get(':id')
