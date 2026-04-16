@@ -69,7 +69,10 @@ export default function ChatRoomPage() {
       setMessage('');
       inputRef.current?.focus();
     },
-    onError: () => toast.error('Failed to send message. Please try again.'),
+    onError: (err: any) => {
+      const serverMsg = err?.response?.data?.message;
+      toast.error(serverMsg || 'Failed to send message. Please try again.');
+    },
   });
 
   const handleSend = (e: React.FormEvent) => {

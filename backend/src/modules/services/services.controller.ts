@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/co
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ServicesService } from './services.service';
 import { Public } from '../../common/decorators/public.decorator';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -28,10 +29,10 @@ export class ServicesController {
   }
 
   @Get(':id')
-  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Service detail' })
-  async getById(@Param('id') id: string) {
-    return this.servicesService.findById(id);
+  async getById(@Param('id') id: string, @CurrentUser('id') userId?: string) {
+    return this.servicesService.findById(id, userId);
   }
 
   @Post()

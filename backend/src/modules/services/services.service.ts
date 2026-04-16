@@ -1,6 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserRole } from '@prisma/client';
+import { containsContactInfo } from '../../common/contact-info.util';
+
+const BUYER_TRIAL_DAYS = 7;
 
 @Injectable()
 export class ServicesService {
@@ -44,7 +47,7 @@ export class ServicesService {
     return { data, total, page, limit, totalPages: Math.ceil(total / limit) || 1 };
   }
 
-  async findById(id: string) {
+  async findById(id: string, userId?: string) {
     const row = await this.prisma.serviceListing.findFirst({
       where: { id, isActive: true },
       include: {
@@ -60,6 +63,30 @@ export class ServicesService {
       where: { id },
       data: { viewCount: { increment: 1 } },
     });
+
+    // Gate provider phone and stall number behind the same wallet/trial check
+    // used on the product detail and store pages.
+    let showDetails = false;
+    if (userId) {
+      const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
+      if (user) {
+        const ageDays = (Date.now() - user.createdAt.getTime()) / 86_400_000;
+        if (ageDays < BUYER_TRIAL_DAYS) {
+          showDetails = true;
+        } else {
+          const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+          if (wallet && parseFloat(wallet.availableBalance.toString()) > 0) showDetails = true;
+        }
+      }
+    }
+
+    if (!showDetails) {
+      return {
+        ...row,
+        stall: row.stall ? { ...row.stall, stallNumber: '***' } : null,
+        provider: { id: row.provider.id, firstName: row.provider.firstName, lastName: row.provider.lastName, phone: null },
+      };
+    }
 
     return row;
   }
@@ -89,6 +116,15 @@ export class ServicesService {
     const isOwner = stall.merchant.userId === userId;
     const isAttendant = stall.attendants.length > 0;
     if (!isOwner && !isAttendant) throw new ForbiddenException('Not your stall');
+
+    for (const [field, value] of Object.entries({ title: data.title, description: data.description })) {
+      if (value && containsContactInfo(value)) {
+        throw new BadRequestException(
+          `Your service listing ${field} contains information that is not allowed — phone numbers, WhatsApp, ` +
+          `emails, social handles, links, or contact phrases are not permitted.`,
+        );
+      }
+    }
 
     return this.prisma.serviceListing.create({
       data: {

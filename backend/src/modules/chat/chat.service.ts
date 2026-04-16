@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OfferStatus } from '@prisma/client';
+import { containsContactInfo } from '../../common/contact-info.util';
 
 @Injectable()
 export class ChatService {
@@ -23,7 +25,7 @@ export class ChatService {
   private async verifyRoomAccess(roomId: string, userId: string) {
     const room = await this.prisma.chatRoom.findUnique({
       where: { id: roomId },
-      select: { offerId: true },
+      select: { offerId: true, offer: { select: { status: true } } },
     });
     if (!room) throw new NotFoundException('Chat room not found');
     await this.verifyAccess(room.offerId, userId);
@@ -54,7 +56,20 @@ export class ChatService {
   }
 
   async sendMessage(roomId: string, senderId: string, content: string) {
-    await this.verifyRoomAccess(roomId, senderId);
+    const room = await this.verifyRoomAccess(roomId, senderId);
+
+    // Once an offer is accepted the deal is done — allow contact details so
+    // buyer and seller can coordinate the physical handover freely.
+    // Before acceptance, block contact info to protect the platform's role
+    // as the matchmaker and prevent sellers from bypassing subscriptions.
+    const offerAccepted = room.offer?.status === OfferStatus.ACCEPTED;
+    if (!offerAccepted && containsContactInfo(content)) {
+      throw new BadRequestException(
+        'Messages cannot contain contact information — phone numbers, WhatsApp, emails, social handles, or links are not allowed until the offer is accepted. ' +
+        'Agree on price here first, then you can coordinate the handover.',
+      );
+    }
+
     return this.prisma.chatMessage.create({
       data: { roomId, senderId, content },
       include: {

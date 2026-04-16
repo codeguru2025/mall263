@@ -109,7 +109,7 @@ function ForYouProductCard({ product, priority }: { product: any; priority?: boo
 
           {/* Store avatar */}
           <Link
-            href={`/marketplace?stallId=${product.stall?.id ?? ''}`}
+            href={`/stores/${product.stall?.id ?? ''}`}
             className="flex flex-col items-center gap-1.5"
             aria-label="Visit store"
           >

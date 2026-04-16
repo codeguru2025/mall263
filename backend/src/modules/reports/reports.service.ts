@@ -372,7 +372,7 @@ export class ReportsService {
     const out: ReportInsight[] = [];
     const {
       totalRevenue,
-      netProfit,
+      netProfit: _netProfit,
       totalExpenses,
       profitAfterExpenses,
       storePageViews,

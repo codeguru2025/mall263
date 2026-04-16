@@ -1,6 +1,28 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { StallAnalyticsEventType, StallStatus } from '@prisma/client';
+import { StallAnalyticsEventType, StallStatus, UserRole } from '@prisma/client';
+
+const ADMIN_ROLES: UserRole[] = [
+  UserRole.SUPER_ADMIN,
+  UserRole.ADMIN_OPS,
+  UserRole.FINANCE_ADMIN,
+  UserRole.SUPPORT_ADMIN,
+  UserRole.MALL_MANAGER,
+];
+import { containsContactInfo } from '../../common/contact-info.util';
+
+const BUYER_TRIAL_DAYS = 7;
+
+function assertNoContactInfoInStall(fields: Record<string, string | undefined>) {
+  for (const [field, value] of Object.entries(fields)) {
+    if (value && containsContactInfo(value)) {
+      throw new BadRequestException(
+        `Your stall ${field} contains information that is not allowed — phone numbers, WhatsApp, ` +
+        `emails, social handles, links, or contact phrases are not permitted.`,
+      );
+    }
+  }
+}
 
 @Injectable()
 export class StallsService {
@@ -21,6 +43,7 @@ export class StallsService {
     latitude?: number;
     longitude?: number;
   }) {
+    assertNoContactInfoInStall({ name: data.name, description: data.description });
     return this.prisma.stall.create({
       data: {
         merchantId: data.merchantId,
@@ -42,7 +65,7 @@ export class StallsService {
     });
   }
 
-  async findById(id: string) {
+  async findById(id: string, userId?: string) {
     const stall = await this.prisma.stall.findUnique({
       where: { id },
       include: {
@@ -59,6 +82,59 @@ export class StallsService {
       },
     });
     if (!stall) throw new NotFoundException('Stall not found');
+
+    // Apply the same wallet/trial gate as the product detail endpoint.
+    // Unauthenticated visitors and buyers who haven't funded their wallet
+    // (after the 7-day trial) see a masked profile — no stall number, no
+    // mall name, no merchant phone — so the store page cannot be used to
+    // bypass the gate on the product detail page.
+    //
+    // Always unmasked:
+    //   - Admin/ops roles (they need full visibility for moderation)
+    //   - The merchant who owns this stall
+    //   - Active attendants assigned to this stall
+    //   - Buyers in their 7-day trial, or with any wallet balance
+    let showDetails = false;
+    if (userId) {
+      const [user, isOwner, isAttendant] = await Promise.all([
+        this.prisma.user.findUnique({ where: { id: userId }, select: { role: true, createdAt: true } }),
+        this.prisma.merchant.findFirst({ where: { userId, stalls: { some: { id } } }, select: { id: true } }),
+        this.prisma.stallAttendant.findFirst({ where: { stallId: id, userId, isActive: true }, select: { id: true } }),
+      ]);
+
+      if (!user) {
+        // userId came from a valid JWT but the user record is gone — treat as anonymous
+      } else if (ADMIN_ROLES.includes(user.role as UserRole)) {
+        showDetails = true;
+      } else if (isOwner || isAttendant) {
+        showDetails = true;
+      } else {
+        const ageDays = (Date.now() - user.createdAt.getTime()) / 86_400_000;
+        if (ageDays < BUYER_TRIAL_DAYS) {
+          showDetails = true;
+        } else {
+          const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+          if (wallet && parseFloat(wallet.availableBalance.toString()) > 0) showDetails = true;
+        }
+      }
+    }
+
+    if (!showDetails) {
+      return {
+        ...stall,
+        stallNumber: '***',
+        description: stall.description ? '🔒 Fund wallet to see full details' : null,
+        phone: null,
+        mall: stall.mall ? { id: stall.mall.id, name: '🔒 Fund wallet to see seller', city: stall.mall.city } : null,
+        merchant: {
+          id: stall.merchant.id,
+          businessName: '***',
+          logoUrl: stall.merchant.logoUrl,
+          user: { firstName: '***', lastName: '***', phone: null },
+        },
+      };
+    }
+
     return stall;
   }
 
@@ -101,6 +177,7 @@ export class StallsService {
     if (!stall) throw new NotFoundException('Stall not found');
     if (stall.merchant.userId !== userId) throw new ForbiddenException('Not your stall');
 
+    assertNoContactInfoInStall({ name: data.name, description: data.description });
     return this.prisma.stall.update({ where: { id: stallId }, data });
   }
 

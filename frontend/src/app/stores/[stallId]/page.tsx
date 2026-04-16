@@ -97,16 +97,26 @@ export default function PublicStorePage() {
                     </p>
                   )}
                   <h1 className="text-2xl font-black text-navy-700 leading-tight">{stall.name}</h1>
-                  {stall.stallNumber && (
+                  {stall.stallNumber && stall.stallNumber !== '***' && (
                     <p className="text-sm text-gray-500 mt-1">Stall {stall.stallNumber}</p>
                   )}
                   {stall.mall && (
                     <p className="text-sm text-gray-500 flex items-center justify-center sm:justify-start gap-1 mt-2">
                       <MapPin className="w-4 h-4 text-brand-orange flex-shrink-0" />
                       <span>
-                        {stall.mall.name}, {stall.mall.city}
+                        {stall.mall.name !== '🔒 Fund wallet to see seller'
+                          ? `${stall.mall.name}, ${stall.mall.city}`
+                          : stall.mall.city}
                       </span>
                     </p>
+                  )}
+                  {stall.stallNumber === '***' && (
+                    <Link
+                      href="/wallet"
+                      className="inline-flex items-center gap-1.5 mt-3 text-xs font-bold text-brand-orange bg-orange-50 border border-orange-100 rounded-xl px-3 py-1.5"
+                    >
+                      🔒 Fund wallet to see full location
+                    </Link>
                   )}
                   <div className="flex items-center justify-center sm:justify-start gap-1.5 mt-3 text-xs text-gray-400">
                     <Eye className="w-3.5 h-3.5" />

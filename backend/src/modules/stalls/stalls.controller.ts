@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { StallsService } from './stalls.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -81,10 +82,10 @@ export class StallsController {
   }
 
   @Get(':id')
-  @Public()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get stall by ID' })
-  async getById(@Param('id') id: string) {
-    return this.stallsService.findById(id);
+  async getById(@Param('id') id: string, @CurrentUser('id') userId?: string) {
+    return this.stallsService.findById(id, userId);
   }
 
   @Patch(':id')
