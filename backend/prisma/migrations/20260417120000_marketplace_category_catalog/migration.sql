@@ -1,35 +1,40 @@
 -- Marketplace category catalog (Facebook Marketplace–style top-level categories).
--- Safe to re-run: upserts by slug.
+-- Inserts only rows that do not already conflict on name or slug (existing seed/admin categories stay).
 
 INSERT INTO categories (id, name, slug, parent_id, image_url, sort_order, is_active, created_at)
-VALUES
-  (gen_random_uuid(), 'Antiques & collectibles', 'antiques-collectibles', NULL, NULL, 10, true, NOW()),
-  (gen_random_uuid(), 'Arts & crafts', 'arts-crafts', NULL, NULL, 20, true, NOW()),
-  (gen_random_uuid(), 'Baby', 'baby', NULL, NULL, 30, true, NOW()),
-  (gen_random_uuid(), 'Books, films & music', 'books-films-music', NULL, NULL, 40, true, NOW()),
-  (gen_random_uuid(), 'Car parts', 'car-parts', NULL, NULL, 50, true, NOW()),
-  (gen_random_uuid(), 'Childrenswear & baby', 'childrenswear-baby', NULL, NULL, 60, true, NOW()),
-  (gen_random_uuid(), 'DIY', 'diy', NULL, NULL, 70, true, NOW()),
-  (gen_random_uuid(), 'Electronics', 'electronics', NULL, NULL, 80, true, NOW()),
-  (gen_random_uuid(), 'Free & community', 'free-community', NULL, NULL, 90, true, NOW()),
-  (gen_random_uuid(), 'Furniture', 'furniture', NULL, NULL, 100, true, NOW()),
-  (gen_random_uuid(), 'Garage sale', 'garage-sale', NULL, NULL, 110, true, NOW()),
-  (gen_random_uuid(), 'Health & beauty', 'health-beauty', NULL, NULL, 120, true, NOW()),
-  (gen_random_uuid(), 'Home & kitchen', 'home-kitchen', NULL, NULL, 130, true, NOW()),
-  (gen_random_uuid(), 'Jewellery & watches', 'jewellery-watches', NULL, NULL, 140, true, NOW()),
-  (gen_random_uuid(), 'Luggage & bags', 'luggage-bags', NULL, NULL, 150, true, NOW()),
-  (gen_random_uuid(), 'Menswear', 'menswear', NULL, NULL, 160, true, NOW()),
-  (gen_random_uuid(), 'Miscellaneous', 'miscellaneous', NULL, NULL, 170, true, NOW()),
-  (gen_random_uuid(), 'Musical instruments', 'musical-instruments', NULL, NULL, 180, true, NOW()),
-  (gen_random_uuid(), 'Patio & garden', 'patio-garden', NULL, NULL, 190, true, NOW()),
-  (gen_random_uuid(), 'Pet supplies', 'pet-supplies', NULL, NULL, 200, true, NOW()),
-  (gen_random_uuid(), 'Properties for rent', 'properties-rent', NULL, NULL, 210, true, NOW()),
-  (gen_random_uuid(), 'Properties for sale', 'properties-sale', NULL, NULL, 220, true, NOW()),
-  (gen_random_uuid(), 'Sporting goods', 'sporting-goods', NULL, NULL, 230, true, NOW()),
-  (gen_random_uuid(), 'Toys & games', 'toys-games', NULL, NULL, 240, true, NOW()),
-  (gen_random_uuid(), 'Vehicles', 'vehicles', NULL, NULL, 250, true, NOW()),
-  (gen_random_uuid(), 'Womenswear', 'womenswear', NULL, NULL, 260, true, NOW())
-ON CONFLICT (slug) DO UPDATE SET
-  name = EXCLUDED.name,
-  sort_order = EXCLUDED.sort_order,
-  is_active = true;
+SELECT gen_random_uuid(), v.name, v.slug, NULL, NULL, v.sort_order, true, NOW()
+FROM (
+  VALUES
+    ('Antiques & collectibles', 'antiques-collectibles', 10),
+    ('Arts & crafts', 'arts-crafts', 20),
+    ('Baby', 'baby', 30),
+    ('Books, films & music', 'books-films-music', 40),
+    ('Car parts', 'car-parts', 50),
+    ('Childrenswear & baby', 'childrenswear-baby', 60),
+    ('DIY', 'diy', 70),
+    ('Electronics', 'electronics', 80),
+    ('Free & community', 'free-community', 90),
+    ('Furniture', 'furniture', 100),
+    ('Garage sale', 'garage-sale', 110),
+    ('Health & beauty', 'health-beauty', 120),
+    ('Home & kitchen', 'home-kitchen', 130),
+    ('Jewellery & watches', 'jewellery-watches', 140),
+    ('Luggage & bags', 'luggage-bags', 150),
+    ('Menswear', 'menswear', 160),
+    ('Miscellaneous', 'miscellaneous', 170),
+    ('Musical instruments', 'musical-instruments', 180),
+    ('Patio & garden', 'patio-garden', 190),
+    ('Pet supplies', 'pet-supplies', 200),
+    ('Properties for rent', 'properties-rent', 210),
+    ('Properties for sale', 'properties-sale', 220),
+    ('Sporting goods', 'sporting-goods', 230),
+    ('Toys & games', 'toys-games', 240),
+    ('Vehicles', 'vehicles', 250),
+    ('Womenswear', 'womenswear', 260)
+) AS v(name, slug, sort_order)
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM categories c
+  WHERE lower(trim(c.slug)) = lower(trim(v.slug))
+     OR lower(trim(c.name)) = lower(trim(v.name))
+);
