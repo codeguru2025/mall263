@@ -235,7 +235,7 @@ export class StallsService {
       address: string;
       latitude: number;
       longitude: number;
-      imageUrl: string;
+      imageUrl?: string | null;
       isActive: boolean;
     }>,
   ) {

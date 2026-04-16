@@ -162,7 +162,14 @@ export class UploadService {
   }
 
   private validateImage(file: Express.Multer.File): void {
-    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    const allowedMimes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/pjpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+    ];
     if (!allowedMimes.includes(file.mimetype)) {
       throw new BadRequestException('Only JPEG, PNG, WebP, and GIF images are allowed');
     }

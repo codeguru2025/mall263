@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { UserRole, ServiceRequestStatus, ServiceQuoteStatus, ServiceInvoiceStatus } from '@prisma/client';
+import { Prisma, UserRole, ServiceRequestStatus, ServiceQuoteStatus, ServiceInvoiceStatus } from '@prisma/client';
 import { containsContactInfo } from '../../common/contact-info.util';
 import { resolveStoreLogo } from '../../common/utils/store-branding';
 
@@ -256,40 +256,45 @@ export class ServicesService {
     requestId: string,
     data: { amount: number; description?: string; estimatedDays?: number },
   ) {
-    const req = await this.prisma.serviceRequest.findUnique({
-      where: { id: requestId },
-      include: { listing: { select: { providerId: true, title: true } } },
-    });
-    if (!req) throw new NotFoundException('Request not found');
-    if (req.listing.providerId !== providerId) throw new ForbiddenException('Not your listing');
-    if (req.status === ServiceRequestStatus.CANCELLED) throw new BadRequestException('Request is cancelled');
-    if (req.status === ServiceRequestStatus.COMPLETED)  throw new BadRequestException('Request is already completed');
+    return this.prisma.$retryTransaction(
+      async (tx) => {
+        const req = await tx.serviceRequest.findUnique({
+          where: { id: requestId },
+          include: { listing: { select: { providerId: true, title: true } } },
+        });
+        if (!req) throw new NotFoundException('Request not found');
+        if (req.listing.providerId !== providerId) throw new ForbiddenException('Not your listing');
+        if (req.status === ServiceRequestStatus.CANCELLED) throw new BadRequestException('Request is cancelled');
+        if (req.status === ServiceRequestStatus.COMPLETED) {
+          throw new BadRequestException('Request is already completed');
+        }
 
-    // One active quote per provider per request
-    const existing = await this.prisma.serviceQuote.findFirst({
-      where: { requestId, providerId, status: ServiceQuoteStatus.PENDING },
-    });
-    if (existing) throw new BadRequestException('You already have a pending quote on this request');
+        const existing = await tx.serviceQuote.findFirst({
+          where: { requestId, providerId, status: ServiceQuoteStatus.PENDING },
+        });
+        if (existing) throw new BadRequestException('You already have a pending quote on this request');
 
-    const [quote] = await this.prisma.$transaction([
-      this.prisma.serviceQuote.create({
-        data: {
-          requestId,
-          providerId,
-          amount:        data.amount,
-          description:   data.description?.trim(),
-          estimatedDays: data.estimatedDays,
-          status:        ServiceQuoteStatus.PENDING,
-        },
-        include: { request: { select: { id: true, clientId: true } } },
-      }),
-      this.prisma.serviceRequest.update({
-        where: { id: requestId },
-        data: { status: ServiceRequestStatus.QUOTED },
-      }),
-    ]);
+        const quote = await tx.serviceQuote.create({
+          data: {
+            requestId,
+            providerId,
+            amount: data.amount,
+            description: data.description?.trim(),
+            estimatedDays: data.estimatedDays,
+            status: ServiceQuoteStatus.PENDING,
+          },
+          include: { request: { select: { id: true, clientId: true } } },
+        });
 
-    return quote;
+        await tx.serviceRequest.update({
+          where: { id: requestId },
+          data: { status: ServiceRequestStatus.QUOTED },
+        });
+
+        return quote;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   async acceptQuote(clientId: string, quoteId: string) {

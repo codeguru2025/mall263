@@ -8,6 +8,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { UserRole, DemandStatus, DemandUrgency } from '@prisma/client';
+import {
+  CompleteDemandSaleDto,
+  CreateDemandDto,
+  RequestDeliveryDto,
+  SubmitOfferDto,
+} from './dto/demand.dto';
 
 @ApiTags('Demands & Offers')
 @Controller('demands')
@@ -21,7 +27,7 @@ export class DemandsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Post a demand request (buyer)' })
-  async createDemand(@CurrentUser('id') buyerId: string, @Body() data: any) {
+  async createDemand(@CurrentUser('id') buyerId: string, @Body() data: CreateDemandDto) {
     return this.demandsService.createDemand(buyerId, data);
   }
 
@@ -120,15 +126,20 @@ export class DemandsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
   @ApiOperation({ summary: 'Submit an offer for a demand (seller)' })
-  async submitOffer(@Param('demandId') demandId: string, @Body() data: any) {
-    return this.demandsService.submitOffer(data.stallId, demandId, data);
+  async submitOffer(@Param('demandId') demandId: string, @Body() dto: SubmitOfferDto) {
+    const { stallId, ...payload } = dto;
+    return this.demandsService.submitOffer(stallId, demandId, payload);
   }
 
   @Post('offers/:offerId/delivery')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Request delivery for an accepted offer (buyer)' })
-  async requestDelivery(@CurrentUser('id') buyerId: string, @Param('offerId') offerId: string, @Body() data: any) {
+  async requestDelivery(
+    @CurrentUser('id') buyerId: string,
+    @Param('offerId') offerId: string,
+    @Body() data: RequestDeliveryDto,
+  ) {
     return this.demandsService.requestDelivery(offerId, buyerId, data);
   }
 
@@ -140,8 +151,8 @@ export class DemandsController {
   async completeDemandSale(
     @Param('id') id: string,
     @CurrentUser('id') cashierId: string,
-    @Body() data: { stallId: string; paymentMethod: string },
+    @Body() data: CompleteDemandSaleDto,
   ) {
-    return this.demandsService.completeDemandSale(id, data.stallId, cashierId, data.paymentMethod as any);
+    return this.demandsService.completeDemandSale(id, data.stallId, cashierId, data.paymentMethod);
   }
 }

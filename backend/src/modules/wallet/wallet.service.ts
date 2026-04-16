@@ -235,10 +235,15 @@ export class WalletService {
     const wallet = await this.prisma.wallet.findUnique({ where: { userId: sellerUserId } });
     if (!wallet) throw new NotFoundException('Seller wallet not found');
 
-    const required = saleAmount * this.COMMISSION_RATE;
-    const available = parseFloat(wallet.availableBalance.toString());
+    const saleDec = new Prisma.Decimal(saleAmount);
+    const requiredDec = saleDec.mul(this.COMMISSION_RATE.toString());
+    const availableDec = wallet.availableBalance;
 
-    return { sufficient: available >= required, required, available };
+    return {
+      sufficient: availableDec.gte(requiredDec),
+      required: parseFloat(requiredDec.toFixed(2)),
+      available: parseFloat(availableDec.toFixed(2)),
+    };
   }
 
   /**

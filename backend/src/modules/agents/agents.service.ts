@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MerchantsService } from '../merchants/merchants.service';
-import { AgentTaskType, AgentTaskStatus, UserRole, UserStatus } from '@prisma/client';
+import { AgentTaskType, AgentTaskStatus, Prisma, UserRole, UserStatus } from '@prisma/client';
 
 @Injectable()
 export class AgentsService {
@@ -12,7 +12,7 @@ export class AgentsService {
 
   async createTask(agentId: string, data: {
     type: AgentTaskType;
-    data: any;
+    data: Record<string, unknown>;
     offlineId?: string;
   }) {
     if (data.offlineId) {
@@ -25,7 +25,7 @@ export class AgentsService {
         agentId,
         type: data.type,
         status: AgentTaskStatus.PENDING,
-        data: data.data,
+        data: data.data as Prisma.InputJsonValue,
         offlineId: data.offlineId,
       },
     });
@@ -33,7 +33,7 @@ export class AgentsService {
 
   async syncOfflineTasks(agentId: string, tasks: Array<{
     type: AgentTaskType;
-    data: any;
+    data: Record<string, unknown>;
     offlineId: string;
   }>) {
     const results = [];
@@ -82,7 +82,15 @@ export class AgentsService {
       throw new BadRequestException('Task is not a merchant onboarding task');
     }
 
-    const taskData = task.data as any;
+    const taskData = task.data as {
+      userId?: string;
+      businessName?: string;
+      businessPhone?: string;
+    };
+
+    if (!taskData.userId || typeof taskData.userId !== 'string' || !taskData.businessName?.trim()) {
+      throw new BadRequestException('Task payload must include userId and businessName');
+    }
 
     await this.prisma.agentTask.update({
       where: { id: taskId },

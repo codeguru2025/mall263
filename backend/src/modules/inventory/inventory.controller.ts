@@ -6,6 +6,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
+import { AdjustStockDto, BulkAdjustStockDto, SetThresholdDto } from './dto/inventory.dto';
 
 @ApiTags('Inventory')
 @ApiBearerAuth()
@@ -38,27 +39,21 @@ export class InventoryController {
   @Post('adjust')
   @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
   @ApiOperation({ summary: 'Adjust stock quantity' })
-  async adjust(
-    @CurrentUser('id') userId: string,
-    @Body() data: { variantId: string; changeQty: number; reason: string },
-  ) {
+  async adjust(@CurrentUser('id') userId: string, @Body() data: AdjustStockDto) {
     return this.inventoryService.adjustStock(data.variantId, data.changeQty, data.reason, userId);
   }
 
   @Post('bulk-adjust')
   @Roles(UserRole.STALL_OWNER)
   @ApiOperation({ summary: 'Bulk adjust stock' })
-  async bulkAdjust(
-    @CurrentUser('id') userId: string,
-    @Body() data: { adjustments: Array<{ variantId: string; quantity: number }> },
-  ) {
+  async bulkAdjust(@CurrentUser('id') userId: string, @Body() data: BulkAdjustStockDto) {
     return this.inventoryService.bulkAdjust(data.adjustments, userId);
   }
 
   @Patch('variant/:variantId/threshold')
   @Roles(UserRole.STALL_OWNER)
   @ApiOperation({ summary: 'Set low stock threshold' })
-  async setThreshold(@Param('variantId') variantId: string, @Body() data: { threshold: number }) {
+  async setThreshold(@Param('variantId') variantId: string, @Body() data: SetThresholdDto) {
     return this.inventoryService.setLowStockThreshold(variantId, data.threshold);
   }
 

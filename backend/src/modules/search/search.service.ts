@@ -313,7 +313,7 @@ export class SearchService implements OnModuleInit {
       city: p.stall.mall?.city || '',
       imageUrl: p.images[0]?.url || '',
       inStock: p.variants.length > 0,
-      trustScore: parseFloat((p.stall.merchant as any)?.user?.trustScore?.overallScore?.toString() || '50'),
+      trustScore: parseFloat(p.stall.merchant?.user?.trustScore?.overallScore?.toString() ?? '50'),
       viewCount: p.viewCount,
       createdAt: p.createdAt.getTime(),
       storeLogoUrl: resolveStoreLogo(p.stall, p.stall.merchant) || '',

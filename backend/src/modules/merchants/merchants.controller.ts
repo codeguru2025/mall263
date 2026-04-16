@@ -6,6 +6,8 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, MerchantStatus } from '@prisma/client';
+import { MerchantSelfSetupDto } from './dto/merchant-setup.dto';
+import { MerchantsOnboardDto } from './dto/merchants-onboard.dto';
 
 @ApiTags('Merchants')
 @ApiBearerAuth()
@@ -17,28 +19,14 @@ export class MerchantsController {
   @Post('onboard')
   @Roles(UserRole.FIELD_AGENT, UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
   @ApiOperation({ summary: 'Onboard a new merchant (agent/admin)' })
-  async onboard(
-    @Body() data: { userId: string; businessName: string; businessPhone?: string },
-    @CurrentUser('id') agentId: string,
-  ) {
+  async onboard(@Body() data: MerchantsOnboardDto, @CurrentUser('id') agentId: string) {
     return this.merchantsService.onboardMerchant({ ...data, agentId });
   }
 
   @Post('me/setup')
   @Roles(UserRole.STALL_OWNER)
   @ApiOperation({ summary: 'Self-serve merchant + stall setup for new sellers' })
-  async setup(
-    @CurrentUser('id') userId: string,
-    @Body() data: {
-      businessName: string;
-      businessPhone?: string;
-      stallName: string;
-      stallNumber: string;
-      mallId?: string;
-      description?: string;
-      phone?: string;
-    },
-  ) {
+  async setup(@CurrentUser('id') userId: string, @Body() data: MerchantSelfSetupDto) {
     return this.merchantsService.selfSetup(userId, data);
   }
 

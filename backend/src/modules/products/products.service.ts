@@ -225,7 +225,7 @@ export class ProductsService {
     assertNoContactInfo({ name: data.name, description: data.description, brand: data.brand });
 
     // Only pass safe updatable scalar fields to avoid Prisma rejecting relation keys
-    const { name, description, brand, tags, categoryId, status } = data as any;
+    const { name, description, brand, tags, categoryId, status } = data;
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;

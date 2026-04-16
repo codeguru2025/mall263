@@ -11,11 +11,13 @@ const clientDtsPath = path.join(
   'index.d.ts',
 );
 
-const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const args = ['prisma', 'generate'];
-const result = spawnSync(command, args, {
+const backendRoot = path.join(__dirname, '..');
+const prismaCli = path.join(backendRoot, 'node_modules', 'prisma', 'build', 'index.js');
+const result = spawnSync(process.execPath, [prismaCli, 'generate'], {
   encoding: 'utf8',
-  shell: process.platform === 'win32',
+  shell: false,
+  cwd: backendRoot,
+  stdio: 'pipe',
 });
 
 if (result.stdout) process.stdout.write(result.stdout);

@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
-import { SubscriptionStatus } from '@prisma/client';
+import { NotificationType, SubscriptionStatus } from '@prisma/client';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { Paynow } = require('paynow');
 
@@ -387,7 +387,7 @@ export class SubscriptionsService {
     await this.prisma.notification.create({
       data: {
         userId: sub.userId,
-        type: 'SALE_COMPLETED' as any,
+        type: NotificationType.SYSTEM,
         title: 'Subscription Active',
         body: `Your Mall263 subscription is active until ${nextBilling.toLocaleDateString()}.`,
         data: { type: 'subscription', reference },
@@ -422,7 +422,7 @@ export class SubscriptionsService {
     await this.prisma.notification.create({
       data: {
         userId: sub.userId,
-        type: 'LOW_STOCK' as any, // using LOW_STOCK type for alerts
+        type: NotificationType.SYSTEM,
         title: 'Payment Failed',
         body: 'Your subscription payment failed. We will retry automatically. Please ensure your EcoCash account has sufficient funds.',
         data: { type: 'subscription_failed', reference },

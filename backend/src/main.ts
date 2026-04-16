@@ -5,6 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import compression from 'compression';
 import { AppModule } from './app.module';
+import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 
 async function bootstrap() {
   // urlencoded must be enabled before NestFactory bootstraps so Paynow webhook
@@ -34,6 +35,8 @@ async function bootstrap() {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
+
+  app.useGlobalFilters(new PrismaExceptionFilter());
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Mall263 API')

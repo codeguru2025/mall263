@@ -185,6 +185,13 @@ enum StallAnalyticsEventType {
   PRODUCT_DETAIL_VIEW
 }
 
+enum SupportRequestStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
 // ============================================================
 // USER & AUTH
 // ============================================================
@@ -221,11 +228,37 @@ model User {
   serviceQuotes        ServiceQuote[]       @relation("ProviderServiceQuotes")
   serviceChatMessages  ServiceChatMessage[] @relation("ServiceChatSenders")
   recordedStallExpenses StallExpense[]      @relation("ExpenseRecordedBy")
+  supportRequestsSubmitted SupportRequest[] @relation("SupportRequestSubmitter")
+  supportRequestsAssigned  SupportRequest[] @relation("SupportRequestAssignee")
 
   @@index([phone])
   @@index([role])
   @@index([status])
   @@map("users")
+}
+
+model SupportRequest {
+  id             String                 @id @default(uuid()) @db.Uuid
+  userId         String?                @map("user_id") @db.Uuid
+  contactName    String?                @map("contact_name")
+  contactPhone   String?                @map("contact_phone")
+  contactEmail   String?                @map("contact_email")
+  topic          String
+  message        String                 @db.Text
+  status         SupportRequestStatus   @default(OPEN)
+  adminNotes     String?                @map("admin_notes") @db.Text
+  assignedToId   String?                @map("assigned_to_id") @db.Uuid
+  resolvedAt     DateTime?              @map("resolved_at")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+
+  user       User? @relation("SupportRequestSubmitter", fields: [userId], references: [id], onDelete: SetNull)
+  assignedTo User? @relation("SupportRequestAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("support_requests")
 }
 
 model RefreshToken {

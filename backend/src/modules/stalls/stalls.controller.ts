@@ -8,6 +8,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { UserRole } from '@prisma/client';
+import { CreateStallDto, UpdateMallDto, UpdateStallDto } from './dto/stall.dto';
 
 @ApiTags('Stalls')
 @Controller('stalls')
@@ -19,7 +20,7 @@ export class StallsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.FIELD_AGENT, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Create a stall' })
-  async create(@Body() data: any) {
+  async create(@Body() data: CreateStallDto) {
     return this.stallsService.create(data);
   }
 
@@ -62,7 +63,7 @@ export class StallsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
   @ApiOperation({ summary: 'Admin: update a mall' })
-  async updateMall(@Param('id') id: string, @Body() data: any) {
+  async updateMall(@Param('id') id: string, @Body() data: UpdateMallDto) {
     return this.stallsService.updateMall(id, data);
   }
 
@@ -93,7 +94,7 @@ export class StallsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER)
   @ApiOperation({ summary: 'Update stall' })
-  async update(@Param('id') id: string, @CurrentUser('id') userId: string, @Body() data: any) {
+  async update(@Param('id') id: string, @CurrentUser('id') userId: string, @Body() data: UpdateStallDto) {
     return this.stallsService.update(id, userId, data);
   }
 

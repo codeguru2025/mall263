@@ -39,6 +39,7 @@ function RegisterForm() {
     stallName: '',
     stallNumber: '',
     mallId: '',
+    address: '',
     description: '',
   });
 
@@ -110,14 +111,28 @@ function RegisterForm() {
       } as any);
 
       if (role === 'STALL_OWNER') {
-        await api.post('/api/v1/merchants/me/setup', {
-          businessName: form.businessName,
-          businessPhone: form.businessPhone || undefined,
-          stallName: form.stallName,
-          stallNumber: form.stallNumber,
-          mallId: form.mallId || undefined,
-          description: form.description || undefined,
-        });
+        try {
+          await api.post('/api/v1/merchants/me/setup', {
+            businessName: form.businessName,
+            businessPhone: form.businessPhone || undefined,
+            stallName: form.stallName,
+            stallNumber: form.stallNumber,
+            mallId: form.mallId || undefined,
+            address: form.mallId ? undefined : form.address.trim() || undefined,
+            description: form.description || undefined,
+          });
+        } catch (setupErr: any) {
+          const msg = setupErr?.response?.data?.message;
+          toast.error(
+            typeof msg === 'string'
+              ? msg
+              : Array.isArray(msg)
+                ? msg.join(', ')
+                : 'Your account was created, but stall setup failed. Continue on the next screen.',
+          );
+          router.push('/seller/setup');
+          return;
+        }
       }
 
       toast.success('Welcome to Mall263!');
@@ -368,16 +383,32 @@ function RegisterForm() {
                   <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-2xl border-2 border-brand-blue/30">
                     <MapPin className="w-6 h-6 text-brand-blue flex-shrink-0" />
                     <div>
-                      <div className="font-bold text-sm text-navy-700">Your Stall</div>
-                      <div className="text-xs text-gray-500">Where are you located in the market?</div>
+                      <div className="font-bold text-sm text-navy-700">Your {form.mallId ? 'Stall' : 'Shop'}</div>
+                      <div className="text-xs text-gray-500">
+                        {form.mallId ? 'Where are you in the market?' : 'Tell us about your shop location'}
+                      </div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="label">Stall Name <span className="text-brand-red">*</span></label>
+                    <label className="label">Market / Mall</label>
+                    <select
+                      className="input"
+                      value={form.mallId}
+                      onChange={(e) => update('mallId', e.target.value)}
+                    >
+                      <option value="">I have my own shop (not in a mall)</option>
+                      {(malls as any[]).map((m: any) => (
+                        <option key={m.id} value={m.id}>{m.name} — {m.city}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="label">{form.mallId ? 'Stall' : 'Shop'} Name <span className="text-brand-red">*</span></label>
                     <input
                       className="input"
-                      placeholder="e.g. Moyo Fashion"
+                      placeholder={form.mallId ? 'e.g. Moyo Fashion' : 'e.g. Moyo Fashion & Accessories'}
                       value={form.stallName}
                       onChange={(e) => update('stallName', e.target.value)}
                       required
@@ -385,30 +416,30 @@ function RegisterForm() {
                   </div>
 
                   <div>
-                    <label className="label">Stall Number <span className="text-brand-red">*</span></label>
+                    <label className="label">{form.mallId ? 'Stall Number' : 'Shop / Unit Number'} <span className="text-brand-red">*</span></label>
                     <input
                       className="input"
-                      placeholder="e.g. A12 or 204"
+                      placeholder={form.mallId ? 'e.g. A12 or 204' : 'e.g. Shop 5 or Unit 12B'}
                       value={form.stallNumber}
                       onChange={(e) => update('stallNumber', e.target.value)}
                       required
                     />
-                    <p className="text-xs text-gray-400 mt-1">The number or code on your stall door</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {form.mallId ? 'The number or code on your stall door' : 'Your shop or unit number'}
+                    </p>
                   </div>
 
-                  <div>
-                    <label className="label">Market / Mall <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
-                    <select
-                      className="input"
-                      value={form.mallId}
-                      onChange={(e) => update('mallId', e.target.value)}
-                    >
-                      <option value="">Select a market</option>
-                      {(malls as any[]).map((m: any) => (
-                        <option key={m.id} value={m.id}>{m.name} — {m.city}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {!form.mallId && (
+                    <div>
+                      <label className="label">Street Address <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+                      <input
+                        className="input"
+                        placeholder="e.g. 15 First Ave, Bulawayo CBD"
+                        value={form.address}
+                        onChange={(e) => update('address', e.target.value)}
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="label">What do you sell? <span className="text-gray-400 font-normal text-xs">(optional)</span></label>

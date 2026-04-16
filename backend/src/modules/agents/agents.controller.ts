@@ -6,6 +6,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole, AgentTaskStatus } from '@prisma/client';
+import { CreateAgentTaskDto, SyncOfflineTasksDto } from './dto/agent-task.dto';
 
 @ApiTags('Field Agents')
 @ApiBearerAuth()
@@ -17,13 +18,13 @@ export class AgentsController {
 
   @Post('tasks')
   @ApiOperation({ summary: 'Create an agent task' })
-  async createTask(@CurrentUser('id') agentId: string, @Body() data: any) {
+  async createTask(@CurrentUser('id') agentId: string, @Body() data: CreateAgentTaskDto) {
     return this.agentsService.createTask(agentId, data);
   }
 
   @Post('sync')
   @ApiOperation({ summary: 'Sync offline tasks (batch)' })
-  async syncTasks(@CurrentUser('id') agentId: string, @Body() data: { tasks: any[] }) {
+  async syncTasks(@CurrentUser('id') agentId: string, @Body() data: SyncOfflineTasksDto) {
     return this.agentsService.syncOfflineTasks(agentId, data.tasks);
   }
 

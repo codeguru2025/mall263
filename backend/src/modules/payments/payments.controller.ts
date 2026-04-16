@@ -1,4 +1,5 @@
 import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -51,6 +52,7 @@ export class PaymentsController {
    */
   @Post('webhook')
   @Public()
+  @SkipThrottle()
   @ApiOperation({ summary: 'Paynow payment result webhook (called by Paynow, not the frontend)' })
   async webhook(@Body() body: Record<string, string>) {
     return this.paymentsService.handleWebhook(body);

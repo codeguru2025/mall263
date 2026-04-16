@@ -1,6 +1,18 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { MerchantStatus, UserRole } from '@prisma/client';
+import { MerchantStatus, Prisma, UserRole, StallStatus } from '@prisma/client';
+import { containsContactInfo } from '../../common/contact-info.util';
+
+function assertNoContactInfoInStallFields(fields: Record<string, string | undefined>) {
+  for (const [field, value] of Object.entries(fields)) {
+    if (value && containsContactInfo(value)) {
+      throw new BadRequestException(
+        `Your stall ${field} contains information that is not allowed — phone numbers, WhatsApp, ` +
+          `emails, social handles, links, or contact phrases are not permitted.`,
+      );
+    }
+  }
+}
 
 @Injectable()
 export class MerchantsService {
@@ -12,7 +24,7 @@ export class MerchantsService {
     businessPhone?: string;
     agentId?: string;
   }) {
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$retryTransaction(async (tx) => {
       const user = await tx.user.findUnique({ where: { id: data.userId } });
       if (!user) throw new NotFoundException('User not found');
 
@@ -32,7 +44,7 @@ export class MerchantsService {
         },
         include: { user: { select: { id: true, phone: true, firstName: true, lastName: true } } },
       });
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
   async selfSetup(userId: string, data: {
@@ -42,9 +54,16 @@ export class MerchantsService {
     stallNumber: string;
     mallId?: string;
     description?: string;
+    address?: string;
     phone?: string;
   }) {
-    return this.prisma.$transaction(async (tx) => {
+    const mallId = data.mallId?.trim() ? data.mallId.trim() : null;
+    assertNoContactInfoInStallFields({
+      name: data.stallName,
+      description: data.description,
+    });
+
+    return this.prisma.$retryTransaction(async (tx) => {
       const existing = await tx.merchant.findUnique({ where: { userId } });
       if (existing) throw new BadRequestException('Merchant profile already exists');
       const merchant = await tx.merchant.create({
@@ -60,17 +79,19 @@ export class MerchantsService {
       const stall = await tx.stall.create({
         data: {
           merchantId: merchant.id,
-          mallId: data.mallId || null,
-          stallNumber: data.stallNumber,
-          name: data.stallName,
-          description: data.description,
-          phone: data.phone || data.businessPhone,
-          status: 'ACTIVE',
+          mallId,
+          stallNumber: data.stallNumber.trim(),
+          name: data.stallName.trim(),
+          description: data.description?.trim() || null,
+          address: data.address?.trim() || null,
+          phone: data.phone?.trim() || data.businessPhone?.trim() || null,
+          operatingDays: [],
+          status: StallStatus.ACTIVE,
         },
       });
 
       return { merchant, stall };
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
   async verifyMerchant(merchantId: string) {

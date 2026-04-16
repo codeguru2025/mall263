@@ -1,5 +1,9 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Monorepo: avoid picking a parent folder lockfile as the tracing root (Next 15+).
+  outputFileTracingRoot: path.join(__dirname, '..'),
   reactStrictMode: true,
   images: {
     remotePatterns: [

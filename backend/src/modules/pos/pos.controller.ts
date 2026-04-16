@@ -5,7 +5,8 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { UserRole, PaymentMethod, POSSaleStatus } from '@prisma/client';
+import { UserRole, POSSaleStatus } from '@prisma/client';
+import { ProcessSaleDto } from './dto/pos.dto';
 
 @ApiTags('POS')
 @ApiBearerAuth()
@@ -17,18 +18,7 @@ export class POSController {
   @Post('sales')
   @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
   @ApiOperation({ summary: 'Process a POS sale' })
-  async processSale(
-    @CurrentUser('id') cashierId: string,
-    @Body() data: {
-      stallId: string;
-      items: Array<{ variantId: string; quantity: number; discount?: number }>;
-      paymentMethod: PaymentMethod;
-      discountAmount?: number;
-      discountType?: string;
-      customerPhone?: string;
-      notes?: string;
-    },
-  ) {
+  async processSale(@CurrentUser('id') cashierId: string, @Body() data: ProcessSaleDto) {
     return this.posService.processSale({ ...data, cashierId });
   }
 

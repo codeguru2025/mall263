@@ -8,6 +8,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { UserRole, ProductStatus } from '@prisma/client';
+import { CreateProductDto, UpdateProductDto, UpdateVariantDto } from './dto/product.dto';
 
 @ApiTags('Products')
 @Controller('products')
@@ -19,7 +20,7 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.FIELD_AGENT, UserRole.ATTENDANT)
   @ApiOperation({ summary: 'Create a product with variants' })
-  async create(@Body() data: any) {
+  async create(@Body() data: CreateProductDto) {
     return this.productsService.create(data.stallId, data);
   }
 
@@ -90,7 +91,7 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
   @ApiOperation({ summary: 'Update product variant' })
-  async updateVariant(@Param('variantId') variantId: string, @Body() data: any) {
+  async updateVariant(@Param('variantId') variantId: string, @Body() data: UpdateVariantDto) {
     return this.productsService.updateVariant(variantId, data);
   }
 
@@ -99,7 +100,7 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
   @ApiOperation({ summary: 'Update product' })
-  async update(@Param('id') id: string, @Body() data: any) {
+  async update(@Param('id') id: string, @Body() data: UpdateProductDto) {
     return this.productsService.updateProduct(id, data.stallId, data);
   }
 }

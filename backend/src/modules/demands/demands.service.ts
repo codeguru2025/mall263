@@ -2,7 +2,19 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException,
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { resolveStoreLogo } from '../../common/utils/store-branding';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DemandStatus, DemandUrgency, OfferStatus, WalletTransactionType, WalletTransactionStatus, WalletLockReason, WalletLockStatus, Prisma, PaymentMethod, POSSaleStatus } from '@prisma/client';
+import {
+  DemandStatus,
+  DemandUrgency,
+  NotificationType,
+  OfferStatus,
+  WalletTransactionType,
+  WalletTransactionStatus,
+  WalletLockReason,
+  WalletLockStatus,
+  Prisma,
+  PaymentMethod,
+  POSSaleStatus,
+} from '@prisma/client';
 
 const BUYER_FEE_RATE = 0.025; // 2.5% platform fee charged to buyer on purchase
 const BID_LOCK_HOURS = 1;     // BID lock released after 1 hour if demand not matched
@@ -267,38 +279,49 @@ export class DemandsService {
       );
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.deliveryRequest.create({
-        data: {
-          offerId,
-          buyerLat: data.buyerLat,
-          buyerLng: data.buyerLng,
-          buyerAddress: data.buyerAddress,
-          distanceKm,
-          deliveryFee: feeDec,
-          status: 'PENDING',
-        },
-      });
-      const newBalance = wallet.availableBalance.sub(feeDec);
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { availableBalance: newBalance, lastActivityAt: new Date() },
-      });
-      await tx.walletTransaction.create({
-        data: {
-          walletId: wallet.id,
-          type: WalletTransactionType.FEE,
-          amount: feeDec,
-          balanceBefore: wallet.availableBalance,
-          balanceAfter: newBalance,
-          status: WalletTransactionStatus.COMPLETED,
-          description: `Delivery fee for offer ${offerId} (${distanceKm.toFixed(1)}km × $${ratePerKm}/km)`,
-          referenceId: offerId,
-          referenceType: 'delivery_request',
-          completedAt: new Date(),
-        },
-      });
-    });
+    await this.prisma.$retryTransaction(
+      async (tx) => {
+        const walletFresh = await tx.wallet.findUnique({ where: { userId: buyerId } });
+        if (!walletFresh) throw new NotFoundException('Wallet not found');
+        if (walletFresh.availableBalance.lessThan(feeDec)) {
+          throw new BadRequestException(
+            `Insufficient balance for delivery fee of $${feeDec.toFixed(2)}. Available: $${walletFresh.availableBalance.toFixed(2)}`,
+          );
+        }
+
+        await tx.deliveryRequest.create({
+          data: {
+            offerId,
+            buyerLat: data.buyerLat,
+            buyerLng: data.buyerLng,
+            buyerAddress: data.buyerAddress,
+            distanceKm,
+            deliveryFee: feeDec,
+            status: 'PENDING',
+          },
+        });
+        const newBalance = walletFresh.availableBalance.sub(feeDec);
+        await tx.wallet.update({
+          where: { id: walletFresh.id },
+          data: { availableBalance: newBalance, lastActivityAt: new Date() },
+        });
+        await tx.walletTransaction.create({
+          data: {
+            walletId: walletFresh.id,
+            type: WalletTransactionType.FEE,
+            amount: feeDec,
+            balanceBefore: walletFresh.availableBalance,
+            balanceAfter: newBalance,
+            status: WalletTransactionStatus.COMPLETED,
+            description: `Delivery fee for offer ${offerId} (${distanceKm.toFixed(1)}km × $${ratePerKm}/km)`,
+            referenceId: offerId,
+            referenceType: 'delivery_request',
+            completedAt: new Date(),
+          },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
 
     return { distanceKm, deliveryFee: feeAmount, status: 'PENDING' };
   }
@@ -411,7 +434,7 @@ export class DemandsService {
         }
 
         // Deduct 2.5% platform fee from buyer wallet on purchase
-        const offerPrice = new Prisma.Decimal((offer.totalPrice as any).toString());
+        const offerPrice = new Prisma.Decimal(offer.totalPrice.toString());
         const feeDec = offerPrice.mul(BUYER_FEE_RATE.toString());
         const buyerWalletFresh = await tx.wallet.findUnique({ where: { userId: buyerId } });
         if (!buyerWalletFresh) throw new NotFoundException('Buyer wallet not found');
@@ -708,7 +731,7 @@ export class DemandsService {
       await tx.notification.create({
         data: {
           userId: demand.buyer.id,
-          type: 'SALE_COMPLETED' as any,
+          type: NotificationType.SALE_COMPLETED,
           title: 'Order Fulfilled',
           body: `Your demand "${demand.title}" has been fulfilled. Receipt: ${receiptNumber}`,
           data: { demandId, saleId: sale.id, receiptNumber },

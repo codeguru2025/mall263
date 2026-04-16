@@ -77,10 +77,22 @@ export default function DashboardPage() {
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
 
   // Sellers with no merchant profile must complete setup first
-  const { data: merchant, isLoading: merchantLoading } = useQuery({
+  const { data: merchant, isLoading: merchantLoading, isError: merchantError } = useQuery({
     queryKey: ['my-merchant'],
-    queryFn: () => api.get('/api/v1/merchants/me').then((r) => r.data).catch(() => null),
+    queryFn: async () => {
+      try {
+        const r = await api.get('/api/v1/merchants/me');
+        return r.data;
+      } catch (e: unknown) {
+        const status = e && typeof e === 'object' && 'response' in e
+          ? (e as { response?: { status?: number } }).response?.status
+          : undefined;
+        if (status === 404) return null;
+        throw e;
+      }
+    },
     enabled: isAuthenticated && isSeller,
+    retry: false,
   });
 
   const { data: myStalls } = useQuery({
@@ -103,13 +115,22 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    if (isSeller && !merchantLoading && merchant === null) {
+    if (isSeller && !merchantLoading && !merchantError && merchant === null) {
       router.push('/seller/setup');
     }
-  }, [isSeller, merchant, merchantLoading, router]);
+  }, [isSeller, merchant, merchantLoading, merchantError, router]);
 
   if (!user) return null;
   if (isSeller && merchantLoading) return null;
+  if (isSeller && merchantError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <p className="text-red-600 font-semibold text-center text-sm">
+          Could not load your seller profile. Please try again or contact support.
+        </p>
+      </div>
+    );
+  }
   const isAdmin = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'].includes(user.role);
   const isAgent = user.role === 'FIELD_AGENT';
 

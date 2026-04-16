@@ -57,6 +57,30 @@ export default function SellerSetupPage() {
     queryFn: () => api.get('/api/v1/stalls/malls').then((r) => r.data),
   });
 
+  const { data: existingMerchant } = useQuery({
+    queryKey: ['my-merchant'],
+    queryFn: async () => {
+      try {
+        return (await api.get('/api/v1/merchants/me')).data;
+      } catch (e: unknown) {
+        const status =
+          e && typeof e === 'object' && 'response' in e
+            ? (e as { response?: { status?: number } }).response?.status
+            : undefined;
+        if (status === 404) return null;
+        throw e;
+      }
+    },
+    enabled: isAuthenticated && user?.role === 'STALL_OWNER',
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (existingMerchant?.id) {
+      router.replace('/dashboard');
+    }
+  }, [existingMerchant, router]);
+
   const setupMutation = useMutation({
     mutationFn: () => api.post('/api/v1/merchants/me/setup', {
       businessName: form.businessName,
@@ -71,7 +95,16 @@ export default function SellerSetupPage() {
       toast.success('Stall created! Welcome to Mall263.');
       router.push('/dashboard');
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Setup failed'),
+    onError: (err: any) => {
+      const msg = err.response?.data?.message;
+      const text = typeof msg === 'string' ? msg : Array.isArray(msg) ? msg.join(', ') : '';
+      if (text.toLowerCase().includes('already exists')) {
+        toast.success('Your stall is already set up.');
+        router.replace('/dashboard');
+        return;
+      }
+      toast.error(text || 'Setup failed');
+    },
   });
 
   const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));

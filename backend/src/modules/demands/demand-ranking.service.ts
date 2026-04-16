@@ -226,7 +226,7 @@ export class DemandRankingService {
         ...demand,
         score,
         timeRemainingHours: Math.round(hoursRemaining * 100) / 100,
-        offerCount: (demand as any)._count.offers,
+        offerCount: demand._count.offers,
         distanceKm,
       };
     });
@@ -311,7 +311,7 @@ export class DemandRankingService {
         ...demand,
         score,
         timeRemainingHours: Math.round(hoursRemaining * 100) / 100,
-        offerCount: (demand as any)._count.offers,
+        offerCount: demand._count.offers,
         rank: 0,
       };
     });
@@ -364,7 +364,7 @@ export class DemandRankingService {
         ...demand,
         score,
         timeRemainingHours: Math.round(hoursRemaining * 100) / 100,
-        offerCount: (demand as any)._count.offers,
+        offerCount: demand._count.offers,
         rank: i + 1,
       };
     }) as DemandWithScore[];

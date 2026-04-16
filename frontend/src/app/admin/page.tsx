@@ -7,10 +7,11 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
-import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield, Tag, Settings, Building2 } from 'lucide-react';
+import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield, Tag, Settings, Building2, LifeBuoy } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 const ADMIN_DASHBOARD_ROLES = new Set(['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN']);
+const SUPPORT_ADMIN_ROLE = 'SUPPORT_ADMIN';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -22,7 +23,14 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!isAuthenticated) { router.push('/auth/login'); return; }
+    if (!isAuthenticated) {
+      router.push('/auth/login');
+      return;
+    }
+    if (user?.role === SUPPORT_ADMIN_ROLE) {
+      router.replace('/admin/support');
+      return;
+    }
     if (user && !ADMIN_DASHBOARD_ROLES.has(user.role)) router.push('/dashboard');
   }, [authLoading, isAuthenticated, user, router]);
 
@@ -73,6 +81,7 @@ export default function AdminPage() {
     { href: '/admin/categories', icon: Tag, label: 'Manage Categories', desc: 'Add, edit, or organize product categories', color: 'text-purple-600', bg: 'bg-purple-50', border: 'hover:border-purple-600' },
     { href: '/reports', icon: BarChart3, label: 'Platform Reports', desc: 'View sales, commission, and user reports', color: 'text-brand-red', bg: 'bg-red-50', border: 'hover:border-brand-red' },
     { href: '/admin/settings', icon: Settings, label: 'App Settings', desc: 'Set delivery rate per km and platform configuration', color: 'text-gray-600', bg: 'bg-gray-50', border: 'hover:border-gray-400' },
+    { href: '/admin/support', icon: LifeBuoy, label: 'Help requests', desc: 'Review and resolve client support tickets', color: 'text-cyan-700', bg: 'bg-cyan-50', border: 'hover:border-cyan-400' },
   ];
 
   return (
