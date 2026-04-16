@@ -10,7 +10,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiConsumes, ApiBody, ApiParam } from '@nestjs/swagger';
 import { UploadService, UploadResult } from './upload.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Public } from '../../common/decorators/public.decorator';
@@ -58,9 +58,17 @@ export class UploadController {
     return Promise.all(files.map((f) => this.uploadService.uploadImage(f, 'products', 900, true)));
   }
 
-  @Delete(':key(*)')
+  // path-to-regexp v8 (Nest 11+): use named wildcard instead of legacy :key(*)
+  @Delete('*key')
+  @ApiParam({ name: 'key', type: String, description: 'Object key/path under bucket (may include slashes)' })
   async deleteFile(@Param('key') key: string): Promise<{ success: boolean }> {
-    await this.uploadService.delete(key);
+    let decoded = key;
+    try {
+      decoded = decodeURIComponent(key);
+    } catch {
+      decoded = key;
+    }
+    await this.uploadService.delete(decoded);
     return { success: true };
   }
 }
