@@ -33,7 +33,10 @@ export class ChatService {
   }
 
   async getOrCreateRoom(offerId: string, userId: string) {
-    await this.verifyAccess(offerId, userId);
+    const { offer } = await this.verifyAccess(offerId, userId);
+    if (offer.status !== OfferStatus.ACCEPTED) {
+      throw new BadRequestException('Chat is only available after the offer has been accepted.');
+    }
     return this.prisma.chatRoom.upsert({
       where: { offerId },
       update: {},
