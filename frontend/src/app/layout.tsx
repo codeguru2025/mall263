@@ -5,6 +5,7 @@ import { Providers } from './providers';
 export const metadata: Metadata = {
   title: 'Mall263 - Find it. Bid on it. Get it.',
   description: "Mall263 - Zimbabwe's demand-driven marketplace. Like ride-hailing, but for shopping.",
+  manifest: '/manifest.json',
 };
 
 export const viewport: Viewport = {

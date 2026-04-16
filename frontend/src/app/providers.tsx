@@ -10,6 +10,7 @@ import { useAuthStore } from '@/lib/store';
 import { useNetworkStatus } from '@/lib/hooks/useNetworkStatus';
 import { useSwipeBack } from '@/lib/hooks/useSwipeBack';
 import BottomNav from '@/components/BottomNav';
+import PwaServiceWorkerRegister from '@/components/PwaServiceWorkerRegister';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import { WifiOff } from 'lucide-react';
 
@@ -96,6 +97,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <PwaServiceWorkerRegister />
       <AuthLoader>
         <SwipeBackProvider>
           <OfflineBanner />
