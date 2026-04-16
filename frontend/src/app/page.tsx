@@ -142,7 +142,16 @@ export default function HomePage() {
             <div className="font-bold text-white mb-3 text-sm">Support</div>
             <div className="space-y-2 text-sm">
               <div><Link href="#" className="hover:text-white transition-colors">Help Center</Link></div>
-              <div><Link href="#" className="hover:text-white transition-colors">Contact Us</Link></div>
+              <div>
+                <a
+                  href="https://wa.me/447399793183"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-white transition-colors"
+                >
+                  Contact Us
+                </a>
+              </div>
               <div><Link href="#" className="hover:text-white transition-colors">Terms of Service</Link></div>
             </div>
           </div>

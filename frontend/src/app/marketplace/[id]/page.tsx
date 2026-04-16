@@ -277,12 +277,16 @@ export default function ProductDetailPage() {
                     </p>
                   )}
                   <p className="font-bold text-navy-700">{product.stall.name}</p>
-                  {product.stall.stallNumber && (
-                    <p className="text-sm text-gray-500">Stall {product.stall.stallNumber}</p>
+                  {product.stall.stallNumber && product.stall.stallNumber !== '***' && (
+                    <p className="text-sm text-gray-500">
+                      {product.stall.mall ? `Stall ${product.stall.stallNumber}` : `Shop ${product.stall.stallNumber}`}
+                    </p>
                   )}
-                  {product.stall.mall && (
+                  {product.stall.mall ? (
                     <p className="text-sm text-gray-500">{product.stall.mall.name}, {product.stall.mall.city}</p>
-                  )}
+                  ) : product.stall.address ? (
+                    <p className="text-sm text-gray-500">{product.stall.address}</p>
+                  ) : null}
                 </div>
               </div>
               {stallId && (

@@ -310,6 +310,7 @@ model Stall {
   floor         String?
   section       String?
   description   String?
+  address       String?
   phone         String?
   openTime      String?     @map("open_time")
   closeTime     String?     @map("close_time")

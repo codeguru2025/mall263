@@ -98,9 +98,11 @@ export default function PublicStorePage() {
                   )}
                   <h1 className="text-2xl font-black text-navy-700 leading-tight">{stall.name}</h1>
                   {stall.stallNumber && stall.stallNumber !== '***' && (
-                    <p className="text-sm text-gray-500 mt-1">Stall {stall.stallNumber}</p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {stall.mall ? `Stall ${stall.stallNumber}` : `Shop ${stall.stallNumber}`}
+                    </p>
                   )}
-                  {stall.mall && (
+                  {stall.mall ? (
                     <p className="text-sm text-gray-500 flex items-center justify-center sm:justify-start gap-1 mt-2">
                       <MapPin className="w-4 h-4 text-brand-orange flex-shrink-0" />
                       <span>
@@ -109,7 +111,12 @@ export default function PublicStorePage() {
                           : stall.mall.city}
                       </span>
                     </p>
-                  )}
+                  ) : stall.address ? (
+                    <p className="text-sm text-gray-500 flex items-center justify-center sm:justify-start gap-1 mt-2">
+                      <MapPin className="w-4 h-4 text-brand-orange flex-shrink-0" />
+                      <span>{stall.address}</span>
+                    </p>
+                  ) : null}
                   {stall.stallNumber === '***' && (
                     <Link
                       href="/wallet"

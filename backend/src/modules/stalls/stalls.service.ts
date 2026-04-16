@@ -36,6 +36,7 @@ export class StallsService {
     floor?: string;
     section?: string;
     description?: string;
+    address?: string;
     phone?: string;
     openTime?: string;
     closeTime?: string;
@@ -53,6 +54,7 @@ export class StallsService {
         floor: data.floor,
         section: data.section,
         description: data.description,
+        address: data.address,
         phone: data.phone,
         openTime: data.openTime,
         closeTime: data.closeTime,
@@ -123,6 +125,7 @@ export class StallsService {
       return {
         ...stall,
         stallNumber: '***',
+        address: null,
         description: stall.description ? '🔒 Fund wallet to see full details' : null,
         phone: null,
         mall: stall.mall ? { id: stall.mall.id, name: '🔒 Fund wallet to see seller', city: stall.mall.city } : null,
@@ -166,7 +169,7 @@ export class StallsService {
   }
 
   async update(stallId: string, userId: string, data: Partial<{
-    name: string; description: string; phone: string;
+    name: string; description: string; address: string; phone: string;
     openTime: string; closeTime: string; operatingDays: string[];
     imageUrl: string; logoUrl: string | null;
   }>) {

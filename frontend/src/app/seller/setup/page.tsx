@@ -25,6 +25,7 @@ export default function SellerSetupPage() {
     stallName: '',
     stallNumber: '',
     mallId: '',
+    address: '',
     description: '',
   });
 
@@ -63,6 +64,7 @@ export default function SellerSetupPage() {
       stallName: form.stallName,
       stallNumber: form.stallNumber,
       mallId: form.mallId || undefined,
+      address: form.address || undefined,
       description: form.description || undefined,
     }).then((r) => r.data),
     onSuccess: () => {
@@ -153,30 +155,13 @@ export default function SellerSetupPage() {
               <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
                 <MapPin className="w-7 h-7 text-brand-blue" />
               </div>
-              <h2 className="text-xl font-black text-navy-700">Your Stall</h2>
-              <p className="text-sm text-gray-500 mt-1">Where are you located in the market?</p>
+              <h2 className="text-xl font-black text-navy-700">Your {form.mallId ? 'Stall' : 'Shop'}</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {form.mallId ? 'Where are you located in the market?' : 'Tell us about your shop location'}
+              </p>
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-              <div>
-                <label className="label">Stall Name <span className="text-brand-red">*</span></label>
-                <input
-                  className="input"
-                  placeholder="e.g. Moyo Fashion"
-                  value={form.stallName}
-                  onChange={(e) => update('stallName', e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="label">Stall Number <span className="text-brand-red">*</span></label>
-                <input
-                  className="input"
-                  placeholder="e.g. A12 or 204"
-                  value={form.stallNumber}
-                  onChange={(e) => update('stallNumber', e.target.value)}
-                />
-                <p className="text-xs text-gray-400 mt-1">The number or code on your stall door</p>
-              </div>
               <div>
                 <label className="label">Market / Mall</label>
                 <select
@@ -184,12 +169,45 @@ export default function SellerSetupPage() {
                   value={form.mallId}
                   onChange={(e) => update('mallId', e.target.value)}
                 >
-                  <option value="">Select a market (optional)</option>
+                  <option value="">I have my own shop (not in a mall)</option>
                   {(malls || []).map((m: any) => (
                     <option key={m.id} value={m.id}>{m.name} — {m.city}</option>
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="label">{form.mallId ? 'Stall' : 'Shop'} Name <span className="text-brand-red">*</span></label>
+                <input
+                  className="input"
+                  placeholder={form.mallId ? 'e.g. Moyo Fashion' : 'e.g. Moyo Fashion & Accessories'}
+                  value={form.stallName}
+                  onChange={(e) => update('stallName', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="label">{form.mallId ? 'Stall Number' : 'Shop / Unit Number'} <span className="text-brand-red">*</span></label>
+                <input
+                  className="input"
+                  placeholder={form.mallId ? 'e.g. A12 or 204' : 'e.g. Shop 5 or Unit 12B'}
+                  value={form.stallNumber}
+                  onChange={(e) => update('stallNumber', e.target.value)}
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  {form.mallId ? 'The number or code on your stall door' : 'Your shop or unit number'}
+                </p>
+              </div>
+              {!form.mallId && (
+                <div>
+                  <label className="label">Street Address</label>
+                  <input
+                    className="input"
+                    placeholder="e.g. 15 First Ave, Bulawayo CBD"
+                    value={form.address}
+                    onChange={(e) => update('address', e.target.value)}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Helps buyers find you — e.g. street, area, or landmark</p>
+                </div>
+              )}
               <div>
                 <label className="label">Description</label>
                 <textarea
