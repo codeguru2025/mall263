@@ -11,6 +11,7 @@
     "start:prod": "node dist/main",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "db:deploy:pooled": "node scripts/prisma-migrate-deploy-pooled.mjs",
     "db:seed": "ts-node prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
