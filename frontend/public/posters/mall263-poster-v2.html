@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mall263 — Poster (print)</title>
+    <!--
+      How to use: open this file in Chrome → Print → "Save as PDF" → Paper A3, Portrait, Margins None.
+      Optional QR: save your QR PNG as `mall263-qr.png` in this same folder (`public/posters/`).
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --navy: #1b2a4a;
+        --navy-dark: #121d33;
+        --orange: #f7941d;
+        --orange-deep: #e07e0f;
+        --paper: #fafbfc;
+        --muted: #5a6578;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #e8ecf2;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        color: var(--navy);
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      /* A3 portrait @ ~96dpi — good for “Save as PDF” from Chrome */
+      .sheet {
+        width: 794px;
+        height: 1123px;
+        margin: 24px auto;
+        background: var(--paper);
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 24px 80px rgba(18, 29, 51, 0.12);
+      }
+
+      .wave-top {
+        height: 18px;
+        background: linear-gradient(90deg, var(--orange) 0%, var(--orange-deep) 45%, var(--navy) 100%);
+        opacity: 0.92;
+      }
+
+      .header {
+        padding: 28px 36px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        border-bottom: 1px solid rgba(27, 42, 74, 0.08);
+      }
+
+      .logo-lockup {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .bag {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        background: linear-gradient(145deg, #43a047, #3b9ae1, #f7941d, #e53935);
+        display: grid;
+        place-items: center;
+        box-shadow: 0 6px 16px rgba(27, 42, 74, 0.15);
+      }
+
+      .bag svg {
+        width: 26px;
+        height: 26px;
+        fill: white;
+      }
+
+      .wordmark {
+        line-height: 1;
+      }
+
+      .wordmall {
+        font-weight: 900;
+        font-size: 34px;
+        letter-spacing: -0.04em;
+        color: var(--navy);
+      }
+
+      .word263 {
+        font-weight: 900;
+        font-size: 34px;
+        letter-spacing: -0.04em;
+        background: linear-gradient(90deg, var(--orange), #e53935);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .tag {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--muted);
+        text-align: right;
+        max-width: 220px;
+        line-height: 1.45;
+      }
+
+      .hero {
+        padding: 18px 36px 12px;
+      }
+
+      .hero h1 {
+        margin: 0;
+        font-size: 26px;
+        font-weight: 900;
+        letter-spacing: -0.03em;
+        line-height: 1.2;
+        color: var(--navy-dark);
+      }
+
+      .hero p {
+        margin: 10px 0 0;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--muted);
+        max-width: 520px;
+        line-height: 1.55;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 248px;
+        gap: 20px;
+        padding: 8px 36px 0;
+        align-items: start;
+      }
+
+      .problem {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--navy);
+        line-height: 1.55;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, rgba(247, 148, 29, 0.1), rgba(27, 42, 74, 0.04));
+        border-left: 4px solid var(--orange);
+        margin-bottom: 12px;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .card {
+        border-radius: 14px;
+        padding: 12px 12px 12px 14px;
+        background: white;
+        border: 1px solid rgba(27, 42, 74, 0.08);
+        box-shadow: 0 4px 18px rgba(18, 29, 51, 0.06);
+      }
+
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--navy-dark);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .pill {
+        width: 22px;
+        height: 22px;
+        border-radius: 8px;
+        font-size: 11px;
+        font-weight: 900;
+        display: grid;
+        place-items: center;
+        color: white;
+      }
+
+      .pill-s {
+        background: var(--navy);
+      }
+
+      .pill-p {
+        background: linear-gradient(135deg, #3b9ae1, var(--orange));
+      }
+
+      .card ul {
+        margin: 0;
+        padding: 0 0 0 16px;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .card li {
+        margin-bottom: 4px;
+      }
+
+      .card li strong {
+        color: var(--navy);
+        font-weight: 800;
+      }
+
+      .imagine {
+        margin-top: 12px;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--navy-dark);
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: rgba(27, 42, 74, 0.04);
+      }
+
+      .imagine span {
+        color: var(--orange-deep);
+      }
+
+      /* Phone mock */
+      .phone {
+        width: 248px;
+        border-radius: 28px;
+        padding: 10px;
+        background: linear-gradient(160deg, #2a3550, var(--navy-dark));
+        box-shadow: 0 16px 40px rgba(18, 29, 51, 0.25);
+      }
+
+      .phone-inner {
+        border-radius: 22px;
+        background: #f4f5f7;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .ph-search {
+        padding: 10px 10px 6px;
+        background: white;
+      }
+
+      .ph-search-mock {
+        display: block;
+        height: 28px;
+        border-radius: 10px;
+        background: #eef1f6;
+        border: 1px solid #e2e6ef;
+      }
+
+      .ph-chips {
+        display: flex;
+        gap: 4px;
+        padding: 6px 10px 8px;
+        background: white;
+        overflow: hidden;
+      }
+
+      .chip {
+        flex: 0 0 auto;
+        font-size: 7px;
+        font-weight: 700;
+        padding: 4px 7px;
+        border-radius: 999px;
+        background: #eef1f6;
+        color: var(--navy);
+      }
+
+      .chip-hot {
+        background: rgba(247, 148, 29, 0.2);
+        color: var(--orange-deep);
+      }
+
+      .ph-cats {
+        display: flex;
+        gap: 8px;
+        padding: 8px 10px;
+        background: #fafbfc;
+        border-top: 1px solid #e8ecf2;
+      }
+
+      .cat {
+        text-align: center;
+        font-size: 6.5px;
+        font-weight: 800;
+        color: var(--muted);
+      }
+
+      .cat-ic {
+        width: 28px;
+        height: 28px;
+        margin: 0 auto 3px;
+        border-radius: 10px;
+        background: white;
+        border: 1px solid #e2e6ef;
+      }
+
+      .ph-card {
+        margin: 8px 10px;
+        padding: 8px;
+        border-radius: 12px;
+        background: white;
+        border: 1px solid #e8ecf2;
+        display: grid;
+        grid-template-columns: 44px 1fr;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .ph-thumb {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #ffd98a, #f7941d);
+      }
+
+      .ph-title {
+        font-size: 9px;
+        font-weight: 800;
+        color: var(--navy);
+      }
+
+      .ph-meta {
+        font-size: 7px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+
+      .ph-price {
+        font-size: 10px;
+        font-weight: 900;
+        color: var(--orange-deep);
+        margin-top: 4px;
+      }
+
+      .ph-nav {
+        display: flex;
+        justify-content: space-around;
+        padding: 8px 4px 10px;
+        background: white;
+        border-top: 1px solid #e8ecf2;
+        margin-top: 6px;
+      }
+
+      .nav-i {
+        text-align: center;
+        font-size: 6px;
+        font-weight: 800;
+        color: var(--muted);
+      }
+
+      .nav-i.on {
+        color: var(--orange-deep);
+      }
+
+      .nav-dot {
+        width: 22px;
+        height: 22px;
+        margin: 0 auto 3px;
+        border-radius: 8px;
+        background: #eef1f6;
+      }
+
+      .nav-i.on .nav-dot {
+        background: rgba(247, 148, 29, 0.25);
+      }
+
+      .bottom {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 16px 36px 22px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 20px;
+        background: linear-gradient(180deg, transparent, rgba(250, 251, 252, 0.97) 18%, var(--paper));
+      }
+
+      .wave-bottom {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 10px;
+        background: linear-gradient(90deg, var(--navy) 0%, var(--orange-deep) 55%, var(--orange) 100%);
+        opacity: 0.9;
+      }
+
+      .qr-wrap {
+        text-align: center;
+      }
+
+      .qr-box {
+        width: 132px;
+        height: 132px;
+        margin: 0 auto 6px;
+        border-radius: 12px;
+        border: 2px dashed rgba(27, 42, 74, 0.2);
+        background: white;
+        display: grid;
+        place-items: center;
+        font-size: 9px;
+        font-weight: 700;
+        color: var(--muted);
+        padding: 8px;
+        line-height: 1.35;
+      }
+
+      .qr-label {
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--navy-dark);
+      }
+
+      .contact {
+        text-align: right;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--navy);
+        line-height: 1.65;
+      }
+
+      .contact a {
+        color: var(--orange-deep);
+        text-decoration: none;
+      }
+
+      .fine {
+        margin-top: 6px;
+        font-size: 9px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+
+      @page {
+        size: A3 portrait;
+        margin: 0;
+      }
+
+      @media print {
+        body {
+          background: white;
+        }
+        .sheet {
+          margin: 0;
+          box-shadow: none;
+          width: 100%;
+          height: 100vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sheet">
+      <div class="wave-top"></div>
+
+      <header class="header">
+        <div class="logo-lockup">
+          <div class="bag" aria-hidden="true">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M12 2C9.5 2 8 3.8 8 6v2H5v14h14V8h-3V6c0-2.2-1.5-4-4-4zm0 2c1.2 0 2 .9 2 2v2h-4V6c0-1.1.8-2 2-2z"
+              />
+            </svg>
+          </div>
+          <div class="wordmark">
+            <span class="wordmall">MALL</span><span class="word263">263</span>
+          </div>
+        </div>
+        <p class="tag">Zimbabwe’s marketplace · stalls · services · wallet</p>
+      </header>
+
+      <section class="hero">
+        <h1>Your shop window — for the whole country.</h1>
+        <p>
+          Foot traffic alone is unpredictable. Mall263 puts your stall and your services where people already spend
+          time: on their phones — with tools for selling, quoting, and getting paid.
+        </p>
+      </section>
+
+      <div class="grid">
+        <div>
+          <div class="problem">
+            <strong style="color: var(--navy-dark)">Sound familiar?</strong> High rent, quiet days, and customers who
+            never walk past your door — while online shoppers buy elsewhere.
+          </div>
+
+          <div class="cards">
+            <article class="card">
+              <h3><span class="pill pill-s">S</span> Stall owners</h3>
+              <ul>
+                <li><strong>List once</strong> — seen beyond your location</li>
+                <li><strong>Demands</strong> — buyers post needs; you bid with offers</li>
+                <li><strong>POS · stock · reports</strong> — run the day from your phone</li>
+                <li><strong>Wallet</strong> — in-app money movement you can trace</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3><span class="pill pill-p">P</span> Service providers</h3>
+              <ul>
+                <li><strong>Service listings</strong> — get discovered like any shop</li>
+                <li><strong>Quotes &amp; jobs</strong> — structured requests, not lost DMs</li>
+                <li><strong>Same wallet</strong> — aligned with buyers &amp; sellers</li>
+                <li><strong>Trust layer</strong> — profiles built for repeat work</li>
+              </ul>
+            </article>
+          </div>
+
+          <p class="imagine">
+            <span>Now imagine:</span> your stall “open” 24/7, orders and leads while you sleep — without another
+            rent bill or a second shopfront.
+          </p>
+        </div>
+
+        <aside class="phone" aria-label="App preview">
+          <div class="phone-inner">
+            <div class="ph-search"><span class="ph-search-mock"></span></div>
+            <div class="ph-chips">
+              <span class="chip chip-hot">Amaya</span>
+              <span class="chip">Bali</span>
+              <span class="chip">CBD</span>
+            </div>
+            <div class="ph-cats">
+              <div class="cat">
+                <div class="cat-ic"></div>
+                All
+              </div>
+              <div class="cat">
+                <div class="cat-ic"></div>
+                Goods
+              </div>
+              <div class="cat">
+                <div class="cat-ic"></div>
+                Services
+              </div>
+              <div class="cat">
+                <div class="cat-ic"></div>
+                Demands
+              </div>
+            </div>
+            <div class="ph-card">
+              <div class="ph-thumb"></div>
+              <div>
+                <div class="ph-title">Featured listing</div>
+                <div class="ph-meta">Trusted stall · in-mall pickup</div>
+                <div class="ph-price">From $40.00</div>
+              </div>
+            </div>
+            <div class="ph-nav">
+              <div class="nav-i on">
+                <div class="nav-dot"></div>
+                Home
+              </div>
+              <div class="nav-i">
+                <div class="nav-dot"></div>
+                POS
+              </div>
+              <div class="nav-i">
+                <div class="nav-dot"></div>
+                Demands
+              </div>
+              <div class="nav-i">
+                <div class="nav-dot"></div>
+                Wallet
+              </div>
+              <div class="nav-i">
+                <div class="nav-dot"></div>
+                Services
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="bottom">
+        <div class="qr-wrap">
+          <div class="qr-box">
+            <img
+              src="mall263-qr.png"
+              alt="Install Mall263"
+              width="118"
+              height="118"
+              style="object-fit: contain; display: block"
+              onerror="this.style.display='none'; this.parentNode.querySelector('.qr-fallback').style.display='block';"
+            />
+            <span class="qr-fallback" style="display: none"
+              >Save QR as<br /><strong>mall263-qr.png</strong><br />in this folder</span
+            >
+          </div>
+          <div class="qr-label">Scan to install</div>
+        </div>
+        <div class="contact">
+          <div><a href="https://mall263.com">mall263.com</a></div>
+          <div>077 366 5350</div>
+          <div class="fine">Install from browser · add to home screen</div>
+        </div>
+      </div>
+      <div class="wave-bottom"></div>
+    </div>
+  </body>
+</html>

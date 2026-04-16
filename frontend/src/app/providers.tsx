@@ -12,6 +12,7 @@ import { useSwipeBack } from '@/lib/hooks/useSwipeBack';
 import BottomNav from '@/components/BottomNav';
 import PwaServiceWorkerRegister from '@/components/PwaServiceWorkerRegister';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+import FloatingRefreshButton from '@/components/FloatingRefreshButton';
 import { WifiOff } from 'lucide-react';
 
 function AuthLoader({ children }: { children: React.ReactNode }) {
@@ -105,6 +106,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             {children}
           </PageTransition>
           <BottomNav />
+          <FloatingRefreshButton />
           <PWAInstallPrompt />
         </SwipeBackProvider>
       </AuthLoader>
