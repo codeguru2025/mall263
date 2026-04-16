@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, MapPin, Star, Gavel, ShoppingBag, Loader2, X } from 'lucide-react';
+import { Search, MapPin, Star, Gavel, ShoppingBag, Loader2, X, ChevronRight } from 'lucide-react';
 import { useState, Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -36,6 +36,7 @@ function ProductCard({ product }: { product: any }) {
   const imgUrl = resolveImageUrl(product);
   const hasImage = !!imgUrl && !imgError;
   const stallName = product.stallName || product.stall?.name || 'Market Stall';
+  const cityLabel = product.city || product.stall?.mall?.city || '';
   const priceLabel = safePrice(product.minPrice);
   const storeLogoUrl =
     product.storeLogoUrl || resolveStoreLogo(product.stall, product.stall?.merchant);
@@ -86,16 +87,21 @@ function ProductCard({ product }: { product: any }) {
             {product.name || 'Unnamed product'}
           </p>
           <div className="flex items-end justify-between gap-2">
-            <span className="text-white/60 text-[11px] font-medium truncate flex items-center gap-1 min-w-0">
-              {storeLogoUrl ? (
-                <span className="relative w-5 h-5 rounded-md overflow-hidden bg-white/20 flex-shrink-0 ring-1 ring-white/30">
-                  <Image src={storeLogoUrl} alt="" fill className="object-contain p-0.5" sizes="20px" />
-                </span>
-              ) : (
-                <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-brand-orange" />
-              )}
-              {stallName}
-            </span>
+            <div className="min-w-0 flex-1">
+              <span className="text-white/60 text-[11px] font-medium truncate flex items-center gap-1">
+                {storeLogoUrl ? (
+                  <span className="relative w-5 h-5 rounded-md overflow-hidden bg-white/20 flex-shrink-0 ring-1 ring-white/30">
+                    <Image src={storeLogoUrl} alt="" fill className="object-contain p-0.5" sizes="20px" />
+                  </span>
+                ) : (
+                  <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-brand-orange" />
+                )}
+                {stallName}
+              </span>
+              {cityLabel ? (
+                <p className="text-white/45 text-[10px] font-medium mt-0.5 truncate">{cityLabel}</p>
+              ) : null}
+            </div>
             <span className="text-white font-black text-sm flex-shrink-0 drop-shadow">
               {priceLabel ?? '—'}
             </span>
@@ -107,17 +113,20 @@ function ProductCard({ product }: { product: any }) {
           <p className="font-semibold text-[13px] text-navy-700 line-clamp-2 leading-[1.3] mb-1">
             {product.name || 'Unnamed product'}
           </p>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-gray-400 text-[11px] truncate flex items-center gap-1 min-w-0">
-              {storeLogoUrl ? (
-                <span className="relative w-5 h-5 rounded-md overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-gray-200">
-                  <Image src={storeLogoUrl} alt="" fill className="object-contain p-0.5" sizes="20px" />
-                </span>
-              ) : (
-                <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-brand-orange" />
-              )}
-              {stallName}
-            </span>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <span className="text-gray-400 text-[11px] truncate flex items-center gap-1">
+                {storeLogoUrl ? (
+                  <span className="relative w-5 h-5 rounded-md overflow-hidden bg-gray-100 flex-shrink-0 ring-1 ring-gray-200">
+                    <Image src={storeLogoUrl} alt="" fill className="object-contain p-0.5" sizes="20px" />
+                  </span>
+                ) : (
+                  <MapPin className="w-2.5 h-2.5 flex-shrink-0 text-brand-orange" />
+                )}
+                {stallName}
+              </span>
+              {cityLabel ? <p className="text-gray-400 text-[10px] mt-0.5 truncate">{cityLabel}</p> : null}
+            </div>
             <span className="text-navy-700 font-black text-sm flex-shrink-0">
               {priceLabel ?? '—'}
             </span>
@@ -138,20 +147,23 @@ function MarketplaceContent() {
     () => searchParams.get('mallId') || searchParams.get('mall') || '',
   );
   const [selectedCategoryId, setSelectedCategoryId] = useState(searchParams.get('categoryId') || '');
+  const [selectedCity, setSelectedCity] = useState(() => searchParams.get('city') || '');
   const [sortBy, setSortBy] = useState('newest');
   const [page, setPage] = useState(1);
   const user = useAuthStore((s) => s.user);
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
 
-  useEffect(() => { setPage(1); }, [debouncedQuery, selectedCategoryId, selectedMall]);
+  useEffect(() => { setPage(1); }, [debouncedQuery, selectedCategoryId, selectedMall, selectedCity]);
 
   const urlSig = searchParams.toString();
   useEffect(() => {
     const params = new URLSearchParams(urlSig);
     const m = params.get('mallId') || params.get('mall') || '';
     const c = params.get('categoryId') || '';
+    const city = params.get('city') || '';
     setSelectedMall(m);
     setSelectedCategoryId(c);
+    setSelectedCity(city);
   }, [urlSig]);
 
   // Keep URL in sync so shares / back-button work
@@ -160,9 +172,20 @@ function MarketplaceContent() {
     if (debouncedQuery) params.set('q', debouncedQuery);
     if (selectedCategoryId) params.set('categoryId', selectedCategoryId);
     if (selectedMall) params.set('mallId', selectedMall);
+    if (selectedCity.trim()) params.set('city', selectedCity.trim());
     const qs = params.toString();
     router.replace(qs ? `/marketplace?${qs}` : '/marketplace', { scroll: false });
-  }, [debouncedQuery, selectedCategoryId, selectedMall, router]);
+  }, [debouncedQuery, selectedCategoryId, selectedMall, selectedCity, router]);
+
+  const { data: malls = [] } = useQuery<any[]>({
+    queryKey: ['malls'],
+    queryFn: () => api.get('/api/v1/stalls/malls').then((r) => r.data),
+    staleTime: 300_000,
+  });
+
+  const cityOptions = Array.from(
+    new Set((malls as { city?: string }[]).map((m) => (m.city || '').trim()).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b));
 
   const { data: categories = [] } = useQuery<any[]>({
     queryKey: ['categories'],
@@ -176,13 +199,14 @@ function MarketplaceContent() {
     : null;
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['search', debouncedQuery.trim(), selectedMall, selectedCategoryId, sortBy, page],
+    queryKey: ['search', debouncedQuery.trim(), selectedMall, selectedCategoryId, selectedCity.trim(), sortBy, page],
     queryFn: () =>
       api.get('/api/v1/search', {
         params: {
           q: debouncedQuery.trim() || undefined,
           mallId: selectedMall || undefined,
           categoryId: selectedCategoryId || undefined,
+          city: selectedCity.trim() || undefined,
           sortBy,
           page,
           limit: 20,
@@ -249,8 +273,9 @@ function MarketplaceContent() {
             </Link>
           </div>
           {topCategories.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pt-2 pb-1 -mx-1 px-1">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pt-2 pb-1 -mx-1 px-1 items-center">
               <button
+                type="button"
                 onClick={() => setSelectedCategoryId('')}
                 className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all border ${
                   !selectedCategoryId
@@ -262,6 +287,7 @@ function MarketplaceContent() {
               </button>
               {topCategories.map((cat: any) => (
                 <button
+                  type="button"
                   key={cat.id}
                   onClick={() => setSelectedCategoryId(selectedCategoryId === cat.id ? '' : cat.id)}
                   className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-all border whitespace-nowrap ${
@@ -273,6 +299,50 @@ function MarketplaceContent() {
                   {cat.name}
                 </button>
               ))}
+              <Link
+                href="/marketplace/categories"
+                className="flex-shrink-0 flex items-center gap-0.5 pl-1 pr-2 py-1.5 text-xs font-black text-brand-blue whitespace-nowrap"
+              >
+                See all
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          )}
+
+          {/* Location — cities from malls (Facebook-style area filter) */}
+          {cityOptions.length > 0 && (
+            <div className="flex items-center gap-2 pt-2 pb-2 border-t border-gray-50 mt-1">
+              <MapPin className="w-3.5 h-3.5 text-brand-orange flex-shrink-0" aria-hidden />
+              <span className="text-[10px] font-black uppercase tracking-wide text-gray-400 flex-shrink-0 w-14">
+                Area
+              </span>
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0 pb-0.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCity('')}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                    !selectedCity.trim()
+                      ? 'bg-navy-700 text-white border-navy-700'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  Everywhere
+                </button>
+                {cityOptions.map((city) => (
+                  <button
+                    type="button"
+                    key={city}
+                    onClick={() => setSelectedCity(selectedCity === city ? '' : city)}
+                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
+                      selectedCity === city
+                        ? 'bg-navy-700 text-white border-navy-700'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                    }`}
+                  >
+                    {city}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -296,7 +366,10 @@ function MarketplaceContent() {
                     ? `"${debouncedQuery}"`
                     : 'Browse'}
                 </h1>
-                <p className="text-xs text-gray-400 font-medium">{data?.total || 0} products</p>
+                <p className="text-xs text-gray-400 font-medium">
+                  {data?.total || 0} products
+                  {selectedCity.trim() ? ` · ${selectedCity.trim()}` : ''}
+                </p>
               </div>
               {!isSeller && (
                 <Link href="/demands/new" className="btn-bid text-xs py-2 px-3.5 flex items-center gap-1.5">
@@ -322,10 +395,20 @@ function MarketplaceContent() {
                 </p>
                 {selectedCategoryId && (
                   <button
+                    type="button"
                     onClick={() => setSelectedCategoryId('')}
                     className="btn-secondary text-sm mr-3"
                   >
                     Clear category filter
+                  </button>
+                )}
+                {selectedCity.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCity('')}
+                    className="btn-secondary text-sm mr-3"
+                  >
+                    Clear location
                   </button>
                 )}
                 {!isSeller && (

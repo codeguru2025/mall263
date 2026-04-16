@@ -228,7 +228,7 @@ export class SearchService implements OnModuleInit {
   }
 
   private async dbFallbackSearch(query: string, params: any) {
-    const { categoryId, mallId } = params;
+    const { categoryId, mallId, city } = params;
     const page = Number.isFinite(params.page) ? Math.max(1, params.page) : 1;
     const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit) : 20;
     const minPrice = Number.isFinite(params.minPrice) ? params.minPrice : undefined;
@@ -247,7 +247,13 @@ export class SearchService implements OnModuleInit {
     }
 
     if (categoryId) where.categoryId = categoryId;
-    if (mallId) where.stall = { mallId };
+    if (mallId || city) {
+      where.stall = {};
+      if (mallId) where.stall.mallId = mallId;
+      if (city && typeof city === 'string' && city.trim()) {
+        where.stall.mall = { city: { equals: city.trim(), mode: 'insensitive' } };
+      }
+    }
     if (minPrice !== undefined) where.minPrice = { gte: minPrice };
     if (maxPrice !== undefined) where.maxPrice = { lte: maxPrice };
 
