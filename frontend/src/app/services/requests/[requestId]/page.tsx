@@ -75,6 +75,8 @@ export default function ServiceRequestDetailPage() {
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Failed'),
   });
 
+  if (authLoading || !isAuthenticated) return <div className="min-h-screen bg-gray-50" />;
+
   if (isLoading || !req) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400 text-sm font-semibold">

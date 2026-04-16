@@ -50,6 +50,10 @@ export default function ServiceRequestPage() {
     });
   }
 
+  if (authLoading || !isAuthenticated) {
+    return <div className="min-h-screen bg-gray-50" />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pb-safe">
       <header className="bg-white border-b border-gray-100 safe-area-top sticky top-0 z-10">

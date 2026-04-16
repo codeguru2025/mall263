@@ -9,8 +9,9 @@
  */
 
 export const CONTACT_LEAK_PATTERNS: RegExp[] = [
-  // Zimbabwe mobile numbers: 07x xxxxxxx | +263 7x xxxxxxx | 263 7x xxxxxxx
-  /\+?(?:263|0)7[1-9]\s*\d{3}\s*\d{4}/,
+  // Zimbabwe mobile numbers in any common spacing: 0712345678 | 0712 345 678 | +263 71 234 5678
+  // After prefix (0 or +263) we expect 7[1-9] then exactly 7 more digits, each optionally separated by space/dash
+  /\+?(?:263|0)\s*7[1-9](?:[\s\-]?\d){7}/,
   // Any WhatsApp reference or wa.me link
   /\bwh?a+ts?a+pp?\b|wa\.me\//i,
   // Email addresses

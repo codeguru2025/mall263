@@ -389,13 +389,13 @@ export class ServicesService {
       businessName:  stall?.merchant?.businessName ?? listing.provider.firstName,
       stallName:     stall?.name          ?? null,
       stallNumber:   stall?.stallNumber   ?? null,
-      stallAddress:  (stall as any)?.address ?? null,
+      stallAddress:  stall?.address ?? null,
       mallName:      stall?.mall?.name    ?? null,
       mallCity:      stall?.mall?.city    ?? null,
       storeLogoUrl:  stall ? resolveStoreLogo(stall, stall.merchant) : null,
       clientName:    `${client.firstName} ${client.lastName}`,
       clientPhone:   client.phone,
-      amount:        quote.amount.toString(),
+      amount:        Number(quote.amount),
       paymentMethod: data.paymentMethod,
       date:          new Date().toISOString(),
       appName:       'Mall263',
@@ -551,12 +551,20 @@ export class ServicesService {
         messages: {
           orderBy: { createdAt: 'desc' },
           take: 1,
-          include: { sender: { select: { firstName: true } } },
+          include: {
+            sender: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
+          },
         },
         quote: {
           select: {
             id: true, amount: true, status: true,
-            request: { select: { listing: { select: { title: true } } } },
+            providerId: true,
+            request: {
+              select: {
+                clientId: true,
+                listing: { select: { title: true } },
+              },
+            },
           },
         },
       },

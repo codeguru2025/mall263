@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Printer, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Printer, CheckCircle, AlertCircle } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { Logo } from '@/components/Logo';
@@ -41,6 +41,8 @@ export default function ServiceInvoicePage() {
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Failed'),
   });
 
+  if (authLoading || !isAuthenticated) return <div className="min-h-screen bg-gray-50" />;
+
   if (isLoading || !inv) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-400 text-sm font-semibold">
@@ -49,11 +51,20 @@ export default function ServiceInvoicePage() {
     );
   }
 
-  const d = inv.data as any; // stored JSON blob
+  const d = inv.data as any; // immutable JSON blob stored at invoice creation
+  if (!d?.invoiceNumber || d?.amount == null || !d?.clientName) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4 px-4">
+        <AlertCircle className="w-12 h-12 text-brand-red" />
+        <p className="font-bold text-navy-700">Invoice data is incomplete</p>
+        <button onClick={() => router.back()} className="btn-primary text-sm">Go Back</button>
+      </div>
+    );
+  }
+
   const isProvider = inv.quote?.request?.listing?.providerId === currentUserId;
   const isPaid     = inv.status === 'PAID';
-
-  const issueDate = new Date(d.date ?? inv.createdAt);
+  const issueDate  = new Date(d.date ?? inv.createdAt);
 
   return (
     <div className="min-h-screen bg-gray-100 pb-16 print:bg-white print:pb-0">
