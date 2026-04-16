@@ -216,8 +216,11 @@ model User {
   sessions       Session[]
   chatMessages   ChatMessage[]    @relation("ChatMessages")
   subscription   Subscription?
-  serviceListings ServiceListing[]
-  recordedStallExpenses StallExpense[] @relation("ExpenseRecordedBy")
+  serviceListings      ServiceListing[]
+  serviceRequests      ServiceRequest[]     @relation("ClientServiceRequests")
+  serviceQuotes        ServiceQuote[]       @relation("ProviderServiceQuotes")
+  serviceChatMessages  ServiceChatMessage[] @relation("ServiceChatSenders")
+  recordedStallExpenses StallExpense[]      @relation("ExpenseRecordedBy")
 
   @@index([phone])
   @@index([role])
@@ -403,6 +406,7 @@ model ServiceListing {
   stall    Stall?    @relation(fields: [stallId], references: [id])
   mall     Mall?     @relation(fields: [mallId], references: [id])
   category Category? @relation(fields: [categoryId], references: [id])
+  requests ServiceRequest[]
 
   @@index([providerId])
   @@index([stallId])
@@ -410,6 +414,117 @@ model ServiceListing {
   @@index([categoryId])
   @@index([isActive])
   @@map("service_listings")
+}
+
+// ============================================================
+// SERVICE REQUEST / QUOTE / INVOICE FLOW
+// ============================================================
+
+enum ServiceRequestStatus {
+  OPEN
+  QUOTED
+  ACCEPTED
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceQuoteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ServiceInvoiceStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+model ServiceRequest {
+  id         String               @id @default(uuid()) @db.Uuid
+  listingId  String               @map("listing_id") @db.Uuid
+  clientId   String               @map("client_id") @db.Uuid
+  notes      String?
+  budgetHint Decimal?             @map("budget_hint") @db.Decimal(12, 2)
+  status     ServiceRequestStatus @default(OPEN)
+  createdAt  DateTime             @default(now()) @map("created_at")
+  updatedAt  DateTime             @updatedAt @map("updated_at")
+
+  listing ServiceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  client  User           @relation("ClientServiceRequests", fields: [clientId], references: [id])
+  quotes  ServiceQuote[]
+
+  @@index([listingId])
+  @@index([clientId])
+  @@index([status])
+  @@map("service_requests")
+}
+
+model ServiceQuote {
+  id            String             @id @default(uuid()) @db.Uuid
+  requestId     String             @map("request_id") @db.Uuid
+  providerId    String             @map("provider_id") @db.Uuid
+  amount        Decimal            @db.Decimal(12, 2)
+  description   String?
+  estimatedDays Int?               @map("estimated_days")
+  status        ServiceQuoteStatus @default(PENDING)
+  respondedAt   DateTime?          @map("responded_at")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  request  ServiceRequest  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  provider User            @relation("ProviderServiceQuotes", fields: [providerId], references: [id])
+  invoice  ServiceInvoice?
+  chatRoom ServiceChatRoom?
+
+  @@index([requestId])
+  @@index([providerId])
+  @@index([status])
+  @@map("service_quotes")
+}
+
+model ServiceInvoice {
+  id            String               @id @default(uuid()) @db.Uuid
+  quoteId       String               @unique @map("quote_id") @db.Uuid
+  invoiceNumber String               @unique @map("invoice_number")
+  data          Json
+  totalAmount   Decimal              @map("total_amount") @db.Decimal(12, 2)
+  paymentMethod String               @default("CASH") @map("payment_method")
+  status        ServiceInvoiceStatus @default(PENDING)
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+
+  quote ServiceQuote @relation(fields: [quoteId], references: [id])
+
+  @@index([invoiceNumber])
+  @@map("service_invoices")
+}
+
+model ServiceChatRoom {
+  id        String   @id @default(uuid()) @db.Uuid
+  quoteId   String   @unique @map("quote_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  quote    ServiceQuote       @relation(fields: [quoteId], references: [id])
+  messages ServiceChatMessage[]
+
+  @@map("service_chat_rooms")
+}
+
+model ServiceChatMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  roomId    String   @map("room_id") @db.Uuid
+  senderId  String   @map("sender_id") @db.Uuid
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  room   ServiceChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User            @relation("ServiceChatSenders", fields: [senderId], references: [id])
+
+  @@index([roomId])
+  @@index([createdAt])
+  @@map("service_chat_messages")
 }
 
 model Product {

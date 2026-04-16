@@ -57,7 +57,7 @@ export class DemandsService {
         }
 
         // If linked to a product, resolve stall and category from it
-        let productId = data.productId || undefined;
+        const productId = data.productId || undefined;
         let stallId = data.stallId || undefined;
         let categoryId = data.categoryId || undefined;
         let mallId = data.mallId || undefined;

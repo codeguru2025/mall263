@@ -82,6 +82,9 @@ function ServicesContent() {
           <Link href="/marketplace" className="text-xs font-bold text-brand-blue whitespace-nowrap hidden sm:inline">
             Products
           </Link>
+          <Link href="/services/requests" className="text-xs font-bold text-brand-orange whitespace-nowrap">
+            My Requests
+          </Link>
         </div>
 
         <div className="max-w-7xl mx-auto px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar">

@@ -3,12 +3,15 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, MapPin, Phone, Briefcase, AlertCircle } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, Briefcase, AlertCircle, MessageSquarePlus } from 'lucide-react';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import { useAuthStore } from '@/lib/store';
 
 export default function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   const { data: s, isLoading, isError } = useQuery({
     queryKey: ['service', id],
@@ -37,6 +40,7 @@ export default function ServiceDetailPage() {
   }
 
   const phone = s.provider?.phone as string | undefined;
+  const isOwnService = currentUserId && s.provider?.id === currentUserId;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-safe">
@@ -97,11 +101,27 @@ export default function ServiceDetailPage() {
               <Phone className="w-4 h-4" /> {phone}
             </a>
           )}
-          <p className="text-xs text-gray-400 leading-relaxed">
-            Reach out to book or get a quote. Mall263 does not process payments for services yet — agree details
-            directly with the provider.
-          </p>
         </div>
+
+        {/* Request a Quote CTA */}
+        {isAuthenticated && !isOwnService && (
+          <Link
+            href={`/services/request/${id}`}
+            className="flex items-center justify-center gap-2 w-full rounded-2xl bg-brand-blue text-white font-black text-sm py-4 shadow-md active:scale-[0.98] transition-transform"
+          >
+            <MessageSquarePlus className="w-5 h-5" />
+            Request a Quote
+          </Link>
+        )}
+        {!isAuthenticated && (
+          <Link
+            href={`/auth/login?next=/services/${id}`}
+            className="flex items-center justify-center gap-2 w-full rounded-2xl bg-brand-blue text-white font-black text-sm py-4 shadow-md"
+          >
+            <MessageSquarePlus className="w-5 h-5" />
+            Log in to Request a Quote
+          </Link>
+        )}
       </div>
     </div>
   );
