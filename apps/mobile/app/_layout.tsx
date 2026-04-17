@@ -66,6 +66,9 @@ function RootLayoutNav() {
             <Stack.Screen name="chat/index" options={{ title: 'Chats' }} />
             <Stack.Screen name="chat/[roomId]" options={{ title: 'Chat room' }} />
             <Stack.Screen name="deposit" options={{ title: 'Deposit funds' }} />
+            <Stack.Screen name="seller/index" options={{ title: 'Seller Hub' }} />
+            <Stack.Screen name="seller/product/new" options={{ title: 'Add product' }} />
+            <Stack.Screen name="seller/product/[id]" options={{ title: 'Edit product' }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           </Stack>
         </ThemeProvider>

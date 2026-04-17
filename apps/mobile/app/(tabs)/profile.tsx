@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { router } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { Brand } from '@/constants/brand';
@@ -111,6 +112,11 @@ export default function ProfileScreen() {
             <Text style={styles.primaryBtnText}>Save changes</Text>
           )}
         </Pressable>
+        {q.data?.merchant && (
+          <Pressable style={styles.sellerBtn} onPress={() => router.push('/seller')}>
+            <Text style={styles.sellerBtnText}>🏪  Seller Hub</Text>
+          </Pressable>
+        )}
         <Pressable style={styles.outlineBtn} onPress={() => logout()}>
           <Text style={styles.outlineBtnText}>Sign out</Text>
         </Pressable>
@@ -297,4 +303,12 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   outlineBtnText: { fontSize: 15, fontWeight: '700', color: Brand.navy },
+  sellerBtn: {
+    backgroundColor: Brand.navy,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  sellerBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
 });
