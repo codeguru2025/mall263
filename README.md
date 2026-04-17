@@ -6,6 +6,7 @@ Zimbabwe's digital marketplace and POS platform for flea markets and informal re
 
 - **Backend**: NestJS + Prisma + PostgreSQL + Redis + Meilisearch
 - **Frontend**: Next.js 14 (App Router) + TailwindCSS + React Query + Zustand
+- **Mobile**: Expo (React Native) in `apps/mobile` — same Nest API as the web app (`packages/shared` for small shared helpers)
 - **Deployment**: Docker Compose
 
 ## Quick Start
@@ -41,6 +42,19 @@ cd frontend
 npm install
 npm run dev
 ```
+
+### Mobile app (Expo, optional)
+
+From the **repository root** (installs the `apps/mobile` workspace and `@mall263/shared`):
+
+```bash
+npm install
+npm run dev:mobile
+```
+
+Copy `apps/mobile/.env.example` to `apps/mobile/.env` and set `EXPO_PUBLIC_API_URL` (use your machine’s LAN IP for a physical device). Details: `apps/mobile/README.md`.
+
+**Solo build checklist (order of work):** `docs/MOBILE_BUILD_PLAN.md`
 
 ### Access
 

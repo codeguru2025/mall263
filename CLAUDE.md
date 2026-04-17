@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mall263 is a marketplace platform for informal African retail (Zimbabwe-focused). It features a NestJS backend, Next.js frontend, PostgreSQL + Prisma, Redis/BullMQ queues, Meilisearch full-text search, DigitalOcean Spaces storage, and Paynow Zimbabwe payments.
+Mall263 is a marketplace platform for informal African retail (Zimbabwe-focused). It features a NestJS backend, Next.js web frontend, an **Expo (React Native) mobile app** in `apps/mobile` (same API as web), PostgreSQL + Prisma, Redis/BullMQ queues, Meilisearch full-text search, DigitalOcean Spaces storage, and Paynow Zimbabwe payments.
 
 ## Commands
 
@@ -23,7 +23,18 @@ npm run dev
 
 # Frontend (port 3000, separate terminal)
 cd frontend && npm install && npm run dev
+
+# Mobile (Expo — real native shell; separate from Next.js)
+# From repo root (installs workspaces including apps/mobile):
+npm install
+npm run dev:mobile
 ```
+
+Copy `apps/mobile/.env.example` → `apps/mobile/.env` and set **`EXPO_PUBLIC_API_URL`** to your API **origin only** (no `/api/v1` suffix), same idea as web `NEXT_PUBLIC_API_URL`.
+
+**Testing on real Android and iPhone:** Prefer a **public HTTPS URL** (staging or production API) so the phone can reach the backend without your laptop firewall, LAN quirks, or “phone hotspot to laptop” port-forwarding pain. Example: `https://your-api.example.com` (whatever host your deployed Nest app uses). Local-only URLs often fail on device unless you use emulator loopback tricks.
+
+**Store distribution:** Apple Developer + Google Play Console accounts are available for future **EAS Build** / store releases. Until then, use **Expo Go** or **internal dev builds** for QA.
 
 Test accounts after seeding:
 
@@ -33,6 +44,8 @@ Test accounts after seeding:
 | Merchant | +263771000001 | merchant123 |
 | Buyer | +263772000001 | buyer12345 |
 | Agent | +263773000001 | agent12345 |
+
+**Super admin (seed):** `backend/prisma/seed.ts` reads **`SUPERADMIN_PHONE`** and **`SUPERADMIN_PASSWORD`** from the environment (required to run seed). The table above may match your `.env` or docs; if seed vars differ, use those credentials.
 
 API docs: `http://localhost:4000/docs` (Swagger)
 
@@ -47,6 +60,8 @@ npm run build:frontend    # Next.js production build
 npm run lint              # ESLint with auto-fix
 npm run build             # Compile/optimize
 ```
+
+Mobile does not use `build:frontend`; run `npm run start -w @mall263/mobile` (or `npm run dev:mobile` from root) for the Expo dev server.
 
 ### Database
 
@@ -70,11 +85,16 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ```
 mall263/
-├── backend/          NestJS API (port 4000)
-├── frontend/         Next.js 14 App Router (port 3000)
-├── prisma/           Migrations + seed scripts
+├── backend/              NestJS API (port 4000 local)
+├── frontend/             Next.js App Router (port 3000) — primary web UI (unchanged paths for Docker / DO)
+├── apps/mobile/          Expo (React Native) — native clients; same JWT API as web
+├── packages/shared/      Tiny shared helpers (e.g. password length text); expand over time
+├── prisma/               Migrations + seed scripts
+├── package.json          npm workspaces: apps/*, packages/*
 └── docker-compose.yml
 ```
+
+**Important:** Docker and DigitalOcean configs still point at **`frontend/`** only. The mobile app is **not** part of those web builds; it ships via **Expo / EAS** when you are ready.
 
 ### Backend Modules (`backend/src/modules/`)
 
@@ -130,7 +150,42 @@ All financial amounts use `DECIMAL(12, 2)` — never use JavaScript floats for m
 
 **Image pipeline:** Frontend compresses images to WebP before uploading to the `/upload` endpoint, which stores on DigitalOcean Spaces and returns a CDN URL. The `next.config.js` allowlist includes the DO Spaces CDN domain.
 
+**Native mobile (Expo):** `apps/mobile` uses **Axios** + **`expo-secure-store`** for access/refresh tokens, mirrors web auth routes (`/api/v1/auth/login`, `refresh`, `logout`, `/api/v1/users/me`), and includes **Metro** `watchFolders` for the monorepo root (`apps/mobile/metro.config.js`). Shared copy for password hint constants lives in **`@mall263/shared`**; the web app may still import `frontend/src/lib/password-rules.ts` until deduped.
 
+---
+
+## Native mobile app — roadmap and journey
+
+**Product goal:** Offer the **same platform capabilities as the web app** (marketplace, wallet, POS, demands, agent, admin, services, etc.) with a **native-quality** experience on **real Android and iPhone** devices. The **Nest API stays the single source of truth**; mobile screens are rebuilt in React Native (Expo), not by embedding the Next.js site.
+
+**Why a public API URL on devices:** Phones (especially when the laptop is the hotspot or home Wi‑Fi is restrictive) often cannot hit `http://localhost:4000` or a random LAN IP reliably. **Staging or production HTTPS** endpoints avoid firewall and DNS issues and match how users will run in the wild.
+
+### Already shipped (baseline)
+
+- Repo **npm workspaces** (`apps/*`, `packages/*`) without moving `frontend/`.
+- **`@mall263/mobile`**: Expo Router, sign-in with phone + password, token storage, refresh on 401, guarded tabs, sign-out, **Shop** tab (browse + **search** `GET /api/v1/search`), **product detail** (`GET /api/v1/products/:id`), TanStack Query. Local `apps/mobile/.env` sets `EXPO_PUBLIC_API_URL` (gitignored).
+- **`@mall263/shared`**: password rule helpers for reuse.
+- **Step-by-step solo plan:** `docs/MOBILE_BUILD_PLAN.md` (checklists; update as you finish steps).
+
+### Recommended build order (toward web parity)
+
+Work in **vertical slices** (one flow end-to-end on device against staging API) to reduce risk:
+
+1. **Account & profile** — session, profile edit if API exists, settings.
+2. **Buyer / marketplace** — browse, search, product detail, cart/checkout as APIs allow.
+3. **Wallet** — read balances and history first; **writes and Paynow** only after deep-link / return URL behaviour is designed for mobile (coordinate with backend).
+4. **Demands & offers** — list, detail, actions aligned with web.
+5. **Seller / inventory** — stalls, products, variants, uploads (camera, image pipeline).
+6. **POS** — fast flows, receipts; may need device-specific UX (scanner, print).
+7. **Field agent** — offline queue, sync (larger effort; native shines here).
+8. **Admin / ops** — role-gated screens mirroring web admin where product owners need them on mobile.
+9. **Chat / realtime** — socket lifecycle, backgrounding, push notifications as needed.
+
+**Extract shared logic over time:** Move API client shapes, Zod schemas, and constants into **`packages/shared`** or a future **`packages/api-client`** so web and mobile do not drift.
+
+**Release engineering:** Use **EAS Build** for iOS/Android store binaries; Apple and Google developer accounts are assumed available. Use **EAS Update** later for JS-only hotfixes if desired.
+
+---
 
 You are the **Senior Software Engineer and Architect** responsible for maintaining and evolving **MALL263** — a production-grade Anti-Money Laundering (AML) case management and compliance platform.
 

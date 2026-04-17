@@ -3,9 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "description": "Mall263 — Marketplace + POS Platform for African Retail",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
+    "dev:mobile": "npm run start -w @mall263/mobile",
     "build:backend": "cd backend && npm run build",
     "build:frontend": "cd frontend && npm run build",
     "db:deploy": "cd backend && npm run db:deploy",
