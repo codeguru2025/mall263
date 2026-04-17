@@ -21,6 +21,7 @@ enum UserRole {
   SUPPORT_ADMIN
   SUPER_ADMIN
   MALL_MANAGER
+  DRIVER
 }
 
 enum UserStatus {
@@ -67,6 +68,17 @@ enum WalletTransactionType {
   REFUND_DEBIT
   FEE
   ADJUSTMENT
+  // Delivery / escrow
+  ESCROW_LOCK
+  ESCROW_RELEASE
+  ESCROW_REFUND
+  DELIVERY_FEE
+  DRIVER_EARNING
+  RISK_RESERVE
+  COD_COLLECTED
+  COD_REMITTED
+  FLOAT_HOLD
+  FLOAT_RELEASE
 }
 
 enum WalletTransactionStatus {
@@ -150,6 +162,15 @@ enum NotificationType {
   COMMISSION_LOW
   SYSTEM
   TRUST_UPDATE
+  // Delivery
+  JOB_BROADCAST
+  JOB_ACCEPTED
+  JOB_PICKUP_CONFIRMED
+  JOB_DELIVERED
+  JOB_CANCELLED
+  COD_REMINDER
+  DISPUTE_OPENED
+  DISPUTE_RESOLVED
 }
 
 enum AgentTaskType {
@@ -208,6 +229,7 @@ model User {
   status        UserStatus @default(PENDING_VERIFICATION)
   lastLoginAt   DateTime?  @map("last_login_at")
   lastLoginIp   String?    @map("last_login_ip")
+  pushToken     String?    @map("push_token")
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
@@ -230,6 +252,12 @@ model User {
   recordedStallExpenses StallExpense[]      @relation("ExpenseRecordedBy")
   supportRequestsSubmitted SupportRequest[] @relation("SupportRequestSubmitter")
   supportRequestsAssigned  SupportRequest[] @relation("SupportRequestAssignee")
+  driver               Driver?
+  sellerDeliveryJobs   DeliveryJob[]        @relation("SellerDeliveryJobs")
+  buyerDeliveryJobs    DeliveryJob[]        @relation("BuyerDeliveryJobs")
+  escrowAccounts       EscrowAccount[]      @relation("BuyerEscrow")
+  disputesRaised       Dispute[]            @relation("DisputeRaisedBy")
+  disputesResolved     Dispute[]            @relation("DisputeResolvedBy")
 
   @@index([phone])
   @@index([role])
@@ -1123,6 +1151,239 @@ model DeliveryRequest {
 
   @@index([offerId])
   @@map("delivery_requests")
+}
+
+// ============================================================
+// DELIVERY NETWORK + DRIVER TRUST SYSTEM
+// ============================================================
+
+enum DriverTier {
+  ONBOARDING // 0-30 days / <20 jobs; low COD exposure, small jobs
+  TRUSTED    // 20-50 completed jobs, high remittance accuracy
+  ELITE      // High-volume; priority dispatch; optional float top-up
+}
+
+enum DeliveryMode {
+  SAFE_PAY        // Digital escrow; buyer funds locked until delivery confirmed
+  CASH_ON_DELIVERY // Driver collects cash from buyer at doorstep
+  DIRECT_DEAL     // Meet seller physically; no platform involvement
+}
+
+enum DeliveryJobStatus {
+  BROADCAST        // Available to nearby drivers
+  ACCEPTED         // Driver claimed the job
+  PICKUP_CONFIRMED // Driver submitted pickup proof (photo + GPS)
+  IN_TRANSIT       // En route to buyer
+  DELIVERED        // Delivery proof submitted; awaiting confirmation
+  COMPLETED        // Buyer confirmed or auto-confirmed after 24h
+  CANCELLED
+  RETURNED         // Item returned to seller
+}
+
+enum EscrowStatus {
+  HELD                // Funds locked; awaiting delivery
+  RELEASED_TO_SELLER  // Delivery confirmed; seller paid
+  REFUNDED_TO_BUYER   // Return / dispute resolved in buyer's favour
+  IN_DISPUTE
+}
+
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED_SELLER  // Seller's favour; buyer pays
+  RESOLVED_BUYER   // Buyer's favour; seller pays return cost
+  RESOLVED_RESERVE // Ambiguous; system reserve absorbs cost
+}
+
+enum CODRemittanceStatus {
+  PENDING  // Driver holding cash
+  REMITTED // Cash handed in
+  OVERDUE  // Exceeded remittance window
+}
+
+// Driver profile — extends User (role = DRIVER)
+model Driver {
+  id             String     @id @default(uuid()) @db.Uuid
+  userId         String     @unique @map("user_id") @db.Uuid
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier           DriverTier @default(ONBOARDING)
+  isActive       Boolean    @default(true) @map("is_active")
+  kycVerified    Boolean    @default(false) @map("kyc_verified")
+  kycDocUrl      String?    @map("kyc_doc_url")
+  vehicleType    String?    @map("vehicle_type")
+  currentLat     Decimal?   @map("current_lat") @db.Decimal(10, 8)
+  currentLng     Decimal?   @map("current_lng") @db.Decimal(11, 8)
+  locationAt     DateTime?  @map("location_at")
+  completedJobs  Int        @default(0) @map("completed_jobs")
+  totalEarnings  Decimal    @default(0) @map("total_earnings") @db.Decimal(14, 2)
+  floatBalance   Decimal    @default(0) @map("float_balance") @db.Decimal(14, 2)
+  codCashHeld    Decimal    @default(0) @map("cod_cash_held") @db.Decimal(14, 2)
+  maxCodExposure Decimal    @default(50) @map("max_cod_exposure") @db.Decimal(14, 2)
+  rating         Decimal    @default(50) @db.Decimal(5, 2)
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  jobs              DeliveryJob[]
+  floatTransactions DriverFloatTransaction[]
+  codTransactions   CODTransaction[]
+
+  @@index([isActive, tier])
+  @@index([currentLat, currentLng])
+  @@map("drivers")
+}
+
+// Delivery job — the core logistics record
+model DeliveryJob {
+  id        String            @id @default(uuid()) @db.Uuid
+  orderId   String            @map("order_id") @db.Uuid
+  orderType String            @map("order_type") // "OFFER" | "POS_SALE"
+  sellerId  String            @map("seller_id") @db.Uuid
+  seller    User              @relation("SellerDeliveryJobs", fields: [sellerId], references: [id])
+  buyerId   String            @map("buyer_id") @db.Uuid
+  buyer     User              @relation("BuyerDeliveryJobs", fields: [buyerId], references: [id])
+  driverId  String?           @map("driver_id") @db.Uuid
+  driver    Driver?           @relation(fields: [driverId], references: [id])
+  mode      DeliveryMode
+  status    DeliveryJobStatus @default(BROADCAST)
+
+  // Zones (always visible to all drivers)
+  pickupZone String  @map("pickup_zone")
+  dropZone   String  @map("drop_zone")
+
+  // Full addresses — revealed only after driver accepts
+  pickupAddress String? @map("pickup_address")
+  dropAddress   String? @map("drop_address")
+  pickupLat     Decimal? @map("pickup_lat") @db.Decimal(10, 8)
+  pickupLng     Decimal? @map("pickup_lng") @db.Decimal(11, 8)
+  dropLat       Decimal? @map("drop_lat") @db.Decimal(10, 8)
+  dropLng       Decimal? @map("drop_lng") @db.Decimal(11, 8)
+  distanceKm    Decimal? @map("distance_km") @db.Decimal(8, 2)
+
+  // Financials
+  itemAmount    Decimal @map("item_amount") @db.Decimal(14, 2)
+  deliveryFee   Decimal @map("delivery_fee") @db.Decimal(14, 2)
+  platformFee   Decimal @map("platform_fee") @db.Decimal(14, 2)
+  reserveAmount Decimal @map("reserve_amount") @db.Decimal(14, 2)
+  driverEarning Decimal @map("driver_earning") @db.Decimal(14, 2)
+
+  // Pickup proof
+  pickupPhotoUrl  String?  @map("pickup_photo_url")
+  pickupTimestamp DateTime? @map("pickup_timestamp")
+  pickupGpsLat    Decimal?  @map("pickup_gps_lat") @db.Decimal(10, 8)
+  pickupGpsLng    Decimal?  @map("pickup_gps_lng") @db.Decimal(11, 8)
+
+  // Delivery proof
+  deliveryPhotoUrl  String?  @map("delivery_photo_url")
+  deliveryTimestamp DateTime? @map("delivery_timestamp")
+  deliveryGpsLat    Decimal?  @map("delivery_gps_lat") @db.Decimal(10, 8)
+  deliveryGpsLng    Decimal?  @map("delivery_gps_lng") @db.Decimal(11, 8)
+
+  broadcastedAt DateTime? @map("broadcasted_at")
+  acceptedAt    DateTime? @map("accepted_at")
+  completedAt   DateTime? @map("completed_at")
+  cancelReason  String?   @map("cancel_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  escrow         EscrowAccount?
+  codTransaction CODTransaction?
+  dispute        Dispute?
+
+  @@index([status])
+  @@index([sellerId])
+  @@index([buyerId])
+  @@index([driverId])
+  @@index([mode, status])
+  @@map("delivery_jobs")
+}
+
+// SafePay escrow — funds locked from buyer until delivery confirmed
+model EscrowAccount {
+  id          String       @id @default(uuid()) @db.Uuid
+  jobId       String       @unique @map("job_id") @db.Uuid
+  job         DeliveryJob  @relation(fields: [jobId], references: [id])
+  buyerId     String       @map("buyer_id") @db.Uuid
+  buyer       User         @relation("BuyerEscrow", fields: [buyerId], references: [id])
+  totalHeld   Decimal      @map("total_held") @db.Decimal(14, 2)
+  itemAmount  Decimal      @map("item_amount") @db.Decimal(14, 2)
+  deliveryFee Decimal      @map("delivery_fee") @db.Decimal(14, 2)
+  platformFee Decimal      @map("platform_fee") @db.Decimal(14, 2)
+  reserveAmt  Decimal      @map("reserve_amt") @db.Decimal(14, 2)
+  status      EscrowStatus @default(HELD)
+  releasedAt  DateTime?    @map("released_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([buyerId, status])
+  @@map("escrow_accounts")
+}
+
+// COD cash tracking — driver acts as cash collection agent
+model CODTransaction {
+  id               String              @id @default(uuid()) @db.Uuid
+  jobId            String              @unique @map("job_id") @db.Uuid
+  job              DeliveryJob         @relation(fields: [jobId], references: [id])
+  driverId         String              @map("driver_id") @db.Uuid
+  driver           Driver              @relation(fields: [driverId], references: [id])
+  cashAmount       Decimal             @map("cash_amount") @db.Decimal(14, 2)
+  remittanceStatus CODRemittanceStatus @default(PENDING) @map("remittance_status")
+  remittedAmount   Decimal             @default(0) @map("remitted_amount") @db.Decimal(14, 2)
+  remittedAt       DateTime?           @map("remitted_at")
+  remittanceRef    String?             @map("remittance_ref")
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  @@index([driverId, remittanceStatus])
+  @@map("cod_transactions")
+}
+
+// Driver float ledger — auto-held % of earnings as operational buffer
+model DriverFloatTransaction {
+  id          String   @id @default(uuid()) @db.Uuid
+  driverId    String   @map("driver_id") @db.Uuid
+  driver      Driver   @relation(fields: [driverId], references: [id])
+  amount      Decimal  @db.Decimal(14, 2)
+  type        String   // HOLD | RELEASE | TOP_UP | DEDUCTION
+  reference   String?
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([driverId])
+  @@map("driver_float_transactions")
+}
+
+// Dispute — raised by buyer or seller after failed delivery
+model Dispute {
+  id         String        @id @default(uuid()) @db.Uuid
+  jobId      String        @unique @map("job_id") @db.Uuid
+  job        DeliveryJob   @relation(fields: [jobId], references: [id])
+  raisedById String        @map("raised_by_id") @db.Uuid
+  raisedBy   User          @relation("DisputeRaisedBy", fields: [raisedById], references: [id])
+  reason     String
+  evidence   Json?         // photo URLs, buyer/seller notes
+  status     DisputeStatus @default(OPEN)
+  resolution String?
+  resolvedById String?     @map("resolved_by_id") @db.Uuid
+  resolvedBy   User?       @relation("DisputeResolvedBy", fields: [resolvedById], references: [id])
+  resolvedAt   DateTime?   @map("resolved_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([raisedById])
+  @@map("disputes")
+}
+
+// System-level risk reserve pool
+model RiskReservePool {
+  id        String   @id @default(uuid()) @db.Uuid
+  balance   Decimal  @default(0) @db.Decimal(14, 2)
+  totalIn   Decimal  @default(0) @map("total_in") @db.Decimal(14, 2)
+  totalOut  Decimal  @default(0) @map("total_out") @db.Decimal(14, 2)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("risk_reserve_pool")
 }
 
 // ============================================================

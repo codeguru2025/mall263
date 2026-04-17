@@ -6,11 +6,35 @@ import { NotificationType } from '@prisma/client';
 export class NotificationsService {
   constructor(private prisma: PrismaService) {}
 
-  async send(userId: string, type: NotificationType, title: string, body: string, data?: any) {
-    return this.prisma.notification.create({
-      data: { userId, type, title, body, data },
+  // ─── Save Expo push token for a user ─────────────────────────────────────
+
+  async savePushToken(userId: string, token: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { pushToken: token },
+      select: { id: true },
     });
   }
+
+  // ─── Send in-app notification + optional push ─────────────────────────────
+
+  async send(userId: string, type: NotificationType, title: string, body: string, data?: any) {
+    const [notification, user] = await Promise.all([
+      this.prisma.notification.create({
+        data: { userId, type, title, body, data },
+      }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { pushToken: true } }),
+    ]);
+
+    // Fire-and-forget push — never let push failure affect the caller
+    if (user?.pushToken) {
+      this.sendExpoPush(user.pushToken, title, body, data).catch(() => {});
+    }
+
+    return notification;
+  }
+
+  // ─── Get notifications (paginated) ────────────────────────────────────────
 
   async getMyNotifications(userId: string, params: { isRead?: boolean; page?: number; limit?: number }) {
     const { isRead } = params;
@@ -30,6 +54,8 @@ export class NotificationsService {
     return { data, total, unreadCount, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
+  // ─── Mark one / all as read ────────────────────────────────────────────────
+
   async markAsRead(notificationId: string, userId: string) {
     const notification = await this.prisma.notification.findFirst({
       where: { id: notificationId, userId },
@@ -45,6 +71,16 @@ export class NotificationsService {
     return this.prisma.notification.updateMany({
       where: { userId, isRead: false },
       data: { isRead: true, readAt: new Date() },
+    });
+  }
+
+  // ─── Internal: call Expo push API ─────────────────────────────────────────
+
+  private async sendExpoPush(token: string, title: string, body: string, data?: any) {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ to: token, title, body, data: data ?? {}, sound: 'default' }),
     });
   }
 }

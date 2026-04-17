@@ -236,6 +236,7 @@ export class DemandsService {
             stall: {
               select: {
                 id: true, name: true, stallNumber: true, latitude: true, longitude: true,
+                merchant: { select: { userId: true } },
                 mall: { select: { name: true, city: true, address: true, latitude: true, longitude: true } },
               },
             },

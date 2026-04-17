@@ -122,6 +122,11 @@ export default function ProfileScreen() {
             <Text style={styles.agentBtnText}>🗂  Field Agent</Text>
           </Pressable>
         )}
+        {q.data?.role === 'DRIVER' && (
+          <Pressable style={styles.driverBtn} onPress={() => router.push('/(driver)/jobs')}>
+            <Text style={styles.driverBtnText}>🚗  Driver Hub</Text>
+          </Pressable>
+        )}
         {(q.data?.merchant || (q.data?.attendantStall ?? []).length > 0) && (
           <Pressable style={styles.posBtn} onPress={() => router.push('/pos')}>
             <Text style={styles.posBtnText}>🧾  POS Register</Text>
@@ -350,4 +355,12 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   sellerBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
+  driverBtn: {
+    backgroundColor: '#0f766e',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  driverBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
 });

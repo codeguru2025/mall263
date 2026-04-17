@@ -182,6 +182,29 @@ export default function DemandDetailScreen() {
                 <Text style={styles.chatBtnText}>{openChatMut.isPending ? 'Opening…' : 'Open chat'}</Text>
               </Pressable>
             ) : null}
+            {offer.status === 'ACCEPTED' && offer.stall?.merchant?.userId && d.buyer?.id ? (
+              <Pressable
+                style={styles.deliveryBtn}
+                onPress={() =>
+                  router.push({
+                    pathname: '/delivery/checkout',
+                    params: {
+                      orderId: offer.id,
+                      orderType: 'OFFER',
+                      sellerId: offer.stall!.merchant!.userId,
+                      buyerId: d.buyer!.id,
+                      pickupZone: offer.stall?.mall?.city ?? offer.stall?.name ?? 'Pickup',
+                      dropZone: 'Customer',
+                      pickupAddress: offer.stall?.mall?.address ?? '',
+                      itemAmount: String(offer.totalPrice),
+                      deliveryFee: '5',
+                    },
+                  })
+                }
+              >
+                <Text style={styles.deliveryBtnText}>Arrange Delivery</Text>
+              </Pressable>
+            ) : null}
             {offer.status === 'PENDING' && d.status === 'OPEN' ? (
               <Pressable
                 style={[styles.acceptBtn, acceptMut.isPending && styles.btnDisabled]}
@@ -257,6 +280,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   acceptBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  deliveryBtn: {
+    marginTop: 10,
+    backgroundColor: '#0f766e',
+    paddingVertical: 11,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  deliveryBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
   btnDisabled: { opacity: 0.6 },
   outline: {
     marginTop: 8,

@@ -38,6 +38,31 @@ async function main() {
     create: { userId: owner.id, availableBalance: 0, lockedBalance: 0, currency: 'USD' },
   });
 
+  // Feature flags — all disabled by default; enable via admin panel or direct DB update
+  const featureFlags = [
+    'ENABLE_DELIVERY_LAYER',
+    'ENABLE_SAFE_PAY_ESCROW',
+    'ENABLE_CASH_ON_DELIVERY',
+    'ENABLE_DRIVER_FLOAT',
+    'ENABLE_DISPUTE_SYSTEM',
+  ];
+  for (const key of featureFlags) {
+    await prisma.appSetting.upsert({
+      where: { key },
+      update: {},
+      create: { key, value: 'false' },
+    });
+  }
+  console.log('Feature flags seeded:', featureFlags.join(', '));
+
+  // Delivery radius (km) — default 10 km
+  await prisma.appSetting.upsert({
+    where: { key: 'DELIVERY_RADIUS_KM' },
+    update: {},
+    create: { key: 'DELIVERY_RADIUS_KM', value: '10' },
+  });
+  console.log('Delivery radius setting seeded: DELIVERY_RADIUS_KM = 10');
+
   console.log('Seed completed.');
 }
 

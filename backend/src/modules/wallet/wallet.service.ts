@@ -491,4 +491,131 @@ export class WalletService {
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
   }
+
+  // ─── Escrow debit (buyer pays at job creation) ────────────────────────────
+
+  async debitForEscrow(
+    userId: string,
+    amount: number,
+    jobId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const wallet = await tx.wallet.findUnique({ where: { userId } });
+    if (!wallet) throw new NotFoundException('Wallet not found');
+    if (Number(wallet.availableBalance) < amount) {
+      throw new BadRequestException('Insufficient balance for escrow');
+    }
+    const balBefore = wallet.availableBalance;
+    const balAfter = new Prisma.Decimal(Number(balBefore) - amount);
+    await tx.wallet.update({
+      where: { userId },
+      data: { availableBalance: balAfter },
+    });
+    await tx.walletTransaction.create({
+      data: {
+        walletId: wallet.id,
+        type: WalletTransactionType.ESCROW_LOCK,
+        amount: new Prisma.Decimal(amount),
+        status: WalletTransactionStatus.COMPLETED,
+        balanceBefore: balBefore,
+        balanceAfter: balAfter,
+        description: `Escrow lock for delivery job ${jobId}`,
+        referenceId: jobId,
+        referenceType: 'delivery_job',
+      },
+    });
+  }
+
+  // ─── Escrow release (seller paid on delivery) ─────────────────────────────
+
+  async creditEscrowRelease(
+    userId: string,
+    amount: number,
+    jobId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const wallet = await tx.wallet.findUnique({ where: { userId } });
+    if (!wallet) throw new NotFoundException('Wallet not found');
+    const balBefore = wallet.availableBalance;
+    const balAfter = new Prisma.Decimal(Number(balBefore) + amount);
+    await tx.wallet.update({
+      where: { userId },
+      data: { availableBalance: balAfter },
+    });
+    await tx.walletTransaction.create({
+      data: {
+        walletId: wallet.id,
+        type: WalletTransactionType.ESCROW_RELEASE,
+        amount: new Prisma.Decimal(amount),
+        status: WalletTransactionStatus.COMPLETED,
+        balanceBefore: balBefore,
+        balanceAfter: balAfter,
+        description: `Escrow release for delivery job ${jobId}`,
+        referenceId: jobId,
+        referenceType: 'delivery_job',
+      },
+    });
+  }
+
+  // ─── Escrow refund (buyer gets money back) ────────────────────────────────
+
+  async creditEscrowRefund(
+    userId: string,
+    amount: number,
+    jobId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const wallet = await tx.wallet.findUnique({ where: { userId } });
+    if (!wallet) throw new NotFoundException('Wallet not found');
+    const balBefore = wallet.availableBalance;
+    const balAfter = new Prisma.Decimal(Number(balBefore) + amount);
+    await tx.wallet.update({
+      where: { userId },
+      data: { availableBalance: balAfter },
+    });
+    await tx.walletTransaction.create({
+      data: {
+        walletId: wallet.id,
+        type: WalletTransactionType.ESCROW_REFUND,
+        amount: new Prisma.Decimal(amount),
+        status: WalletTransactionStatus.COMPLETED,
+        balanceBefore: balBefore,
+        balanceAfter: balAfter,
+        description: `Escrow refund for delivery job ${jobId}`,
+        referenceId: jobId,
+        referenceType: 'delivery_job',
+      },
+    });
+  }
+
+  // ─── Driver earning credit ────────────────────────────────────────────────
+
+  async creditDriverEarning(
+    userId: string,
+    amount: number,
+    jobId: string,
+    tx: Prisma.TransactionClient,
+  ) {
+    const wallet = await tx.wallet.findUnique({ where: { userId } });
+    if (!wallet) return; // driver may not have a wallet yet
+    const balBefore = wallet.availableBalance;
+    const balAfter = new Prisma.Decimal(Number(balBefore) + amount);
+    await tx.wallet.update({
+      where: { userId },
+      data: { availableBalance: balAfter },
+    });
+    await tx.walletTransaction.create({
+      data: {
+        walletId: wallet.id,
+        type: WalletTransactionType.DRIVER_EARNING,
+        amount: new Prisma.Decimal(amount),
+        status: WalletTransactionStatus.COMPLETED,
+        balanceBefore: balBefore,
+        balanceAfter: balAfter,
+        description: `Driver earning for delivery job ${jobId}`,
+        referenceId: jobId,
+        referenceType: 'delivery_job',
+      },
+    });
+  }
 }

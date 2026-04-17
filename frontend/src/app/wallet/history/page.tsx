@@ -28,6 +28,16 @@ const TYPE_COLORS: Record<string, string> = {
   REFUND_DEBIT: 'text-brand-red',
   FEE: 'text-brand-red',
   ADJUSTMENT: 'text-brand-green',
+  ESCROW_LOCK: 'text-gray-500',
+  ESCROW_RELEASE: 'text-brand-green',
+  ESCROW_REFUND: 'text-brand-green',
+  DELIVERY_FEE: 'text-brand-red',
+  DRIVER_EARNING: 'text-brand-green',
+  RISK_RESERVE: 'text-brand-red',
+  COD_COLLECTED: 'text-brand-orange',
+  COD_REMITTED: 'text-brand-green',
+  FLOAT_HOLD: 'text-gray-500',
+  FLOAT_RELEASE: 'text-brand-green',
 };
 
 function txIcon(type: string) {

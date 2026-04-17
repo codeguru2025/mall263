@@ -1,11 +1,14 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Redirect, Tabs } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 
 import Colors from '@/constants/Colors';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { useAuth } from '@/contexts/AuthContext';
+import { Logo } from '@/components/Logo';
+import { fetchNotificationsPage } from '@/lib/notifications-api';
 
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
@@ -19,6 +22,14 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const { isReady, isAuthenticated } = useAuth();
 
+  const { data: notifPage } = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: () => fetchNotificationsPage(1, 1, 'unread'),
+    enabled: isAuthenticated,
+    refetchInterval: 30_000,
+  });
+  const unreadCount = notifPage?.unreadCount ?? 0;
+
   if (!isReady) {
     return null;
   }
@@ -30,8 +41,6 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        // Disable the static render of the header on web
-        // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, true),
       }}>
       <Tabs.Screen
@@ -39,6 +48,9 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
+          headerTitle: () => <Logo size={36} />,
+          headerStyle: { backgroundColor: '#1B2A4A' },
+          headerTintColor: '#fff',
         }}
       />
       <Tabs.Screen
@@ -60,6 +72,7 @@ export default function TabLayout() {
         options={{
           title: 'Alerts',
           tabBarIcon: ({ color }) => <TabBarIcon name="bell" color={color} />,
+          tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
         }}
       />
       <Tabs.Screen

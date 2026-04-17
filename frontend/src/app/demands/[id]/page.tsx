@@ -13,7 +13,7 @@ import OfferExpiryBar from '@/components/OfferExpiryBar';
 import {
   ArrowLeft, Gavel, Clock, CheckCircle2, ChevronDown, Loader2, AlertCircle,
   MapPin, MessageCircle, Truck, Navigation, Store, PackageCheck, X, Receipt,
-  TrendingUp, Star
+  TrendingUp, Star, ShieldCheck, Banknote, Handshake,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
@@ -35,10 +35,8 @@ export default function DemandDetailPage() {
   const authLoading = useAuthStore((s) => s.isLoading);
   const [offerOpen, setOfferOpen] = useState(false);
   const [offerForm, setOfferForm] = useState({ message: '', totalPrice: '', stallId: '' });
-  const [deliveryOfferId, setDeliveryOfferId] = useState<string | null>(null);
-  const [buyerLocation, setBuyerLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [locating, setLocating] = useState(false);
-  const [activeMapOffer, setActiveMapOffer] = useState<string | null>(null);
+  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
+  const [selectedMode, setSelectedMode] = useState<'SAFE_PAY' | 'CASH_ON_DELIVERY' | 'DIRECT_DEAL'>('SAFE_PAY');
   const [fulfillModal, setFulfillModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [completedSaleId, setCompletedSaleId] = useState<string | null>(null);
@@ -67,10 +65,6 @@ export default function DemandDetailPage() {
     enabled: isAuthenticated && ['STALL_OWNER', 'ATTENDANT'].includes(user?.role ?? '') && !!merchant?.id,
   });
 
-  const { data: deliveryRate } = useQuery({
-    queryKey: ['delivery-rate'],
-    queryFn: () => api.get('/api/v1/demands/delivery/rate').then((r) => r.data),
-  });
 
   const stallId = myStalls?.[0]?.id ?? '';
 
@@ -94,10 +88,9 @@ export default function DemandDetailPage() {
   const acceptOffer = useMutation({
     mutationFn: (offerId: string) =>
       api.post(`/api/v1/demands/offers/${offerId}/accept`).then((r) => r.data),
-    onSuccess: (_, offerId) => {
+    onSuccess: () => {
       toast.success('Offer accepted!');
       queryClient.invalidateQueries({ queryKey: ['demand', id] });
-      setActiveMapOffer(offerId);
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to accept offer'),
   });
@@ -123,37 +116,32 @@ export default function DemandDetailPage() {
     onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to complete sale'),
   });
 
-  const requestDelivery = useMutation({
-    mutationFn: ({ offerId, lat, lng }: { offerId: string; lat: number; lng: number }) =>
-      api.post(`/api/v1/demands/offers/${offerId}/delivery`, { buyerLat: lat, buyerLng: lng }).then((r) => r.data),
-    onSuccess: (data) => {
-      toast.success(`Delivery requested! Fee: ${formatCurrency(data.deliveryFee)} for ${data.distanceKm.toFixed(1)}km`);
-      setDeliveryOfferId(null);
-      queryClient.invalidateQueries({ queryKey: ['demand', id] });
+  const createDeliveryJob = useMutation({
+    mutationFn: (offer: any) => {
+      const itemAmount = parseFloat(offer.totalPrice);
+      if (!offer.stall?.merchant?.userId) throw new Error('Seller information unavailable. Cannot create delivery.');
+      if (!demand?.buyer?.id) throw new Error('Buyer information unavailable.');
+      if (isNaN(itemAmount) || itemAmount <= 0) throw new Error('Offer price is invalid.');
+      return api.post('/api/v1/delivery/jobs', {
+        orderId: offer.id,
+        orderType: 'OFFER',
+        sellerId: offer.stall.merchant.userId,
+        buyerId: demand.buyer.id,
+        mode: selectedMode,
+        pickupZone: offer.stall?.mall?.city ?? offer.stall?.name ?? 'Pickup',
+        dropZone: 'Customer',
+        pickupAddress: offer.stall?.mall?.address ?? '',
+        itemAmount,
+        deliveryFee: 5,
+      }).then((r) => r.data);
     },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to request delivery'),
+    onSuccess: (job) => {
+      toast.success('Delivery job created!');
+      setShowDeliveryModal(false);
+      router.push(`/delivery/${job.id}`);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to create delivery job'),
   });
-
-  const handleRequestDelivery = (offerId: string) => {
-    if (buyerLocation) {
-      requestDelivery.mutate({ offerId, lat: buyerLocation.lat, lng: buyerLocation.lng });
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setBuyerLocation(loc);
-        setLocating(false);
-        requestDelivery.mutate({ offerId, lat: loc.lat, lng: loc.lng });
-      },
-      () => {
-        setLocating(false);
-        toast.error('Could not get your location. Please enable location access.');
-      },
-      { timeout: 10000 }
-    );
-  };
 
   // Must be called unconditionally before any early returns
   const timeLeft = useCountdown(demand?.expiresAt ?? '');
@@ -384,37 +372,12 @@ export default function DemandDetailPage() {
             {/* Delivery section */}
             {isBuyer && (
               <div className="px-5 py-4 border-t border-gray-100">
-                {acceptedOffer.deliveryRequest ? (
-                  <div className="flex items-center gap-3 bg-green-50 rounded-xl p-3">
-                    <Truck className="w-5 h-5 text-brand-green" />
-                    <div>
-                      <div className="text-sm font-bold text-brand-green">Delivery Requested</div>
-                      <div className="text-xs text-gray-500">
-                        {acceptedOffer.deliveryRequest.distanceKm?.toFixed(1)}km ·{' '}
-                        {formatCurrency(parseFloat(acceptedOffer.deliveryRequest.deliveryFee))} ·{' '}
-                        Status: {acceptedOffer.deliveryRequest.status}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="text-xs text-gray-500 flex items-center gap-1">
-                      <Truck className="w-3.5 h-3.5" />
-                      Want it delivered? Rate: {formatCurrency(deliveryRate?.ratePerKm ?? 0.5)}/km
-                    </div>
-                    <button
-                      onClick={() => handleRequestDelivery(acceptedOffer.id)}
-                      disabled={locating || requestDelivery.isPending}
-                      className="w-full flex items-center justify-center gap-2 py-3 bg-brand-orange text-white text-sm font-bold rounded-xl hover:bg-orange-500 transition-colors disabled:opacity-60"
-                    >
-                      {locating || requestDelivery.isPending ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" /> {locating ? 'Getting location...' : 'Requesting...'}</>
-                      ) : (
-                        <><Truck className="w-4 h-4" /> Request Delivery</>
-                      )}
-                    </button>
-                  </div>
-                )}
+                <button
+                  onClick={() => setShowDeliveryModal(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-[#0f766e] text-white text-sm font-bold rounded-xl hover:bg-teal-700 transition-colors"
+                >
+                  <Truck className="w-4 h-4" /> Arrange Delivery
+                </button>
               </div>
             )}
           </div>
@@ -631,6 +594,80 @@ export default function DemandDetailPage() {
                 {completeSale.isPending
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</>
                   : <><PackageCheck className="w-4 h-4" /> Complete &amp; Generate Receipt</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delivery mode modal */}
+      {showDeliveryModal && acceptedOffer && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 px-4 pb-4 sm:pb-0">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-black text-navy-700 flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-[#0f766e]" /> Arrange Delivery
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">Choose how your item will be delivered</p>
+              </div>
+              <button onClick={() => setShowDeliveryModal(false)} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-3">
+              {[
+                {
+                  mode: 'SAFE_PAY' as const,
+                  icon: <ShieldCheck className="w-5 h-5" />,
+                  label: 'SafePay Escrow',
+                  sub: 'Funds locked until delivery confirmed. Buyer protected.',
+                  color: 'border-brand-blue bg-blue-50 text-brand-blue',
+                },
+                {
+                  mode: 'CASH_ON_DELIVERY' as const,
+                  icon: <Banknote className="w-5 h-5" />,
+                  label: 'Cash on Delivery',
+                  sub: 'Driver collects cash from you. Seller receives after remittance.',
+                  color: 'border-brand-green bg-green-50 text-brand-green',
+                },
+                {
+                  mode: 'DIRECT_DEAL' as const,
+                  icon: <Handshake className="w-5 h-5" />,
+                  label: 'Direct Deal',
+                  sub: 'Meet the seller in person. No platform involvement.',
+                  color: 'border-gray-300 bg-gray-50 text-gray-500',
+                },
+              ].map((opt) => (
+                <button
+                  key={opt.mode}
+                  onClick={() => setSelectedMode(opt.mode)}
+                  className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                    selectedMode === opt.mode ? opt.color : 'border-gray-100 bg-white text-navy-700'
+                  }`}
+                >
+                  <span className={selectedMode === opt.mode ? '' : 'text-gray-400'}>{opt.icon}</span>
+                  <div>
+                    <div className="font-bold text-sm">{opt.label}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{opt.sub}</div>
+                  </div>
+                </button>
+              ))}
+
+              <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between">
+                <span className="text-sm text-gray-500">Item amount</span>
+                <span className="font-black text-navy-700">{formatCurrency(parseFloat(acceptedOffer.totalPrice))}</span>
+              </div>
+
+              <button
+                onClick={() => createDeliveryJob.mutate(acceptedOffer)}
+                disabled={createDeliveryJob.isPending || !acceptedOffer.stall?.merchant?.userId}
+                className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#0f766e] text-white font-black rounded-xl hover:bg-teal-700 transition-colors disabled:opacity-60"
+              >
+                {createDeliveryJob.isPending
+                  ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating job…</>
+                  : <><Truck className="w-4 h-4" /> Confirm &amp; Create Job</>}
               </button>
             </div>
           </div>

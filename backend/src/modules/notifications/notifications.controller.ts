@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Body, Param, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -10,6 +10,18 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @Controller('notifications')
 export class NotificationsController {
   constructor(private notificationsService: NotificationsService) {}
+
+  @Post('push-token')
+  @ApiOperation({ summary: 'Register Expo push token' })
+  async savePushToken(
+    @CurrentUser('id') userId: string,
+    @Body() body: { token: string },
+  ) {
+    if (!body.token?.startsWith('ExponentPushToken[')) {
+      throw new BadRequestException('Invalid Expo push token format');
+    }
+    return this.notificationsService.savePushToken(userId, body.token);
+  }
 
   @Get()
   @ApiOperation({ summary: 'Get my notifications' })

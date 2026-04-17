@@ -14,9 +14,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mall263.mobile"
     },
     "android": {
+      "package": "com.mall263.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -32,7 +34,30 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-image-picker"
+      "expo-image-picker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#1B2A4A",
+          "sounds": [],
+          "mode": "production"
+        }
+      ],
+      [
+        "react-native-maps",
+        {
+          "googleMapsApiKey": ""
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "project-mall263",
+          "organization": "chibikhulu"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
-import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield, Tag, Settings, Building2, LifeBuoy, CreditCard, Megaphone, Ticket } from 'lucide-react';
+import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield, Tag, Settings, Building2, LifeBuoy, CreditCard, Megaphone, Ticket, Truck, AlertTriangle } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 const ADMIN_DASHBOARD_ROLES = new Set(['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN']);
@@ -84,7 +84,10 @@ export default function AdminPage() {
     { href: '/admin/subscription-plans', icon: CreditCard, label: 'Subscription Plans', desc: 'Set pricing, trial length, and plan features for sellers', color: 'text-violet-600', bg: 'bg-violet-50', border: 'hover:border-violet-400' },
     { href: '/admin/promotions', icon: Ticket, label: 'Promotions & Referrals', desc: 'Create discount codes and referral programmes', color: 'text-pink-600', bg: 'bg-pink-50', border: 'hover:border-pink-400' },
     { href: '/admin/ads', icon: Megaphone, label: 'Ads & Banners', desc: 'Manage in-app ads, banners, and scheduled promotions', color: 'text-amber-600', bg: 'bg-amber-50', border: 'hover:border-amber-400' },
-    { href: '/admin/settings', icon: Settings, label: 'App Settings', desc: 'Set delivery rate per km and platform configuration', color: 'text-gray-600', bg: 'bg-gray-50', border: 'hover:border-gray-400' },
+    { href: '/admin/deliveries', icon: Truck, label: 'Delivery Jobs', desc: 'Monitor all platform delivery jobs in real time', color: 'text-teal-600', bg: 'bg-teal-50', border: 'hover:border-teal-400' },
+    { href: '/admin/drivers', icon: Truck, label: 'Drivers', desc: 'Approve KYC, manage tiers and driver accounts', color: 'text-teal-700', bg: 'bg-teal-50', border: 'hover:border-teal-600' },
+    { href: '/admin/disputes', icon: AlertTriangle, label: 'Disputes', desc: 'Resolve delivery disputes and release escrow funds', color: 'text-brand-red', bg: 'bg-red-50', border: 'hover:border-brand-red' },
+    { href: '/admin/settings', icon: Settings, label: 'App Settings', desc: 'Feature flags, delivery rate, and platform configuration', color: 'text-gray-600', bg: 'bg-gray-50', border: 'hover:border-gray-400' },
     { href: '/admin/support', icon: LifeBuoy, label: 'Help requests', desc: 'Review and resolve client support tickets', color: 'text-cyan-700', bg: 'bg-cyan-50', border: 'hover:border-cyan-400' },
   ];
 

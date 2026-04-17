@@ -19,6 +19,17 @@ const TYPE_LABELS: Record<string, string> = {
   REFUND_DEBIT: 'Refund debit',
   FEE: 'Fee',
   ADJUSTMENT: 'Adjustment',
+  // Delivery & escrow
+  ESCROW_LOCK: 'Escrow locked',
+  ESCROW_RELEASE: 'Escrow released',
+  ESCROW_REFUND: 'Escrow refunded',
+  DELIVERY_FEE: 'Delivery fee',
+  DRIVER_EARNING: 'Driver earning',
+  RISK_RESERVE: 'Risk reserve',
+  COD_COLLECTED: 'COD collected',
+  COD_REMITTED: 'COD remitted',
+  FLOAT_HOLD: 'Float held',
+  FLOAT_RELEASE: 'Float released',
 };
 
 /** Types that increase available balance in the UI (+ prefix). */
@@ -29,6 +40,11 @@ const CREDIT_TYPES = new Set<string>([
   'ADJUSTMENT',
   'TRANSFER_IN',
   'SALE_CREDIT',
+  'ESCROW_RELEASE',
+  'ESCROW_REFUND',
+  'DRIVER_EARNING',
+  'COD_REMITTED',
+  'FLOAT_RELEASE',
 ]);
 
 export function walletTxTypeLabel(type: string): string {

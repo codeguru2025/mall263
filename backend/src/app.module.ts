@@ -29,6 +29,10 @@ import { SubscriptionsModule } from './modules/subscriptions/subscriptions.modul
 import { ServicesModule } from './modules/services/services.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { SupportModule } from './modules/support/support.module';
+import { DeliveryModule } from './modules/delivery/delivery.module';
+import { DriversModule } from './modules/drivers/drivers.module';
+import { CodModule } from './modules/cod/cod.module';
+import { DisputesModule } from './modules/disputes/disputes.module';
 
 @Module({
   imports: [
@@ -63,6 +67,10 @@ import { SupportModule } from './modules/support/support.module';
     ServicesModule,
     ExpensesModule,
     SupportModule,
+    DeliveryModule,
+    DriversModule,
+    CodModule,
+    DisputesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

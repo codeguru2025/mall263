@@ -13,3 +13,11 @@ export const Brand = {
   muted: '#64748b',
   text: '#0f172a',
 } as const;
+
+/** Exact Zimbabwe national flag colours for decorative use. */
+export const ZimColors = {
+  green: '#006400',
+  yellow: '#FFD200',
+  red: '#EF3340',
+  black: '#000000',
+} as const;

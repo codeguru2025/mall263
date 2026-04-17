@@ -21,7 +21,13 @@ export type DemandOfferDetail = {
   createdAt?: string;
   expiresAt?: string;
   message?: string | null;
-  stall?: { id: string; name: string; stallNumber?: string | null } | null;
+  stall?: {
+    id: string;
+    name: string;
+    stallNumber?: string | null;
+    merchant?: { userId: string } | null;
+    mall?: { name: string; city: string; address: string } | null;
+  } | null;
   items?: Array<{
     quantity: number;
     price: unknown;
