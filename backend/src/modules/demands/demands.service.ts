@@ -14,11 +14,21 @@ import {
   Prisma,
   PaymentMethod,
   POSSaleStatus,
+  UserRole,
 } from '@prisma/client';
 
 const BUYER_FEE_RATE = 0.025; // 2.5% platform fee charged to buyer on purchase
 const BID_LOCK_HOURS = 1;     // BID lock released after 1 hour if demand not matched
 const BUYER_TRIAL_DAYS = 7;
+
+/** Ops roles: skip buyer wallet lock when posting a demand (support / QA; not marketplace buyers). */
+const DEMAND_WALLET_EXEMPT_ROLES: ReadonlySet<UserRole> = new Set([
+  UserRole.SUPER_ADMIN,
+  UserRole.ADMIN_OPS,
+  UserRole.FINANCE_ADMIN,
+  UserRole.SUPPORT_ADMIN,
+  UserRole.MALL_MANAGER,
+]);
 
 @Injectable()
 export class DemandsService {
@@ -46,16 +56,21 @@ export class DemandsService {
     mallId?: string;
     expiresInHours?: number;
   }) {
-    const buyer = await this.prisma.user.findUnique({ where: { id: buyerId }, select: { createdAt: true } });
+    const buyer = await this.prisma.user.findUnique({
+      where: { id: buyerId },
+      select: { createdAt: true, role: true },
+    });
     const accountAgeDays = buyer ? (Date.now() - buyer.createdAt.getTime()) / 86_400_000 : Infinity;
     const onTrial = accountAgeDays < BUYER_TRIAL_DAYS;
+    const skipWalletLock =
+      onTrial || (buyer?.role != null && DEMAND_WALLET_EXEMPT_ROLES.has(buyer.role));
     const lockAmountDec = new Prisma.Decimal(data.maxBudget).mul('0.10');
 
     return this.prisma.$retryTransaction(
       async (tx) => {
-        // --- Wallet checks (skipped entirely during trial) ---
+        // --- Wallet checks (skipped during trial or for ops staff posting test demands) ---
         let wallet: any = null;
-        if (!onTrial) {
+        if (!skipWalletLock) {
           wallet = await tx.wallet.findUnique({ where: { userId: buyerId } });
           if (!wallet || wallet.availableBalance.lte(0)) {
             throw new BadRequestException('You must fund your wallet to post demand requests');
@@ -110,8 +125,8 @@ export class DemandsService {
           },
         });
 
-        // --- Lock 10% of max budget (skipped during trial) ---
-        if (!onTrial && wallet) {
+        // --- Lock 10% of max budget (skipped when wallet checks skipped) ---
+        if (!skipWalletLock && wallet) {
         const newAvailable = wallet.availableBalance.sub(lockAmountDec);
         const newLocked = wallet.lockedBalance.add(lockAmountDec);
 
