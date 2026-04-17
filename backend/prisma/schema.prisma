@@ -1110,10 +1110,15 @@ model ChatRoom {
 }
 
 model ChatMessage {
-  id        String   @id @default(uuid()) @db.Uuid
-  roomId    String   @map("room_id") @db.Uuid
-  senderId  String   @map("sender_id") @db.Uuid
-  content   String
+  id              String   @id @default(uuid()) @db.Uuid
+  roomId          String   @map("room_id") @db.Uuid
+  senderId        String   @map("sender_id") @db.Uuid
+  content         String
+  attachmentUrl   String?  @map("attachment_url")
+  attachmentType  String?  @map("attachment_type") // 'image' | 'video'
+  attachmentWidth  Int?    @map("attachment_width")
+  attachmentHeight Int?    @map("attachment_height")
+  attachmentSize   Int?    @map("attachment_size") // bytes
   createdAt DateTime @default(now()) @map("created_at")
 
   room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)

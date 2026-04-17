@@ -8,7 +8,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 // Bumped per-deploy so clients can confirm which backend revision they are
 // actually talking to. Keep this as a plain string so it survives minification.
-const CHAT_BUILD_TAG = 'chat-hotfix-2026-04-17-p2023-bulletproof-v5-loosen-id-guard';
+const CHAT_BUILD_TAG = 'chat-2026-04-17-media-attachments-v1';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -170,13 +170,34 @@ export class ChatController {
 
   @UseGuards(JwtAuthGuard)
   @Post('rooms/:roomId/messages')
-  @ApiOperation({ summary: 'Send a message' })
+  @ApiOperation({ summary: 'Send a message (text and/or attachment)' })
   async sendMessage(
     @Param('roomId') roomId: string,
     @CurrentUser('id') senderId: string,
-    @Body('content') content: string,
+    @Body()
+    body: {
+      content?: string;
+      attachmentUrl?: string | null;
+      attachmentType?: string | null;
+      attachmentWidth?: number | null;
+      attachmentHeight?: number | null;
+      attachmentSize?: number | null;
+    },
   ) {
-    const message = await this.chatService.sendMessage(roomId, senderId, content);
+    const message = await this.chatService.sendMessage(
+      roomId,
+      senderId,
+      typeof body?.content === 'string' ? body.content : '',
+      body?.attachmentUrl
+        ? {
+            url: body.attachmentUrl,
+            type: body.attachmentType ?? 'image',
+            width: body.attachmentWidth ?? null,
+            height: body.attachmentHeight ?? null,
+            size: body.attachmentSize ?? null,
+          }
+        : undefined,
+    );
     this.chatGateway.emitRoomMessage(roomId, message);
     return message;
   }

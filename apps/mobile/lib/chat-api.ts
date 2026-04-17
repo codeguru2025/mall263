@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { api } from '@/lib/api';
+import { getAccessToken } from '@/lib/token-storage';
+import { getApiBaseUrl } from '@/lib/config';
 
 export type ChatInboxResult = {
   rooms: ChatRoomRow[];
@@ -35,6 +37,11 @@ export type ChatMessageRow = {
   roomId: string;
   senderId: string;
   content: string;
+  attachmentUrl?: string | null;
+  attachmentType?: string | null;
+  attachmentWidth?: number | null;
+  attachmentHeight?: number | null;
+  attachmentSize?: number | null;
   createdAt: string;
   sender?: {
     id: string;
@@ -42,6 +49,14 @@ export type ChatMessageRow = {
     lastName?: string | null;
     avatarUrl?: string | null;
   } | null;
+};
+
+export type ChatAttachmentPayload = {
+  url: string;
+  type?: 'image' | 'video' | null;
+  width?: number | null;
+  height?: number | null;
+  size?: number | null;
 };
 
 export async function fetchMyChatRooms(): Promise<ChatRoomRow[]> {
@@ -104,7 +119,66 @@ export async function fetchChatMessages(roomId: string, after?: string): Promise
   return data;
 }
 
-export async function sendChatMessage(roomId: string, content: string): Promise<ChatMessageRow> {
-  const { data } = await api.post<ChatMessageRow>(`/api/v1/chat/rooms/${roomId}/messages`, { content });
+export async function sendChatMessage(
+  roomId: string,
+  content: string,
+  attachment?: ChatAttachmentPayload | null,
+): Promise<ChatMessageRow> {
+  const body: Record<string, unknown> = { content };
+  if (attachment?.url) {
+    body.attachmentUrl = attachment.url;
+    body.attachmentType = attachment.type ?? 'image';
+    if (attachment.width != null) body.attachmentWidth = attachment.width;
+    if (attachment.height != null) body.attachmentHeight = attachment.height;
+    if (attachment.size != null) body.attachmentSize = attachment.size;
+  }
+  const { data } = await api.post<ChatMessageRow>(`/api/v1/chat/rooms/${roomId}/messages`, body);
   return data;
+}
+
+/**
+ * Uploads a local image file URI to the backend `/upload/chat-media` endpoint.
+ * The server stores the file on DO Spaces and returns the public CDN URL.
+ * Caller is expected to have already compressed the asset client-side
+ * (e.g. via expo-image-manipulator) before handing it to this helper —
+ * the backend will still re-encode to WebP at 1400px max, but shaving off
+ * bytes upfront makes the upload finish in a couple of seconds on 3G.
+ */
+export async function uploadChatMedia(
+  fileUri: string,
+  opts: { mimeType?: string; filename?: string } = {},
+): Promise<{ url: string; size: number; mimetype: string }> {
+  const token = await getAccessToken();
+  const form = new FormData();
+  form.append('file', {
+    uri: fileUri,
+    name: opts.filename ?? 'chat.jpg',
+    type: opts.mimeType ?? 'image/jpeg',
+  } as unknown as Blob);
+
+  const res = await fetch(`${getApiBaseUrl()}/api/v1/upload/chat-media`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+  if (!res.ok) {
+    let message = `Upload failed (${res.status})`;
+    try {
+      const body = await res.json();
+      if (typeof body?.message === 'string') message = body.message;
+      else if (Array.isArray(body?.message)) message = body.message.join(', ');
+    } catch {
+      // response was not JSON — keep the generic message.
+    }
+    throw new Error(message);
+  }
+  const json = (await res.json()) as {
+    url?: string;
+    cdnUrl?: string;
+    size?: number;
+    mimetype?: string;
+  };
+  const url = json.cdnUrl || json.url;
+  if (!url) throw new Error('Upload succeeded but no URL was returned');
+  return { url, size: json.size ?? 0, mimetype: json.mimetype ?? 'image/webp' };
 }

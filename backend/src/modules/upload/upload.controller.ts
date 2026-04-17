@@ -50,6 +50,18 @@ export class UploadController {
     return this.uploadService.uploadFile(file, 'documents');
   }
 
+  // Chat attachments — client-side compression already trims image size and
+  // the participants already pair up via an accepted offer, so we skip the
+  // OCR contact-info check and allow a larger max dimension for legibility.
+  @Post('chat-media')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  async uploadChatMedia(@UploadedFile() file: Express.Multer.File): Promise<UploadResult> {
+    if (!file) throw new BadRequestException('No file provided');
+    return this.uploadService.uploadImage(file, 'chat/image', 1400, false);
+  }
+
   @Post('images')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FilesInterceptor('files', 5, { limits: { fileSize: 15 * 1024 * 1024 } }))

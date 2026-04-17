@@ -164,7 +164,18 @@ export class ChatService {
     });
   }
 
-  async sendMessage(roomId: string, senderId: string, content: string) {
+  async sendMessage(
+    roomId: string,
+    senderId: string,
+    content: string,
+    attachment?: {
+      url?: string | null;
+      type?: string | null;
+      width?: number | null;
+      height?: number | null;
+      size?: number | null;
+    },
+  ) {
     const room = await this.verifyRoomAccess(roomId, senderId);
 
     // Once an offer is accepted the deal is done — allow contact details so
@@ -172,15 +183,43 @@ export class ChatService {
     // Before acceptance, block contact info to protect the platform's role
     // as the matchmaker and prevent sellers from bypassing subscriptions.
     const offerAccepted = room.offer?.status === OfferStatus.ACCEPTED;
-    if (!offerAccepted && containsContactInfo(content)) {
+    if (!offerAccepted && content && containsContactInfo(content)) {
       throw new BadRequestException(
         'Messages cannot contain contact information — phone numbers, WhatsApp, emails, social handles, or links are not allowed until the offer is accepted. ' +
         'Agree on price here first, then you can coordinate the handover.',
       );
     }
 
+    const safeContent = typeof content === 'string' ? content : '';
+    const hasAttachment = !!attachment?.url;
+    if (!safeContent.trim() && !hasAttachment) {
+      throw new BadRequestException('Message must include text or an attachment');
+    }
+
+    const data: {
+      roomId: string;
+      senderId: string;
+      content: string;
+      attachmentUrl?: string | null;
+      attachmentType?: string | null;
+      attachmentWidth?: number | null;
+      attachmentHeight?: number | null;
+      attachmentSize?: number | null;
+    } = {
+      roomId,
+      senderId,
+      content: safeContent,
+    };
+    if (hasAttachment) {
+      data.attachmentUrl = attachment!.url ?? null;
+      data.attachmentType = attachment!.type ?? 'image';
+      data.attachmentWidth = attachment!.width ?? null;
+      data.attachmentHeight = attachment!.height ?? null;
+      data.attachmentSize = attachment!.size ?? null;
+    }
+
     return this.prisma.chatMessage.create({
-      data: { roomId, senderId, content },
+      data,
       include: {
         sender: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } },
       },
