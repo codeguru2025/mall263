@@ -70,6 +70,9 @@ export default function DemandsScreen() {
           <Pressable style={styles.secondaryBtn} onPress={() => router.push('/demand/open')}>
             <Text style={styles.secondaryBtnText}>Browse open</Text>
           </Pressable>
+          <Pressable style={styles.secondaryBtn} onPress={() => router.push('/chat/index')}>
+            <Text style={styles.secondaryBtnText}>Chats</Text>
+          </Pressable>
         </View>
         <View style={styles.filterRow}>
           <Pressable
@@ -163,9 +166,10 @@ const styles = StyleSheet.create({
   },
   heroTitle: { color: '#fff', fontSize: 22, fontWeight: '900' },
   heroTag: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4, fontWeight: '600' },
-  ctaRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
+  ctaRow: { flexDirection: 'row', gap: 10, marginBottom: 14, flexWrap: 'wrap' },
   primaryBtn: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '100%',
     backgroundColor: Brand.blue,
     borderRadius: 12,
     paddingVertical: 14,
@@ -173,7 +177,8 @@ const styles = StyleSheet.create({
   },
   primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   secondaryBtn: {
-    flex: 1,
+    flexGrow: 1,
+    minWidth: 130,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',

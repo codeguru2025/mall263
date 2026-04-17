@@ -13,7 +13,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { Brand } from '@/constants/brand';
+import { openOfferChatRoom } from '@/lib/chat-api';
 import { acceptOffer, fetchDemandById, type DemandOfferDetail } from '@/lib/demands-api';
+import { getApiErrorMessage } from '@/lib/api-errors';
 import { formatMoney } from '@/lib/products';
 import { OfferExpiryBar } from '@/components/OfferExpiryBar';
 
@@ -64,6 +66,16 @@ export default function DemandDetailScreen() {
           : 'Could not accept.';
       const text = Array.isArray(msg) ? msg.join('\n') : typeof msg === 'string' ? msg : 'Try again.';
       Alert.alert('Accept failed', text);
+    },
+  });
+
+  const openChatMut = useMutation({
+    mutationFn: (offerId: string) => openOfferChatRoom(offerId),
+    onSuccess: (room) => {
+      router.push({ pathname: '/chat/[roomId]', params: { roomId: room.id } });
+    },
+    onError: (err: unknown) => {
+      Alert.alert('Chat unavailable', getApiErrorMessage(err, 'Could not open chat room.'));
     },
   });
 
@@ -161,6 +173,15 @@ export default function DemandDetailScreen() {
             {offer.status === 'PENDING' && offer.createdAt && offer.expiresAt ? (
               <OfferExpiryBar createdAt={offer.createdAt} expiresAt={offer.expiresAt} />
             ) : null}
+            {offer.status === 'ACCEPTED' ? (
+              <Pressable
+                style={[styles.chatBtn, openChatMut.isPending && styles.btnDisabled]}
+                onPress={() => openChatMut.mutate(offer.id)}
+                disabled={openChatMut.isPending}
+              >
+                <Text style={styles.chatBtnText}>{openChatMut.isPending ? 'Opening…' : 'Open chat'}</Text>
+              </Pressable>
+            ) : null}
             {offer.status === 'PENDING' && d.status === 'OPEN' ? (
               <Pressable
                 style={[styles.acceptBtn, acceptMut.isPending && styles.btnDisabled]}
@@ -218,6 +239,16 @@ const styles = StyleSheet.create({
   message: { fontSize: 14, color: Brand.text, marginTop: 8, lineHeight: 20 },
   lines: { fontSize: 13, color: Brand.muted, marginTop: 8, lineHeight: 18 },
   offerStatus: { fontSize: 12, color: Brand.muted, marginTop: 10, fontWeight: '600' },
+  chatBtn: {
+    marginTop: 12,
+    borderWidth: 1.5,
+    borderColor: Brand.blue,
+    backgroundColor: '#eff6ff',
+    paddingVertical: 11,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  chatBtnText: { color: Brand.blue, fontWeight: '800', fontSize: 14 },
   acceptBtn: {
     marginTop: 14,
     backgroundColor: Brand.navy,

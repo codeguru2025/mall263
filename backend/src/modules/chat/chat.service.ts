@@ -12,13 +12,24 @@ export class ChatService {
       where: { id: offerId },
       include: {
         demand: { select: { buyerId: true } },
-        stall: { select: { merchant: { select: { userId: true } } } },
+        stall: {
+          select: {
+            merchant: { select: { userId: true } },
+            attendants: {
+              where: { isActive: true },
+              select: { userId: true },
+            },
+          },
+        },
       },
     });
     if (!offer) throw new NotFoundException('Offer not found');
     const buyerId = offer.demand.buyerId;
     const sellerId = offer.stall.merchant.userId;
-    if (userId !== buyerId && userId !== sellerId) throw new ForbiddenException('Not authorized');
+    const isAssignedAttendant = offer.stall.attendants.some((attendant) => attendant.userId === userId);
+    if (userId !== buyerId && userId !== sellerId && !isAssignedAttendant) {
+      throw new ForbiddenException('Not authorized');
+    }
     return { offer, buyerId, sellerId };
   }
 
@@ -88,6 +99,7 @@ export class ChatService {
           OR: [
             { demand: { buyerId: userId } },
             { stall: { merchant: { userId } } },
+            { stall: { attendants: { some: { userId, isActive: true } } } },
           ],
         },
       },

@@ -7,7 +7,7 @@ import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { 
   ArrowLeft, Gavel, Clock, ChevronRight, Zap, PlusCircle, 
-  TrendingUp, AlertCircle, MapPin, Flame, Target 
+  TrendingUp, AlertCircle, MapPin, Flame, Target, MessageCircle
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import DemandCard from '@/components/DemandCard';
@@ -116,14 +116,24 @@ export default function DemandsPage() {
                 <p className="text-xs text-gray-500">Find opportunities ranked by urgency & trust</p>
               </div>
             </div>
-            {!isSeller && (
-              <Link 
-                href="/demands/new" 
-                className="btn-primary text-sm py-2.5 px-5 flex items-center gap-2"
-              >
-                <PlusCircle className="w-4 h-4" /> Post Demand
-              </Link>
-            )}
+            <div className="flex items-center gap-2">
+              {isAuthenticated && (
+                <Link
+                  href="/chat"
+                  className="text-sm py-2.5 px-4 rounded-xl border-2 border-gray-100 text-navy-700 font-bold hover:border-gray-200 transition-colors flex items-center gap-2"
+                >
+                  <MessageCircle className="w-4 h-4" /> Chats
+                </Link>
+              )}
+              {!isSeller && (
+                <Link
+                  href="/demands/new"
+                  className="btn-primary text-sm py-2.5 px-5 flex items-center gap-2"
+                >
+                  <PlusCircle className="w-4 h-4" /> Post Demand
+                </Link>
+              )}
+            </div>
           </div>
 
           {/* Tab bar */}
