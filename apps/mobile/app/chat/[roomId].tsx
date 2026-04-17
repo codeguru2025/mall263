@@ -24,17 +24,29 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export default function ChatRoomScreen() {
   const { roomId } = useLocalSearchParams<{ roomId: string }>();
+  const resolvedRoomId = Array.isArray(roomId) ? roomId[0] : roomId;
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState('');
   const [pollError, setPollError] = useState<string | null>(null);
   const [pollFailures, setPollFailures] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const listRef = useRef<FlatList<ChatMessageRow>>(null);
 
   const q = useQuery({
-    queryKey: ['chat-room', roomId],
-    queryFn: () => fetchChatMessages(roomId!),
-    enabled: !!roomId,
+    queryKey: ['chat-room', resolvedRoomId],
+    queryFn: async () => {
+      try {
+        const rows = await fetchChatMessages(resolvedRoomId!);
+        setLoadError(null);
+        return rows;
+      } catch (err) {
+        const msg = getApiErrorMessage(err, 'Could not load this chat room.');
+        setLoadError(msg);
+        throw err;
+      }
+    },
+    enabled: !!resolvedRoomId,
   });
   const { refetch } = q;
 
@@ -45,15 +57,15 @@ export default function ChatRoomScreen() {
   );
 
   useEffect(() => {
-    if (!roomId) return;
+    if (!resolvedRoomId) return;
     const interval = setInterval(async () => {
       if (AppState.currentState !== 'active') return;
-      const current = (queryClient.getQueryData(['chat-room', roomId]) as ChatMessageRow[] | undefined) ?? [];
+      const current = (queryClient.getQueryData(['chat-room', resolvedRoomId]) as ChatMessageRow[] | undefined) ?? [];
       const after = current.length ? current[current.length - 1]?.createdAt : undefined;
       try {
-        const incoming = await fetchChatMessages(roomId, after);
+        const incoming = await fetchChatMessages(resolvedRoomId, after);
         if (incoming.length) {
-          queryClient.setQueryData(['chat-room', roomId], (old: ChatMessageRow[] = []) => {
+          queryClient.setQueryData(['chat-room', resolvedRoomId], (old: ChatMessageRow[] = []) => {
             const ids = new Set(old.map((m) => m.id));
             return [...old, ...incoming.filter((m) => !ids.has(m.id))];
           });
@@ -67,10 +79,10 @@ export default function ChatRoomScreen() {
       }
     }, 3000);
     return () => clearInterval(interval);
-  }, [roomId, queryClient]);
+  }, [resolvedRoomId, queryClient]);
 
   useEffect(() => {
-    if (!roomId) return;
+    if (!resolvedRoomId) return;
     let socket: Socket | null = null;
     let mounted = true;
 
@@ -84,12 +96,12 @@ export default function ChatRoomScreen() {
       });
 
       socket.on('connect', () => {
-        socket?.emit('chat.join', { roomId });
+        socket?.emit('chat.join', { roomId: resolvedRoomId });
       });
 
       socket.on('chat.message', (msg: ChatMessageRow) => {
         if (!msg?.id) return;
-        queryClient.setQueryData(['chat-room', roomId], (old: ChatMessageRow[] = []) => {
+        queryClient.setQueryData(['chat-room', resolvedRoomId], (old: ChatMessageRow[] = []) => {
           if (old.some((m) => m.id === msg.id)) return old;
           return [...old, msg];
         });
@@ -105,7 +117,7 @@ export default function ChatRoomScreen() {
       mounted = false;
       socket?.disconnect();
     };
-  }, [roomId, queryClient]);
+  }, [resolvedRoomId, queryClient]);
 
   useEffect(() => {
     const rows = q.data ?? [];
@@ -114,9 +126,9 @@ export default function ChatRoomScreen() {
   }, [q.data]);
 
   const sendMut = useMutation({
-    mutationFn: (content: string) => sendChatMessage(roomId!, content),
+    mutationFn: (content: string) => sendChatMessage(resolvedRoomId!, content),
     onSuccess: (created) => {
-      queryClient.setQueryData(['chat-room', roomId], (old: ChatMessageRow[] = []) => [...old, created]);
+      queryClient.setQueryData(['chat-room', resolvedRoomId], (old: ChatMessageRow[] = []) => [...old, created]);
       queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
       setDraft('');
       setPollError(null);
@@ -130,7 +142,7 @@ export default function ChatRoomScreen() {
   const disabled = !draft.trim() || sendMut.isPending;
   const rows = useMemo(() => q.data ?? [], [q.data]);
 
-  if (!roomId) {
+  if (!resolvedRoomId) {
     return (
       <View style={styles.centered}>
         <Text style={styles.error}>Missing chat room.</Text>
@@ -150,7 +162,7 @@ export default function ChatRoomScreen() {
   if (q.isError && !q.data) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.error}>Could not load this chat room.</Text>
+        <Text style={styles.error}>{loadError || 'Could not load this chat room.'}</Text>
         <Pressable style={styles.retry} onPress={() => q.refetch()}>
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
