@@ -8,7 +8,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 // Bumped per-deploy so clients can confirm which backend revision they are
 // actually talking to. Keep this as a plain string so it survives minification.
-const CHAT_BUILD_TAG = 'chat-hotfix-2026-04-17-p2023-bulletproof-v4-verifyAccess-split';
+const CHAT_BUILD_TAG = 'chat-hotfix-2026-04-17-p2023-bulletproof-v5-loosen-id-guard';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

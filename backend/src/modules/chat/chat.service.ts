@@ -25,23 +25,26 @@ export class ChatService {
     buyerId: string;
     sellerId: string;
   }> {
-    if (!offerId || !UUID_RE.test(offerId)) {
-      throw new BadRequestException('Invalid offer id');
+    const oid = typeof offerId === 'string' ? offerId.trim() : '';
+    if (!oid) {
+      this.logger.warn(`verifyAccess: missing offerId (raw=${JSON.stringify(offerId)})`);
+      throw new NotFoundException('Offer not found');
     }
     if (!userId || !UUID_RE.test(userId)) {
       throw new ForbiddenException('Not authorized');
     }
 
-    let offer: { id: string; status: OfferStatus; stallId: string; demandId: string } | null;
+    let offer: { id: string; status: OfferStatus; stallId: string; demandId: string } | null = null;
     try {
       offer = await this.prisma.sellerOffer.findUnique({
-        where: { id: offerId },
+        where: { id: oid },
         select: { id: true, status: true, stallId: true, demandId: true },
       });
     } catch (err) {
       const e = err as { code?: string; message?: string };
-      this.logger.error(`verifyAccess:offer failed offerId=${offerId} code=${e.code} msg=${e.message}`);
-      throw new BadRequestException('Could not load offer — please retry.');
+      this.logger.error(`verifyAccess:offer lookup failed offerId=${JSON.stringify(oid)} code=${e.code ?? 'n/a'} msg=${e.message ?? err}`);
+      // Bad @db.Uuid → same UX as 404 to keep client simple.
+      throw new NotFoundException('Offer not found');
     }
     if (!offer) throw new NotFoundException('Offer not found');
 
@@ -97,21 +100,36 @@ export class ChatService {
   }
 
   private async verifyRoomAccess(roomId: string, userId: string) {
-    if (!roomId || !UUID_RE.test(roomId)) {
-      throw new BadRequestException('Invalid chat room id');
+    // Log everything so we can see the exact value being passed from the
+    // mobile client if this ever fails. Don't gate on a regex — let Prisma
+    // be the source of truth for whether the id resolves to a row, and
+    // translate its P2023 into a clean NotFound.
+    const rid = typeof roomId === 'string' ? roomId.trim() : '';
+    if (!rid) {
+      this.logger.warn(`verifyRoomAccess: missing roomId from client (raw=${JSON.stringify(roomId)})`);
+      throw new NotFoundException('Chat room not found');
     }
-    let room: { offerId: string; offer: { status: OfferStatus } | null } | null;
+
+    let room: { offerId: string; offer: { status: OfferStatus } | null } | null = null;
     try {
       room = await this.prisma.chatRoom.findUnique({
-        where: { id: roomId },
+        where: { id: rid },
         select: { offerId: true, offer: { select: { status: true } } },
       });
     } catch (err) {
       const e = err as { code?: string; message?: string };
-      this.logger.error(`verifyRoomAccess:room failed roomId=${roomId} code=${e.code} msg=${e.message}`);
-      throw new BadRequestException('Could not load chat room — please retry.');
+      this.logger.error(
+        `verifyRoomAccess: prisma lookup failed roomId=${JSON.stringify(rid)} code=${e.code ?? 'n/a'} msg=${e.message ?? err}`,
+      );
+      // P2023 here means the id isn't a valid @db.Uuid. Treat it the same
+      // as "not found" so the mobile client shows a clean empty state.
+      throw new NotFoundException('Chat room not found');
     }
-    if (!room) throw new NotFoundException('Chat room not found');
+
+    if (!room) {
+      this.logger.warn(`verifyRoomAccess: no chatRoom row for roomId=${rid} (userId=${userId})`);
+      throw new NotFoundException('Chat room not found');
+    }
     await this.verifyAccess(room.offerId, userId);
     return room;
   }
