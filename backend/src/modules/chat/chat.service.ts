@@ -16,7 +16,6 @@ export class ChatService {
           select: {
             merchant: { select: { userId: true } },
             attendants: {
-              where: { isActive: true },
               select: { userId: true },
             },
           },
@@ -103,7 +102,7 @@ export class ChatService {
           OR: [
             { demand: { buyerId: userId } },
             { stall: { merchant: { userId } } },
-            { stall: { attendants: { some: { userId, isActive: true } } } },
+            { stall: { attendants: { some: { userId } } } },
           ],
         },
       },
