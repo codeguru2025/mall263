@@ -9,6 +9,7 @@ import { useAuthStore } from '@/lib/store';
 import { Users, ArrowLeft, Search, Plus, X, Phone, Lock, User, Shield, Ban, CheckCircle, Pencil, Trash2 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import toast from 'react-hot-toast';
+import { PASSWORD_MIN_LENGTH, passwordMinLengthHint, passwordOptionalChangeHint } from '@/lib/password-rules';
 
 type UserRole =
   | 'BUYER'
@@ -148,6 +149,10 @@ export default function AdminUsersPage() {
       toast.error('Please fill in all required fields');
       return;
     }
+    if (form.password.length < PASSWORD_MIN_LENGTH) {
+      toast.error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`);
+      return;
+    }
     createMutation.mutate(form);
   };
 
@@ -191,8 +196,8 @@ export default function AdminUsersPage() {
       phone: editForm.phone.trim(),
     };
     if (editForm.password.trim().length > 0) {
-      if (editForm.password.length < 8) {
-        toast.error('Password must be at least 8 characters');
+      if (editForm.password.length < PASSWORD_MIN_LENGTH) {
+        toast.error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters`);
         return;
       }
       body.password = editForm.password;
@@ -395,9 +400,11 @@ export default function AdminUsersPage() {
                       placeholder="Leave blank to keep current"
                       value={editForm.password}
                       onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))}
-                      minLength={8}
+                      minLength={PASSWORD_MIN_LENGTH}
+                      autoComplete="new-password"
                     />
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">{passwordOptionalChangeHint()}</p>
                 </div>
                 <div className="pt-2 pb-safe flex gap-2">
                   <button type="button" className="btn-secondary flex-1" onClick={() => setEditingUser(null)}>Cancel</button>
@@ -458,8 +465,18 @@ export default function AdminUsersPage() {
                   <label className="label">Password <span className="text-brand-red">*</span></label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input type="password" className="input pl-11" placeholder="Min 8 characters" value={form.password} onChange={(e) => update('password', e.target.value)} required minLength={8} />
+                    <input
+                      type="password"
+                      className="input pl-11"
+                      placeholder={`At least ${PASSWORD_MIN_LENGTH} characters`}
+                      value={form.password}
+                      onChange={(e) => update('password', e.target.value)}
+                      required
+                      minLength={PASSWORD_MIN_LENGTH}
+                      autoComplete="new-password"
+                    />
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">{passwordMinLengthHint()}</p>
                 </div>
 
                 <div>

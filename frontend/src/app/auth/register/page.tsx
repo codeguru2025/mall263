@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
+import { PASSWORD_MIN_LENGTH, passwordMinLengthHint } from '@/lib/password-rules';
 import { compressImageForAvatarUpload } from '@/lib/imageCompress';
 import { Logo } from '@/components/Logo';
 import {
@@ -80,7 +81,7 @@ function RegisterForm() {
     form.lastName.trim().length > 0 &&
     form.phone.trim().length > 0 &&
     /^(\+263|0)[0-9]{9}$/.test(normalizedPhone) &&
-    form.password.length >= 8 &&
+    form.password.length >= PASSWORD_MIN_LENGTH &&
     form.password === form.confirmPassword;
 
   const step2Valid = form.businessName.trim().length > 0;
@@ -316,22 +317,42 @@ function RegisterForm() {
                       <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input type="tel" className="input pl-12" placeholder="+263 77 366 5350" value={form.phone} onChange={(e) => update('phone', e.target.value)} required />
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">Include country code: 10–15 digits (e.g. +263771234567).</p>
                   </div>
 
                   <div>
                     <label className="label">Password</label>
                     <div className="relative">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input type="password" className="input pl-12" placeholder="Min 8 characters" value={form.password} onChange={(e) => update('password', e.target.value)} required minLength={8} />
+                      <input
+                        type="password"
+                        className="input pl-12"
+                        placeholder={`At least ${PASSWORD_MIN_LENGTH} characters`}
+                        value={form.password}
+                        onChange={(e) => update('password', e.target.value)}
+                        required
+                        minLength={PASSWORD_MIN_LENGTH}
+                        autoComplete="new-password"
+                      />
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">{passwordMinLengthHint()}</p>
                   </div>
 
                   <div>
                     <label className="label">Confirm Password</label>
                     <div className="relative">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input type="password" className="input pl-12" placeholder="Repeat password" value={form.confirmPassword} onChange={(e) => update('confirmPassword', e.target.value)} required />
+                      <input
+                        type="password"
+                        className="input pl-12"
+                        placeholder="Same as password above"
+                        value={form.confirmPassword}
+                        onChange={(e) => update('confirmPassword', e.target.value)}
+                        required
+                        autoComplete="new-password"
+                      />
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">Type the same password again to confirm.</p>
                     {form.confirmPassword && form.password !== form.confirmPassword && (
                       <p className="text-xs text-brand-red mt-1">Passwords do not match</p>
                     )}

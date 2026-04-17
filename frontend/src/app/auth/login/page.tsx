@@ -61,15 +61,17 @@ export default function LoginPage() {
               <label className="label">Phone number</label>
               <div className="relative">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input type="tel" className="input pl-12" placeholder="" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+                <input type="tel" className="input pl-12" placeholder="+263771234567" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
               </div>
+              <p className="text-xs text-gray-500 mt-1">Include country code (10–15 digits after +).</p>
             </div>
             <div>
               <label className="label">Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input type="password" className="input pl-12" placeholder="Enter password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <input type="password" className="input pl-12" placeholder="Your account password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
+              <p className="text-xs text-gray-500 mt-1">Use the same password you chose when you registered for this number.</p>
             </div>
             <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2">
               {loading ? (
