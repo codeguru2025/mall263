@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Brand } from '@/constants/brand';
 import { acceptOffer, fetchDemandById, type DemandOfferDetail } from '@/lib/demands-api';
 import { formatMoney } from '@/lib/products';
+import { OfferExpiryBar } from '@/components/OfferExpiryBar';
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -121,6 +122,7 @@ export default function DemandDetailScreen() {
   }
 
   const offers = d.offers ?? [];
+  const pendingCount = offers.filter((o) => o.status === 'PENDING').length;
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
@@ -136,6 +138,11 @@ export default function DemandDetailScreen() {
       </View>
 
       <Text style={styles.section}>Offers ({offers.length})</Text>
+      {d.status === 'OPEN' && pendingCount > 1 ? (
+        <Text style={styles.competing}>
+          {pendingCount} sellers competing — each offer has its own countdown. Act before they expire.
+        </Text>
+      ) : null}
       {offers.length === 0 ? (
         <Text style={styles.emptyOffers}>No offers yet. Sellers will appear here when they bid.</Text>
       ) : (
@@ -151,6 +158,9 @@ export default function DemandDetailScreen() {
             {offer.message ? <Text style={styles.message}>{offer.message}</Text> : null}
             {lines ? <Text style={styles.lines}>{lines}</Text> : null}
             <Text style={styles.offerStatus}>Status: {offer.status}</Text>
+            {offer.status === 'PENDING' && offer.createdAt && offer.expiresAt ? (
+              <OfferExpiryBar createdAt={offer.createdAt} expiresAt={offer.expiresAt} />
+            ) : null}
             {offer.status === 'PENDING' && d.status === 'OPEN' ? (
               <Pressable
                 style={[styles.acceptBtn, acceptMut.isPending && styles.btnDisabled]}
@@ -190,6 +200,18 @@ const styles = StyleSheet.create({
   budgetRow: { fontSize: 16, fontWeight: '700', color: Brand.navy },
   small: { fontSize: 13, color: Brand.muted, marginTop: 6 },
   section: { fontSize: 16, fontWeight: '800', color: Brand.navy, marginBottom: 10 },
+  competing: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Brand.orange,
+    marginBottom: 12,
+    lineHeight: 18,
+    backgroundColor: '#fff7ed',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+  },
   emptyOffers: { fontSize: 14, color: Brand.muted, marginBottom: 16 },
   stallName: { fontSize: 17, fontWeight: '800', color: Brand.navy },
   offerPrice: { fontSize: 18, fontWeight: '900', color: Brand.blue, marginTop: 8 },

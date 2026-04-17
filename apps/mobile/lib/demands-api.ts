@@ -18,6 +18,8 @@ export type DemandOfferDetail = {
   id: string;
   totalPrice: unknown;
   status: string;
+  createdAt?: string;
+  expiresAt?: string;
   message?: string | null;
   stall?: { id: string; name: string; stallNumber?: string | null } | null;
   items?: Array<{

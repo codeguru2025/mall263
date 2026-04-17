@@ -9,6 +9,7 @@ import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
 import UrgencyCountdown, { useCountdown, formatCountdown } from '@/components/UrgencyCountdown';
+import OfferExpiryBar from '@/components/OfferExpiryBar';
 import {
   ArrowLeft, Gavel, Clock, CheckCircle2, ChevronDown, Loader2, AlertCircle,
   MapPin, MessageCircle, Truck, Navigation, Store, PackageCheck, X, Receipt,
@@ -197,6 +198,7 @@ export default function DemandDetailPage() {
   };
 
   const acceptedOffer = (demand.offers || []).find((o: any) => o.status === 'ACCEPTED');
+  const pendingOfferCount = (demand.offers || []).filter((o: any) => o.status === 'PENDING').length;
   const trustScore = demand.buyer?.trustScore?.overallScore 
     ? parseFloat(String(demand.buyer.trustScore.overallScore))
     : 50;
@@ -477,9 +479,15 @@ export default function DemandDetailPage() {
 
         {/* Offers list */}
         <div>
-          <h3 className="font-black text-lg text-navy-700 mb-3">
+          <h3 className="font-black text-lg text-navy-700 mb-2">
             {isBuyer ? 'Offers Received' : 'All Offers'} ({demand.offers?.length ?? 0})
           </h3>
+          {isOpen && pendingOfferCount > 1 && (
+            <p className="text-xs font-bold text-brand-orange bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mb-3">
+              {pendingOfferCount} sellers competing — each offer expires on its own timer. Compare prices and act
+              before time runs out.
+            </p>
+          )}
           {(demand.offers || []).length === 0 ? (
             <div className="bg-white rounded-2xl border border-gray-100 text-center py-10">
               <Gavel className="w-10 h-10 text-gray-200 mx-auto mb-2" />
@@ -558,6 +566,11 @@ export default function DemandDetailPage() {
                         )}
                       </div>
                     </div>
+                    {isPending && offer.createdAt && offer.expiresAt && (
+                      <div className="px-4 pb-4">
+                        <OfferExpiryBar createdAt={offer.createdAt} expiresAt={offer.expiresAt} />
+                      </div>
+                    )}
                   </div>
                 );
               })}
