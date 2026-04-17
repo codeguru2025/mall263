@@ -6,9 +6,9 @@ import { NotificationType, SubscriptionStatus } from '@prisma/client';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { Paynow } = require('paynow');
 
-const SUBSCRIPTION_PRICE_USD = 5;
-const TRIAL_DAYS = 7;
-const GRACE_DAYS = 3; // days after failed payment before full lockout
+const FALLBACK_PRICE_USD = 5;
+const FALLBACK_TRIAL_DAYS = 7;
+const GRACE_DAYS = 3;
 const RETRY_INTERVAL_MINUTES = 30;
 
 @Injectable()
@@ -32,29 +32,97 @@ export class SubscriptionsService {
     this.paynow.returnUrl = this.config.get('PAYNOW_RETURN_URL', '');
   }
 
+  // ── Plan helpers ──────────────────────────────────────────────────────────
+
   /**
-   * Called during user registration to start a 7-day free trial.
+   * Returns the active default plan, or a safe fallback if none is configured yet.
+   */
+  private async getDefaultPlan() {
+    const plan = await this.prisma.subscriptionPlan.findFirst({
+      where: { isActive: true, isDefault: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    return plan ?? {
+      priceUsd: FALLBACK_PRICE_USD,
+      trialDays: FALLBACK_TRIAL_DAYS,
+      name: 'Standard',
+      features: [],
+    };
+  }
+
+  /**
+   * Public: list all active plans (for frontend subscribe modal).
+   */
+  async listActivePlans() {
+    return this.prisma.subscriptionPlan.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
+  // ── Promo helpers ─────────────────────────────────────────────────────────
+
+  /**
+   * Validate a promo code and return the discount to apply.
+   * Returns null if code is invalid/expired/exhausted.
+   */
+  async validatePromoCode(code: string): Promise<{
+    valid: true;
+    promotionId: string;
+    discountPct: number | null;
+    discountAmt: number | null;
+    description: string | null;
+  } | { valid: false; reason: string }> {
+    if (!code?.trim()) return { valid: false, reason: 'No code provided' };
+
+    const promo = await this.prisma.promotion.findUnique({
+      where: { code: code.trim().toUpperCase() },
+    });
+
+    if (!promo || !promo.isActive) return { valid: false, reason: 'Code not found or inactive' };
+
+    const now = new Date();
+    if (promo.validFrom > now) return { valid: false, reason: 'Code is not valid yet' };
+    if (promo.validUntil && promo.validUntil < now) return { valid: false, reason: 'Code has expired' };
+    if (promo.maxUses !== null && promo.usedCount >= promo.maxUses) return { valid: false, reason: 'Code has reached maximum uses' };
+
+    return {
+      valid: true,
+      promotionId: promo.id,
+      discountPct: promo.discountPct ? Number(promo.discountPct) : null,
+      discountAmt: promo.discountAmt ? Number(promo.discountAmt) : null,
+      description: promo.description,
+    };
+  }
+
+  private applyDiscount(basePrice: number, discountPct: number | null, discountAmt: number | null): number {
+    let price = basePrice;
+    if (discountPct) price = price * (1 - discountPct / 100);
+    if (discountAmt) price = price - discountAmt;
+    return Math.max(0.01, Math.round(price * 100) / 100); // minimum $0.01
+  }
+
+  // ── Trial ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Called during user registration to start the free trial.
+   * Trial length is driven by the default plan's trialDays.
    */
   async initTrial(userId: string): Promise<void> {
-    const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+    const plan = await this.getDefaultPlan();
+    const trialEndsAt = new Date(Date.now() + plan.trialDays * 24 * 60 * 60 * 1000);
     await this.prisma.subscription.upsert({
       where: { userId },
-      create: {
-        userId,
-        status: SubscriptionStatus.TRIAL,
-        trialEndsAt,
-      },
+      create: { userId, status: SubscriptionStatus.TRIAL, trialEndsAt },
       update: {},
     });
   }
 
-  /**
-   * Get subscription status for a user. Creates TRIAL if missing (edge case for seeded users).
-   */
+  // ── Status ─────────────────────────────────────────────────────────────────
+
   async getStatus(userId: string) {
     let sub = await this.prisma.subscription.findUnique({ where: { userId } });
     if (!sub) {
-      // Backfill for existing users — treat as if trial just started
       await this.initTrial(userId);
       sub = await this.prisma.subscription.findUnique({ where: { userId } });
     }
@@ -65,23 +133,29 @@ export class SubscriptionsService {
     const isGrace = sub!.status === SubscriptionStatus.GRACE;
     const fullyAccess = trialActive || isActive || isGrace;
 
+    const plan = await this.getDefaultPlan();
+
     return {
       status: sub!.status,
       trialEndsAt: sub!.trialEndsAt,
       trialActive,
       isActive,
-      fullyAccess,           // can use all features
+      fullyAccess,
       hasEcocash: !!sub!.ecocashNumber,
       ecocashNumber: sub!.ecocashNumber ? this.maskPhone(sub!.ecocashNumber) : null,
       currentPeriodEnd: sub!.currentPeriodEnd,
       nextBillingDate: sub!.nextBillingDate,
+      plan: {
+        name: 'name' in plan ? plan.name : 'Standard',
+        priceUsd: Number(plan.priceUsd),
+        trialDays: plan.trialDays,
+        features: plan.features as string[],
+      },
     };
   }
 
-  /**
-   * Save or update the user's EcoCash number.
-   * If trial has already expired, immediately initiate a payment.
-   */
+  // ── EcoCash number ────────────────────────────────────────────────────────
+
   async saveEcocashNumber(userId: string, ecocashNumber: string): Promise<{ initiated: boolean }> {
     const normalised = this.normalisePhone(ecocashNumber);
     const sub = await this.prisma.subscription.findUnique({ where: { userId } });
@@ -92,7 +166,6 @@ export class SubscriptionsService {
       data: { ecocashNumber: normalised },
     });
 
-    // If trial already expired, kick off payment now
     const now = new Date();
     const trialExpired = sub.status === SubscriptionStatus.TRIAL && sub.trialEndsAt <= now;
     const alreadyExpired = sub.status === SubscriptionStatus.EXPIRED;
@@ -105,19 +178,41 @@ export class SubscriptionsService {
     return { initiated: false };
   }
 
-  /**
-   * Manually trigger a subscription payment (called from controller or cron).
-   */
-  async initiatePayment(userId: string, overridePhone?: string): Promise<{ reference: string; instructions: string }> {
+  // ── Payment ───────────────────────────────────────────────────────────────
+
+  async initiatePayment(
+    userId: string,
+    overridePhone?: string,
+    promoCode?: string,
+  ): Promise<{ reference: string; instructions: string; finalPrice: number; discountApplied: boolean }> {
     const sub = await this.prisma.subscription.findUnique({ where: { userId } });
     if (!sub) throw new NotFoundException('Subscription not found');
 
     const phone = overridePhone ?? sub.ecocashNumber;
     if (!phone) throw new BadRequestException('No EcoCash number saved. Please add your EcoCash number first.');
 
+    const plan = await this.getDefaultPlan();
+    let basePrice = Number(plan.priceUsd);
+    let discountApplied = false;
+
+    // Apply promo code if provided
+    if (promoCode) {
+      const validation = await this.validatePromoCode(promoCode);
+      if (validation.valid) {
+        basePrice = this.applyDiscount(basePrice, validation.discountPct, validation.discountAmt);
+        discountApplied = true;
+        // Increment used count
+        await this.prisma.promotion.update({
+          where: { id: validation.promotionId },
+          data: { usedCount: { increment: 1 } },
+        });
+      }
+      // If invalid, we continue without discount (don't block the payment)
+    }
+
     const reference = `SUB-${userId.slice(0, 8)}-${Date.now()}`;
     const payment = this.paynow.createPayment(reference, this.merchantEmail);
-    payment.add(`Mall263 Monthly Subscription`, SUBSCRIPTION_PRICE_USD);
+    payment.add(`Mall263 Monthly Subscription`, basePrice);
 
     let response: any;
     try {
@@ -128,7 +223,6 @@ export class SubscriptionsService {
     }
 
     if (!response.success) {
-      // Record the failed attempt
       await this.prisma.subscription.update({
         where: { userId },
         data: {
@@ -139,7 +233,7 @@ export class SubscriptionsService {
       await this.prisma.subscriptionPayment.create({
         data: {
           subscriptionId: sub.id,
-          amount: SUBSCRIPTION_PRICE_USD,
+          amount: basePrice,
           paynowRef: reference,
           status: 'FAILED',
           completedAt: new Date(),
@@ -149,32 +243,32 @@ export class SubscriptionsService {
       throw new BadRequestException(`Payment initiation failed: ${response.error || 'unknown error'}`);
     }
 
-    // Record pending payment
     await this.prisma.subscriptionPayment.create({
       data: {
         subscriptionId: sub.id,
-        amount: SUBSCRIPTION_PRICE_USD,
+        amount: basePrice,
         paynowRef: reference,
         pollUrl: response.pollUrl,
         status: 'PENDING',
-        metadata: { instructions: response.instructions },
+        metadata: { instructions: response.instructions, discountApplied, promoCode: promoCode ?? null },
       },
     });
 
     await this.prisma.subscription.update({
       where: { userId },
-      data: { lastPaymentRef: reference },
+      data: { lastPaymentRef: reference, ...('id' in plan ? { planId: plan.id } : {}) },
     });
 
     return {
       reference,
       instructions: response.instructions || 'Check your phone for the EcoCash payment prompt and enter your PIN.',
+      finalPrice: basePrice,
+      discountApplied,
     };
   }
 
-  /**
-   * Paynow calls this webhook when a subscription payment status changes.
-   */
+  // ── Webhook ───────────────────────────────────────────────────────────────
+
   async handleWebhook(body: Record<string, string>): Promise<{ ok: boolean }> {
     if (!this.paynow.verifyHash(body)) {
       this.logger.warn('Subscription webhook: invalid hash');
@@ -200,9 +294,8 @@ export class SubscriptionsService {
     return { ok: true };
   }
 
-  /**
-   * Poll a pending subscription payment by reference.
-   */
+  // ── Poll ──────────────────────────────────────────────────────────────────
+
   async pollPayment(reference: string): Promise<{ paid: boolean; status: string }> {
     const payment = await this.prisma.subscriptionPayment.findUnique({ where: { paynowRef: reference } });
     if (!payment) return { paid: false, status: 'NOT_FOUND' };
@@ -225,27 +318,18 @@ export class SubscriptionsService {
     const terminalFail = ['cancelled', 'canceled', 'failed', 'disputed', 'refunded'].includes(st);
     const statusOut = String(statusResponse?.status || 'UNKNOWN').toUpperCase();
 
-    if (terminalFail) {
-      return { paid: false, status: statusOut };
-    }
-
-    if (paid) {
-      await this.onPaymentSuccess(payment.subscriptionId, reference);
-    }
+    if (terminalFail) return { paid: false, status: statusOut };
+    if (paid) await this.onPaymentSuccess(payment.subscriptionId, reference);
 
     return { paid, status: statusOut };
   }
 
   // ── Cron Jobs ─────────────────────────────────────────────────────────────
 
-  /**
-   * Every 30 minutes: retry pending/failed subscription payments.
-   */
   @Cron(CronExpression.EVERY_30_MINUTES)
   async retryFailedPayments() {
     const now = new Date();
 
-    // Find subscriptions with pending payments older than 10 mins (probably failed silently)
     const pendingOld = await this.prisma.subscriptionPayment.findMany({
       where: {
         status: 'PENDING',
@@ -262,13 +346,10 @@ export class SubscriptionsService {
         const st = String(res?.status ?? '').toLowerCase();
         const paid =
           res?.paid === true || (typeof res?.paid === 'function' && res.paid() === true) || st === 'paid';
-        if (paid) {
-          await this.onPaymentSuccess(payment.subscriptionId, payment.paynowRef!);
-        }
+        if (paid) await this.onPaymentSuccess(payment.subscriptionId, payment.paynowRef!);
       } catch { /* continue */ }
     }
 
-    // Find subscriptions due for retry
     const dueRetries = await this.prisma.subscription.findMany({
       where: {
         status: { in: [SubscriptionStatus.EXPIRED, SubscriptionStatus.GRACE] },
@@ -288,19 +369,12 @@ export class SubscriptionsService {
     }
   }
 
-  /**
-   * Daily at midnight: expire trials, initiate monthly renewals.
-   */
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async processDailyBilling() {
     const now = new Date();
 
-    // 1. Expire trials that ended
     const expiredTrials = await this.prisma.subscription.findMany({
-      where: {
-        status: SubscriptionStatus.TRIAL,
-        trialEndsAt: { lte: now },
-      },
+      where: { status: SubscriptionStatus.TRIAL, trialEndsAt: { lte: now } },
     });
 
     for (const sub of expiredTrials) {
@@ -312,14 +386,10 @@ export class SubscriptionsService {
         },
       });
       if (sub.ecocashNumber) {
-        // Immediately try to charge
-        try {
-          await this.initiatePayment(sub.userId);
-        } catch { /* will retry via cron */ }
+        try { await this.initiatePayment(sub.userId); } catch { /* will retry via cron */ }
       }
     }
 
-    // 2. Charge ACTIVE subscriptions due today
     const dueBilling = await this.prisma.subscription.findMany({
       where: {
         status: SubscriptionStatus.ACTIVE,
@@ -334,7 +404,6 @@ export class SubscriptionsService {
         await this.initiatePayment(sub.userId);
       } catch (err) {
         this.logger.error(`Monthly renewal failed for user ${sub.userId}:`, err);
-        // Move to GRACE period
         await this.prisma.subscription.update({
           where: { id: sub.id },
           data: {
@@ -345,7 +414,6 @@ export class SubscriptionsService {
       }
     }
 
-    // 3. Expire GRACE subscriptions older than GRACE_DAYS
     await this.prisma.subscription.updateMany({
       where: {
         status: SubscriptionStatus.GRACE,
@@ -383,7 +451,6 @@ export class SubscriptionsService {
       },
     });
 
-    // Notify user
     await this.prisma.notification.create({
       data: {
         userId: sub.userId,
@@ -438,7 +505,6 @@ export class SubscriptionsService {
   }
 
   private maskPhone(phone: string): string {
-    // Show +263 7XX XXXX 45 → +263 7** **** 45
     if (phone.length < 6) return phone;
     return phone.slice(0, 6) + '*'.repeat(phone.length - 8) + phone.slice(-2);
   }

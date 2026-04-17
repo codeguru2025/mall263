@@ -1,19 +1,33 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { Loader2, CheckCircle2, Smartphone, AlertCircle, Gift, Lock, Star } from 'lucide-react';
+import { Loader2, CheckCircle2, Smartphone, AlertCircle, Gift, Lock, Star, Tag, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface SubscribeModalProps {
   onClose?: () => void;
-  /** If true, show a dismiss button. If false, modal is mandatory. */
   dismissible?: boolean;
-  /** Show trial-ended messaging vs. generic subscribe messaging */
   trialExpired?: boolean;
-  /** ISO date string for when trial ends */
   trialEndsAt?: string;
+}
+
+interface Plan {
+  id: string;
+  name: string;
+  priceUsd: string;
+  trialDays: number;
+  description: string | null;
+  features: string[];
+}
+
+interface PromoResult {
+  valid: boolean;
+  reason?: string;
+  discountPct?: number | null;
+  discountAmt?: number | null;
+  description?: string | null;
 }
 
 export default function SubscribeModal({
@@ -24,14 +38,63 @@ export default function SubscribeModal({
 }: SubscribeModalProps) {
   const queryClient = useQueryClient();
   const [phone, setPhone] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoResult, setPromoResult] = useState<PromoResult | null>(null);
+  const [promoChecking, setPromoChecking] = useState(false);
   const [step, setStep] = useState<'phone' | 'waiting' | 'done' | 'timeout' | 'uncertain'>('phone');
   const [reference, setReference] = useState('');
+  const [finalPrice, setFinalPrice] = useState<number | null>(null);
   const [pollHint, setPollHint] = useState('');
   const [flowBusy, setFlowBusy] = useState(false);
   const pollCount = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelled = useRef(false);
 
+  const { data: plans } = useQuery<Plan[]>({
+    queryKey: ['subscription-plans-public'],
+    queryFn: () => api.get('/api/v1/subscriptions/plans').then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+
+  // Use first active plan; fall back to hardcoded defaults
+  const plan = plans?.[0];
+  const planPrice = plan ? Number(plan.priceUsd) : 5;
+  const planTrialDays = plan?.trialDays ?? 7;
+  const planFeatures: string[] = plan?.features?.length
+    ? plan.features
+    : ['Full POS & sales management', 'Inventory tracking & reports', 'Customer chat & demand alerts'];
+
+  // Compute displayed price after promo
+  const displayPrice =
+    promoResult?.valid && finalPrice != null
+      ? finalPrice
+      : promoResult?.valid && promoResult.discountPct
+      ? Math.max(0.01, planPrice * (1 - promoResult.discountPct / 100))
+      : promoResult?.valid && promoResult.discountAmt
+      ? Math.max(0.01, planPrice - promoResult.discountAmt)
+      : planPrice;
+
+  // Promo code validation (debounced)
+  useEffect(() => {
+    if (!promoCode.trim()) {
+      setPromoResult(null);
+      return;
+    }
+    const timeout = setTimeout(async () => {
+      setPromoChecking(true);
+      try {
+        const res = await api.get(`/api/v1/subscriptions/promo/validate?code=${encodeURIComponent(promoCode.trim())}`, { timeout: 10_000 });
+        setPromoResult(res.data);
+      } catch {
+        setPromoResult(null);
+      } finally {
+        setPromoChecking(false);
+      }
+    }, 600);
+    return () => clearTimeout(timeout);
+  }, [promoCode]);
+
+  // Poll loop
   useEffect(() => {
     if (step !== 'waiting' || !reference) return;
     cancelled.current = false;
@@ -39,10 +102,7 @@ export default function SubscribeModal({
     const poll = async () => {
       if (cancelled.current) return;
       pollCount.current++;
-      if (pollCount.current > 80) {
-        setStep('uncertain');
-        return;
-      }
+      if (pollCount.current > 80) { setStep('uncertain'); return; }
       try {
         const res = await api.get(`/api/v1/subscriptions/poll/${encodeURIComponent(reference)}`, { timeout: 20_000 });
         if (res.data.paid) {
@@ -51,21 +111,17 @@ export default function SubscribeModal({
           return;
         }
         if (['FAILED', 'CANCELLED', 'DISPUTED', 'REFUNDED'].includes(res.data.status)) {
-          setStep('timeout');
-          return;
+          setStep('timeout'); return;
         }
-        if (res.data.status === 'POLL_ERROR') {
-          setPollHint('EcoCash gateway slow — still checking…');
-        } else if (res.data.status === 'NOT_FOUND') {
-          setPollHint('Looking up your payment…');
-        } else {
-          setPollHint(`Waiting for confirmation… (${pollCount.current})`);
-        }
+        setPollHint(
+          res.data.status === 'POLL_ERROR' ? 'EcoCash gateway slow — still checking…' :
+          res.data.status === 'NOT_FOUND'  ? 'Looking up your payment…' :
+          `Waiting for confirmation… (${pollCount.current})`,
+        );
       } catch (e: any) {
         if (e?.response?.status === 401) {
           toast.error('Session expired. Log in again, then check subscription on your dashboard.');
-          setStep('uncertain');
-          return;
+          setStep('uncertain'); return;
         }
         setPollHint('Network issue — retrying…');
       }
@@ -84,15 +140,17 @@ export default function SubscribeModal({
 
   const handleSubmit = async () => {
     const digits = phone.replace(/\D/g, '');
-    if (digits.length < 9) {
-      toast.error('Enter a valid EcoCash number');
-      return;
-    }
+    if (digits.length < 9) { toast.error('Enter a valid EcoCash number'); return; }
     setFlowBusy(true);
     try {
       await api.post('/api/v1/subscriptions/ecocash', { ecocashNumber: phone }, { timeout: 30_000 });
-      const { data } = await api.post('/api/v1/subscriptions/pay', {}, { timeout: 45_000 });
+      const { data } = await api.post(
+        '/api/v1/subscriptions/pay',
+        { promoCode: promoCode.trim() || undefined },
+        { timeout: 45_000 },
+      );
       setReference(data.reference);
+      setFinalPrice(data.finalPrice ?? null);
       setStep('waiting');
     } catch (err: any) {
       const msg =
@@ -116,6 +174,7 @@ export default function SubscribeModal({
 
         {step === 'phone' && (
           <>
+            {/* Header */}
             {trialExpired ? (
               <div className="bg-gradient-to-br from-brand-orange to-orange-600 px-6 pt-8 pb-6 text-white text-center">
                 <div className="w-14 h-14 bg-white/15 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -129,31 +188,49 @@ export default function SubscribeModal({
                 <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3">
                   <Gift className="w-7 h-7 text-white" />
                 </div>
-                <h2 className="text-xl font-black mb-1">Subscribe &amp; Keep Going</h2>
+                <h2 className="text-xl font-black mb-1">
+                  {plan?.name ? `${plan.name} Plan` : 'Subscribe & Keep Going'}
+                </h2>
                 <p className="text-white/60 text-sm">
-                  {daysLeft > 0 ? `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left in your free trial` : 'Unlock all features'}
+                  {daysLeft > 0
+                    ? `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left in your ${planTrialDays}-day free trial`
+                    : 'Unlock all features'}
                 </p>
               </div>
             )}
 
+            {/* Plan benefits */}
             <div className="px-6 pt-4 pb-2">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">What&apos;s included</p>
               <ul className="space-y-2 mb-4">
-                {[
-                  'Full POS & sales management',
-                  'Inventory tracking & reports',
-                  'Customer chat & demand alerts',
-                ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-navy-700">
-                    <Star className="w-3.5 h-3.5 text-brand-orange flex-shrink-0" />
+                {planFeatures.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-sm text-navy-700">
+                    <Star className="w-3.5 h-3.5 text-brand-orange flex-shrink-0 mt-0.5" />
                     {f}
                   </li>
                 ))}
               </ul>
-              <div className="text-center text-xs text-gray-400 mb-3 font-semibold">
-                Only <span className="text-navy-700 font-black">$5 / month</span> · Billed via EcoCash
+
+              {/* Price display */}
+              <div className="text-center mb-3">
+                {promoResult?.valid ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-xs text-gray-400 line-through font-semibold">${planPrice.toFixed(2)}</span>
+                    <span className="text-navy-700 font-black text-lg">${displayPrice.toFixed(2)}</span>
+                    <span className="text-xs text-brand-green font-bold">/ month</span>
+                  </div>
+                ) : (
+                  <div className="text-xs text-gray-400 font-semibold">
+                    Only <span className="text-navy-700 font-black">${planPrice.toFixed(2)} / month</span> · Billed via EcoCash
+                  </div>
+                )}
+                {promoResult?.valid && promoResult.description && (
+                  <p className="text-xs text-brand-green mt-0.5">{promoResult.description}</p>
+                )}
               </div>
             </div>
 
+            {/* Form */}
             <div className="px-6 pb-6 space-y-3">
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1.5">EcoCash Number</label>
@@ -167,6 +244,39 @@ export default function SubscribeModal({
                 <p className="text-xs text-gray-400 mt-1">You&apos;ll receive a USSD prompt to enter your PIN.</p>
               </div>
 
+              {/* Promo code */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5">Promo / Referral Code (optional)</label>
+                <div className="relative">
+                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                    placeholder="e.g. WELCOME20"
+                    className={`w-full border-2 rounded-xl pl-9 pr-9 py-3 text-navy-700 font-semibold text-sm outline-none transition-colors ${
+                      promoResult?.valid
+                        ? 'border-brand-green bg-green-50'
+                        : promoResult && !promoResult.valid
+                        ? 'border-red-300 bg-red-50'
+                        : 'border-gray-100 focus:border-brand-green'
+                    }`}
+                  />
+                  {promoChecking && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin" />
+                  )}
+                  {!promoChecking && promoResult?.valid && (
+                    <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-green" />
+                  )}
+                  {!promoChecking && promoResult && !promoResult.valid && promoCode && (
+                    <X className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-red-400" />
+                  )}
+                </div>
+                {promoResult && !promoResult.valid && promoCode && (
+                  <p className="text-xs text-red-500 mt-1">{promoResult.reason}</p>
+                )}
+              </div>
+
               <button
                 type="button"
                 onClick={() => void handleSubmit()}
@@ -174,11 +284,9 @@ export default function SubscribeModal({
                 className="w-full flex items-center justify-center gap-2 py-3.5 bg-brand-green text-white font-black rounded-xl hover:bg-green-600 transition-colors disabled:opacity-60"
               >
                 {flowBusy ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Starting payment…
-                  </>
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Starting payment…</>
                 ) : (
-                  'Subscribe — $5/month'
+                  `Subscribe — $${displayPrice.toFixed(2)}/month`
                 )}
               </button>
 
@@ -201,6 +309,9 @@ export default function SubscribeModal({
               <p className="text-sm text-gray-500 mt-1">
                 An EcoCash payment request was sent. Approve it with your PIN.
               </p>
+              {finalPrice !== null && (
+                <p className="text-sm font-black text-navy-700 mt-1">${finalPrice.toFixed(2)}</p>
+              )}
             </div>
             <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
               <Loader2 className="w-4 h-4 animate-spin text-brand-orange" />
@@ -273,6 +384,7 @@ export default function SubscribeModal({
             </button>
           </div>
         )}
+
       </div>
     </div>
   );

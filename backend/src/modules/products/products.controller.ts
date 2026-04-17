@@ -66,6 +66,13 @@ export class ProductsController {
     return this.productsService.getCategories();
   }
 
+  @Get('boost/pricing')
+  @Public()
+  @ApiOperation({ summary: 'Get listing boost pricing tiers' })
+  async getBoostPricing() {
+    return this.productsService.getBoostPricing();
+  }
+
   @Get('stall/:stallId')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
@@ -103,5 +110,18 @@ export class ProductsController {
   @ApiOperation({ summary: 'Update product' })
   async update(@Param('id') id: string, @Body() data: UpdateProductDto) {
     return this.productsService.updateProduct(id, data.stallId, data);
+  }
+
+  @Post(':id/boost')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STALL_OWNER)
+  @ApiOperation({ summary: 'Boost a product listing (deducts from wallet)' })
+  async boostProduct(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @Body('days') days: 7 | 14 | 30,
+  ) {
+    return this.productsService.boostProduct(userId, id, days);
   }
 }

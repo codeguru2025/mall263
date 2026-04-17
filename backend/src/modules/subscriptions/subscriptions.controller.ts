@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, HttpCode } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
@@ -10,6 +10,28 @@ import { Public } from '../../common/decorators/public.decorator';
 @Controller('subscriptions')
 export class SubscriptionsController {
   constructor(private subscriptionsService: SubscriptionsService) {}
+
+  /**
+   * Public — list active subscription plans with features.
+   * Used by the subscribe modal on the frontend.
+   */
+  @Get('plans')
+  @Public()
+  @ApiOperation({ summary: 'List active subscription plans' })
+  async listPlans() {
+    return this.subscriptionsService.listActivePlans();
+  }
+
+  /**
+   * Public — validate a promo code without consuming it.
+   * Used for real-time validation in the subscribe form.
+   */
+  @Get('promo/validate')
+  @Public()
+  @ApiOperation({ summary: 'Validate a promo/referral code' })
+  async validatePromo(@Query('code') code: string) {
+    return this.subscriptionsService.validatePromoCode(code);
+  }
 
   @Get('status')
   @ApiBearerAuth()
@@ -33,9 +55,12 @@ export class SubscriptionsController {
   @Post('pay')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Manually initiate a subscription payment' })
-  async pay(@CurrentUser('id') userId: string) {
-    return this.subscriptionsService.initiatePayment(userId);
+  @ApiOperation({ summary: 'Manually initiate a subscription payment (optionally with promo code)' })
+  async pay(
+    @CurrentUser('id') userId: string,
+    @Body() body: { promoCode?: string },
+  ) {
+    return this.subscriptionsService.initiatePayment(userId, undefined, body.promoCode);
   }
 
   @Get('poll/:reference')

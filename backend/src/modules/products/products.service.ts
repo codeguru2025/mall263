@@ -1,8 +1,12 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SearchService } from '../search/search.service';
-import { ProductStatus, StallAnalyticsEventType } from '@prisma/client';
+import { ProductStatus, StallAnalyticsEventType, WalletTransactionType, WalletTransactionStatus, Prisma } from '@prisma/client';
 import { containsContactInfo } from '../../common/contact-info.util';
+
+// Boost pricing in USD
+const BOOST_PRICES: Record<number, number> = { 7: 1.00, 14: 2.00, 30: 4.00 };
 
 const BUYER_TRIAL_DAYS = 7;
 
@@ -281,32 +285,36 @@ export class ProductsService {
     if (Number.isFinite(params.minPrice)) where.minPrice = { gte: params.minPrice };
     if (Number.isFinite(params.maxPrice)) where.maxPrice = { lte: params.maxPrice };
 
-    let orderBy: any = { createdAt: 'desc' };
-    if (sortBy === 'price_asc') orderBy = { minPrice: 'asc' };
-    if (sortBy === 'price_desc') orderBy = { maxPrice: 'desc' };
-    if (sortBy === 'popular') orderBy = { viewCount: 'desc' };
+    // Promoted products (not expired) float to the top, then apply the chosen sort
+    const now = new Date();
+    let secondaryOrder: any = { createdAt: 'desc' };
+    if (sortBy === 'price_asc') secondaryOrder = { minPrice: 'asc' };
+    if (sortBy === 'price_desc') secondaryOrder = { maxPrice: 'desc' };
+    if (sortBy === 'popular') secondaryOrder = { viewCount: 'desc' };
+
+    const orderBy: any[] = [
+      // Promoted and still valid → isPromoted=true floats up; expired boosts fall back
+      { isPromoted: 'desc' },
+      secondaryOrder,
+    ];
+
+    const include = {
+      images: { where: { isPrimary: true }, take: 1 },
+      category: { select: { name: true, slug: true } },
+      stall: {
+        select: {
+          id: true,
+          name: true,
+          logoUrl: true,
+          mall: { select: { name: true, city: true } },
+          merchant: { select: { logoUrl: true } },
+        },
+      },
+      variants: { select: { sellingPrice: true, color: true, size: true }, where: { isActive: true } },
+    };
 
     const [data, total] = await Promise.all([
-      this.prisma.product.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        include: {
-          images: { where: { isPrimary: true }, take: 1 },
-          category: { select: { name: true, slug: true } },
-          stall: {
-            select: {
-              id: true,
-              name: true,
-              logoUrl: true,
-              mall: { select: { name: true, city: true } },
-              merchant: { select: { logoUrl: true } },
-            },
-          },
-          variants: { select: { sellingPrice: true, color: true, size: true }, where: { isActive: true } },
-        },
-        orderBy,
-      }),
+      this.prisma.product.findMany({ where, skip: (page - 1) * limit, take: limit, include, orderBy }),
       this.prisma.product.count({ where }),
     ]);
 
@@ -399,6 +407,83 @@ export class ProductsService {
       orderBy: { sortOrder: 'asc' },
     });
   }
+
+  // ── Promoted Listings ─────────────────────────────────────────────────────
+
+  /**
+   * Seller boosts a product for 7, 14, or 30 days.
+   * Fee is deducted from their wallet immediately using a serializable transaction.
+   */
+  async boostProduct(userId: string, productId: string, days: 7 | 14 | 30): Promise<{ promotedUntil: Date; fee: number }> {
+    const fee = BOOST_PRICES[days];
+    if (!fee) throw new BadRequestException('Invalid boost duration. Choose 7, 14, or 30 days.');
+
+    // Verify product ownership: product → stall → merchant → user
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: { stall: { include: { merchant: { select: { userId: true } } } } },
+    });
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.stall.merchant.userId !== userId) throw new ForbiddenException('You do not own this product');
+
+    const promotedUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+
+    await this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.wallet.findUnique({ where: { userId } });
+      if (!wallet) throw new NotFoundException('Wallet not found');
+
+      const feeDec = new Prisma.Decimal(fee);
+      if (wallet.availableBalance.lessThan(feeDec)) {
+        throw new BadRequestException(
+          `Insufficient wallet balance. Need $${fee.toFixed(2)}, available: $${wallet.availableBalance.toFixed(2)}`,
+        );
+      }
+
+      const balanceBefore = wallet.availableBalance;
+      const balanceAfter = balanceBefore.sub(feeDec);
+
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { availableBalance: balanceAfter, lastActivityAt: new Date() },
+      });
+
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: WalletTransactionType.FEE,
+          amount: feeDec,
+          balanceBefore,
+          balanceAfter,
+          status: WalletTransactionStatus.COMPLETED,
+          description: `Listing boost: ${product.name} (${days} days)`,
+          completedAt: new Date(),
+        },
+      });
+
+      await tx.product.update({
+        where: { id: productId },
+        data: { isPromoted: true, promotedUntil },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    return { promotedUntil, fee };
+  }
+
+  /** Boost pricing lookup (public — shown in UI before confirming). */
+  getBoostPricing(): { days: number; fee: number }[] {
+    return Object.entries(BOOST_PRICES).map(([d, f]) => ({ days: Number(d), fee: f }));
+  }
+
+  /** Daily cron: clear expired boosts so they stop floating to the top. */
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async expirePromotedListings() {
+    await this.prisma.product.updateMany({
+      where: { isPromoted: true, promotedUntil: { lt: new Date() } },
+      data: { isPromoted: false },
+    });
+  }
+
+  // ── Private helpers ────────────────────────────────────────────────────────
 
   private generateSlug(name: string): string {
     return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);

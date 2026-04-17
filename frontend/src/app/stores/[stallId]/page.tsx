@@ -9,7 +9,7 @@ import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { resolveStoreLogo } from '@/lib/storeBranding';
 import { Logo } from '@/components/Logo';
-import { ArrowLeft, MapPin, ShoppingBag, Eye } from 'lucide-react';
+import { ArrowLeft, MapPin, ShoppingBag, Eye, Zap } from 'lucide-react';
 
 export default function PublicStorePage() {
   const { stallId } = useParams<{ stallId: string }>();
@@ -96,7 +96,14 @@ export default function PublicStorePage() {
                       {stall.merchant.businessName}
                     </p>
                   )}
-                  <h1 className="text-2xl font-black text-navy-700 leading-tight">{stall.name}</h1>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-2xl font-black text-navy-700 leading-tight">{stall.name}</h1>
+                    {stall.isPromoted && (
+                      <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-[10px] font-black px-2 py-0.5 rounded-full">
+                        <Zap className="w-2.5 h-2.5 fill-amber-600 text-amber-600" /> Featured
+                      </span>
+                    )}
+                  </div>
                   {stall.stallNumber && stall.stallNumber !== '***' && (
                     <p className="text-sm text-gray-500 mt-1">
                       {stall.mall ? `Stall ${stall.stallNumber}` : `Shop ${stall.stallNumber}`}

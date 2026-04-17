@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
-import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield, Tag, Settings, Building2, LifeBuoy } from 'lucide-react';
+import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield, Tag, Settings, Building2, LifeBuoy, CreditCard, Megaphone, Ticket } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 const ADMIN_DASHBOARD_ROLES = new Set(['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN']);
@@ -80,6 +80,10 @@ export default function AdminPage() {
     { href: '/admin/stalls', icon: Shield, label: 'Manage Stalls', desc: 'Approve, suspend, or manage market stalls', color: 'text-brand-orange', bg: 'bg-orange-50', border: 'hover:border-brand-orange' },
     { href: '/admin/categories', icon: Tag, label: 'Manage Categories', desc: 'Add, edit, or organize product categories', color: 'text-purple-600', bg: 'bg-purple-50', border: 'hover:border-purple-600' },
     { href: '/reports', icon: BarChart3, label: 'Platform Reports', desc: 'View sales, commission, and user reports', color: 'text-brand-red', bg: 'bg-red-50', border: 'hover:border-brand-red' },
+    { href: '/admin/subscriptions', icon: CreditCard, label: 'Subscription Manager', desc: 'View all subscribers, extend trials, grant free months', color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'hover:border-indigo-400' },
+    { href: '/admin/subscription-plans', icon: CreditCard, label: 'Subscription Plans', desc: 'Set pricing, trial length, and plan features for sellers', color: 'text-violet-600', bg: 'bg-violet-50', border: 'hover:border-violet-400' },
+    { href: '/admin/promotions', icon: Ticket, label: 'Promotions & Referrals', desc: 'Create discount codes and referral programmes', color: 'text-pink-600', bg: 'bg-pink-50', border: 'hover:border-pink-400' },
+    { href: '/admin/ads', icon: Megaphone, label: 'Ads & Banners', desc: 'Manage in-app ads, banners, and scheduled promotions', color: 'text-amber-600', bg: 'bg-amber-50', border: 'hover:border-amber-400' },
     { href: '/admin/settings', icon: Settings, label: 'App Settings', desc: 'Set delivery rate per km and platform configuration', color: 'text-gray-600', bg: 'bg-gray-50', border: 'hover:border-gray-400' },
     { href: '/admin/support', icon: LifeBuoy, label: 'Help requests', desc: 'Review and resolve client support tickets', color: 'text-cyan-700', bg: 'bg-cyan-50', border: 'hover:border-cyan-400' },
   ];

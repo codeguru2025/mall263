@@ -16,8 +16,10 @@ export function useSubscription() {
     status: data?.status as string | undefined,
     trialActive: data?.trialActive ?? true,
     isActive: data?.isActive ?? false,
-    // Default true while loading (don't flash gates). On network error, deny access to prevent bypass.
-    fullyAccess: isLoading ? true : isError ? false : (data?.fullyAccess ?? true),
+    // Default true while loading (don't flash gates).
+    // On network error also default to true — a transient API failure must never lock out
+    // a trial or paying user. The backend enforces state at the API level anyway.
+    fullyAccess: isLoading ? true : isError ? true : (data?.fullyAccess ?? true),
     hasEcocash: data?.hasEcocash ?? false,
     ecocashNumber: data?.ecocashNumber as string | undefined,
     trialEndsAt: data?.trialEndsAt ? new Date(data.trialEndsAt) : undefined,

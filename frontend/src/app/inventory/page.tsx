@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
-import { Package, Plus, Search, ArrowLeft, AlertTriangle, Edit2, ToggleLeft, ToggleRight, Store } from 'lucide-react';
+import { Package, Plus, Search, ArrowLeft, AlertTriangle, Edit2, ToggleLeft, ToggleRight, Store, Zap, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/lib/store';
 
@@ -68,6 +68,27 @@ export default function InventoryPage() {
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Update failed'),
   });
+
+  const boostMutation = useMutation({
+    mutationFn: ({ productId, days }: { productId: string; days: number }) =>
+      api.post(`/api/v1/products/${productId}/boost`, { days }).then((r) => r.data),
+    onSuccess: (data) => {
+      toast.success(`Product boosted until ${new Date(data.promotedUntil).toLocaleDateString()} — $${data.fee.toFixed(2)} deducted`);
+      queryClient.invalidateQueries({ queryKey: ['inventory-products'] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Boost failed'),
+  });
+
+  const stallBoostMutation = useMutation({
+    mutationFn: ({ sid, days }: { sid: string; days: number }) =>
+      api.post(`/api/v1/stalls/${sid}/boost`, { days }).then((r) => r.data),
+    onSuccess: (data) => {
+      toast.success(`Stall featured until ${new Date(data.promotedUntil).toLocaleDateString()}`);
+      queryClient.invalidateQueries({ queryKey: ['my-stalls'] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Stall boost failed'),
+  });
+
 
   const products: any[] = productsRes?.data || productsRes || [];
   const filtered = search
@@ -143,6 +164,51 @@ export default function InventoryPage() {
             <p className="text-xs text-gray-500 mt-1">Out of Stock</p>
           </div>
         </div>
+
+        {/* Stall boost banner */}
+        {stallId && (() => {
+          const currentStall = (stalls as any[])?.find((s: any) => s.id === stallId);
+          if (!currentStall) return null;
+          const isStallPromoted = currentStall.isPromoted && currentStall.promotedUntil && new Date(currentStall.promotedUntil) > new Date();
+          return (
+            <div className={`rounded-2xl border-2 p-4 mb-4 flex items-center gap-4 flex-wrap ${isStallPromoted ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100'}`}>
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${isStallPromoted ? 'bg-amber-100' : 'bg-gray-100'}`}>
+                  <Zap className={`w-4 h-4 ${isStallPromoted ? 'text-amber-600' : 'text-gray-500'}`} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-navy-700 truncate">{currentStall.name}</p>
+                  {isStallPromoted ? (
+                    <p className="text-xs text-amber-700 font-semibold">
+                      <Star className="inline w-3 h-3 fill-amber-500 text-amber-500 mr-0.5" />
+                      Featured until {new Date(currentStall.promotedUntil).toLocaleDateString()}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">Boost stall to appear at the top of stall listings</p>
+                  )}
+                </div>
+              </div>
+              {!isStallPromoted && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {([{ days: 7, price: 1 }, { days: 14, price: 2 }, { days: 30, price: 4 }] as const).map((tier) => (
+                    <button
+                      key={tier.days}
+                      onClick={() => {
+                        if (confirm(`Feature your stall "${currentStall.name}" for ${tier.days} days? $${tier.price} will be deducted from your wallet.`)) {
+                          stallBoostMutation.mutate({ sid: stallId, days: tier.days });
+                        }
+                      }}
+                      disabled={stallBoostMutation.isPending}
+                      className="text-xs font-bold px-2.5 py-1.5 rounded-full border-2 border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-50"
+                    >
+                      {tier.days}d · ${tier.price}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Search */}
         <div className="bg-white rounded-xl flex items-center gap-3 px-4 border-2 border-gray-100 focus-within:border-brand-green mb-4">
@@ -270,6 +336,37 @@ export default function InventoryPage() {
                           : <ToggleLeft className="w-5 h-5 text-gray-400" />}
                       </button>
                     </div>
+                  </div>
+
+                  {/* Boost row */}
+                  <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-3 flex-wrap">
+                    {product.isPromoted && product.promotedUntil && new Date(product.promotedUntil) > new Date() ? (
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 px-3 py-1.5 rounded-full">
+                        <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+                        Featured until {new Date(product.promotedUntil).toLocaleDateString()}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-1 text-xs text-gray-400">
+                          <Zap className="w-3.5 h-3.5" />
+                          <span className="font-semibold">Boost:</span>
+                        </div>
+                        {([{ days: 7, price: 1 }, { days: 14, price: 2 }, { days: 30, price: 4 }] as const).map((tier) => (
+                          <button
+                            key={tier.days}
+                            onClick={() => {
+                              if (confirm(`Boost "${product.name}" for ${tier.days} days? $${tier.price.toFixed(2)} will be deducted from your wallet.`)) {
+                                boostMutation.mutate({ productId: product.id, days: tier.days });
+                              }
+                            }}
+                            disabled={boostMutation.isPending}
+                            className="text-xs font-bold px-2.5 py-1.5 rounded-full border-2 border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-50"
+                          >
+                            {tier.days}d · ${tier.price}
+                          </button>
+                        ))}
+                      </>
+                    )}
                   </div>
                 </div>
               );

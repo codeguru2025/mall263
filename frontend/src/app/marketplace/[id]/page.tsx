@@ -8,9 +8,11 @@ import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { resolveStoreLogo } from '@/lib/storeBranding';
 import { Logo } from '@/components/Logo';
-import { ArrowLeft, MapPin, Star, Package, Gavel, ShoppingBag, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DeliveryCalculator } from '@/components/DeliveryCalculator';
+import { ArrowLeft, MapPin, Star, Package, Gavel, ShoppingBag, AlertCircle, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { recordProductEngagement } from '@/lib/forYouSignals';
+import { useAuthStore } from '@/lib/store';
 
 // Resolve the best available URL from a product image object
 function resolveImageSrc(img: any): string {
@@ -30,11 +32,24 @@ export default function ProductDetailPage() {
   const [imgIndex, setImgIndex] = useState(0);
   const [heroError, setHeroError] = useState(false);
 
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isBuyer = user?.role === 'BUYER' || !user;
+
   const { data: product, isLoading, isError } = useQuery({
     queryKey: ['product', id],
     queryFn: () => api.get(`/api/v1/products/${id}`).then((r) => r.data),
     enabled: !!id,
   });
+
+  const { data: walletData } = useQuery({
+    queryKey: ['wallet-balance'],
+    queryFn: () => api.get('/api/v1/wallets/me/balance').then((r) => r.data),
+    enabled: isAuthenticated && isBuyer,
+  });
+
+  const walletBalance = parseFloat(walletData?.available ?? walletData?.availableBalance ?? '0');
+  const hasWalletFunds = walletBalance > 0;
 
   useEffect(() => {
     if (!product?.id) return;
@@ -300,6 +315,31 @@ export default function ProductDetailPage() {
               <p className="text-sm text-gray-500 mt-3 bg-gray-50 rounded-xl px-4 py-3">
                 Visit this stall to purchase. Pay the seller directly in person.
               </p>
+            </div>
+          )}
+
+          {/* Delivery calculator */}
+          <DeliveryCalculator
+            stallLat={product.stall?.latitude}
+            stallLng={product.stall?.longitude}
+            stallName={product.stall?.name}
+          />
+
+          {/* Wallet balance prompt for buyers with empty wallets */}
+          {isAuthenticated && isBuyer && !hasWalletFunds && (
+            <div className="bg-amber-50 rounded-2xl p-4 border-2 border-amber-100 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <Wallet className="w-4 h-4 text-amber-700" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-sm text-amber-900 mb-0.5">Fund your wallet to bid</p>
+                <p className="text-xs text-amber-700 leading-relaxed mb-2">
+                  Posting a demand requires a small wallet balance. Add funds to unlock bidding and secure seller offers.
+                </p>
+                <Link href="/wallet" className="inline-flex items-center gap-1.5 text-xs font-black text-amber-900 bg-amber-200 hover:bg-amber-300 transition-colors px-3 py-1.5 rounded-lg">
+                  <Wallet className="w-3.5 h-3.5" /> Add funds →
+                </Link>
+              </div>
             </div>
           )}
 

@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { buildForYouSearchParams, forYouCacheKey } from '@/lib/forYouSignals';
-import { ArrowLeft, Bookmark, ChevronRight, MapPin, Share2, ShoppingBag, Sparkles, Star, Store } from 'lucide-react';
+import { ArrowLeft, Bookmark, ChevronRight, ExternalLink, MapPin, Share2, ShoppingBag, Sparkles, Star, Store, X } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { resolveStoreLogo } from '@/lib/storeBranding';
 
@@ -191,6 +191,62 @@ function FeedSkeleton() {
   );
 }
 
+// Full-screen interstitial ad card for the feed
+function FeedAdCard({ ad }: { ad: { id: string; title: string; imageUrl?: string | null; linkUrl?: string | null } }) {
+  const [dismissed, setDismissed] = useState(false);
+  const reported = useRef(false);
+
+  useEffect(() => {
+    if (!reported.current) {
+      reported.current = true;
+      api.post(`/api/v1/ads/${ad.id}/impression`).catch(() => {});
+    }
+  }, [ad.id]);
+
+  if (dismissed) return null;
+
+  const content = (
+    <div className="snap-start shrink-0 h-[calc(100dvh-3.5rem)] w-full relative bg-black overflow-hidden sm:px-3 sm:py-2 sm:h-[calc(100dvh-3.75rem)] flex items-center justify-center">
+      {ad.imageUrl ? (
+        <>
+          <Image src={ad.imageUrl} alt={ad.title} fill className="object-cover opacity-70" sizes="100vw" />
+          <div className="absolute inset-0 bg-black/40" />
+        </>
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-900 to-orange-950" />
+      )}
+      <div className="relative z-10 text-center px-8">
+        <span className="inline-block text-[10px] font-bold uppercase tracking-widest text-white/60 bg-white/10 px-3 py-1 rounded-full mb-4">
+          Sponsored
+        </span>
+        <p className="text-white font-black text-2xl mb-4 leading-tight">{ad.title}</p>
+        {ad.linkUrl && (
+          <span className="inline-flex items-center gap-2 bg-white text-navy-900 font-black text-sm px-6 py-3 rounded-2xl">
+            Learn more <ExternalLink className="w-4 h-4" />
+          </span>
+        )}
+      </div>
+      {/* Dismiss */}
+      <button
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDismissed(true); }}
+        className="absolute top-4 right-4 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center hover:bg-black/60 transition-colors z-20"
+        aria-label="Dismiss ad"
+      >
+        <X className="w-4 h-4 text-white" />
+      </button>
+    </div>
+  );
+
+  if (ad.linkUrl) {
+    return (
+      <a href={ad.linkUrl} target="_blank" rel="noopener noreferrer">
+        {content}
+      </a>
+    );
+  }
+  return content;
+}
+
 export default function ForYouPage() {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -207,6 +263,13 @@ export default function ForYouPage() {
   });
 
   const products = data?.pages.flatMap((p) => p.data || []) ?? [];
+
+  const { data: adsData } = useQuery<any[]>({
+    queryKey: ['ads-interstitial'],
+    queryFn: () => api.get('/api/v1/ads/active', { params: { placement: 'INTERSTITIAL' } }).then((r) => r.data ?? []),
+    staleTime: 300_000,
+  });
+  const interstitialAd = adsData?.[0] ?? null;
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -270,7 +333,15 @@ export default function ForYouPage() {
             </Link>
           </div>
         ) : (
-          products.map((p: any, i: number) => <ForYouProductCard key={p.id} product={p} priority={i < 2} />)
+          products.map((p: any, i: number) => (
+            <Fragment key={p.id}>
+              <ForYouProductCard product={p} priority={i < 2} />
+              {/* Show interstitial ad after every 5th product */}
+              {interstitialAd && (i + 1) % 5 === 0 && (
+                <FeedAdCard ad={interstitialAd} />
+              )}
+            </Fragment>
+          ))
         )}
 
         <div ref={sentinelRef} className="h-12 shrink-0" aria-hidden />

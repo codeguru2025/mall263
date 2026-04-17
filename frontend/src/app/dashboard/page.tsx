@@ -5,7 +5,7 @@ import { useAuthStore } from '@/lib/store';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight, LogOut, Receipt, TrendingUp, AlertTriangle, Gift, X, Camera, Loader2 } from 'lucide-react';
+import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight, LogOut, Receipt, TrendingUp, AlertTriangle, Gift, X, Camera, Loader2, QrCode, Share2, Copy, ExternalLink } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
@@ -14,6 +14,87 @@ import { useSubscription } from '@/lib/useSubscription';
 import SubscribeModal from '@/components/SubscribeModal';
 import toast from 'react-hot-toast';
 import { compressImageForAvatarUpload } from '@/lib/imageCompress';
+
+// ── Stall share / QR card ─────────────────────────────────────────────────────
+function StallShareCard({ stallId, stallName }: { stallId: string; stallName: string }) {
+  const storeUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/stores/${stallId}`
+    : `/stores/${stallId}`;
+
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(storeUrl)}&size=220x220&margin=10&color=1e3a5f`;
+
+  const copyLink = () => {
+    navigator.clipboard?.writeText(storeUrl).then(() => toast.success('Store link copied!')).catch(() => {});
+  };
+
+  const share = () => {
+    if (navigator.share) {
+      navigator.share({ title: stallName, text: `Shop at ${stallName} on Mall263`, url: storeUrl }).catch(() => {});
+    } else {
+      copyLink();
+    }
+  };
+
+  const downloadQr = async () => {
+    try {
+      const res = await fetch(qrUrl);
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${stallName.replace(/\s+/g, '-').toLowerCase()}-qr.png`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch {
+      toast.error('Could not download QR code');
+    }
+  };
+
+  return (
+    <div className="mb-6 bg-white rounded-2xl border-2 border-gray-100 overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <QrCode className="w-4 h-4 text-navy-700" />
+          <h2 className="font-black text-navy-700">Share Your Store</h2>
+        </div>
+        <Link href={`/stores/${stallId}`} className="flex items-center gap-1 text-xs text-brand-blue font-semibold hover:underline">
+          Preview <ExternalLink className="w-3 h-3" />
+        </Link>
+      </div>
+      <div className="px-5 py-4 flex items-center gap-5">
+        {/* QR code */}
+        <div className="flex-shrink-0 w-24 h-24 rounded-xl overflow-hidden border-2 border-gray-100 bg-gray-50">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrUrl} alt="Store QR code" className="w-full h-full object-contain" />
+        </div>
+        {/* Info + actions */}
+        <div className="flex-1 min-w-0">
+          <p className="font-black text-navy-700 truncate">{stallName}</p>
+          <p className="text-xs text-gray-400 truncate mb-3">{storeUrl}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={copyLink}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 bg-gray-100 text-navy-700 rounded-xl hover:bg-gray-200 transition-colors"
+            >
+              <Copy className="w-3.5 h-3.5" /> Copy link
+            </button>
+            <button
+              onClick={share}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 bg-brand-green/10 text-brand-green rounded-xl hover:bg-brand-green/20 transition-colors"
+            >
+              <Share2 className="w-3.5 h-3.5" /> Share
+            </button>
+            <button
+              onClick={downloadQr}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 bg-navy-700/10 text-navy-700 rounded-xl hover:bg-navy-700/20 transition-colors"
+            >
+              <QrCode className="w-3.5 h-3.5" /> Download QR
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -322,6 +403,11 @@ export default function DashboardPage() {
               </Link>
             )}
           </div>
+        )}
+
+        {/* QR Stall Card — sellers only, once stall is set up */}
+        {isSeller && sellerStallId && (
+          <StallShareCard stallId={sellerStallId} stallName={myStalls?.[0]?.name ?? 'My Store'} />
         )}
 
         {/* Quick Actions */}

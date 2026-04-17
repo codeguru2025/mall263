@@ -3,11 +3,11 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { Logo } from '@/components/Logo';
-import { ArrowLeft, Gavel, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Gavel, ShoppingBag, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 function NewDemandForm() {
@@ -37,6 +37,14 @@ function NewDemandForm() {
     if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
   }, [authLoading, isAuthenticated, router]);
+
+  const { data: walletData } = useQuery({
+    queryKey: ['wallet-balance'],
+    queryFn: () => api.get('/api/v1/wallets/me/balance').then((r) => r.data),
+    enabled: isAuthenticated,
+  });
+  const walletBalance = parseFloat(walletData?.available ?? '0');
+  const hasWalletFunds = walletBalance > 0;
 
   const update = (key: string, value: string) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -100,6 +108,24 @@ function NewDemandForm() {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 pt-8 pb-28 sm:pb-8">
+        {/* Wallet funding prompt */}
+        {isAuthenticated && !hasWalletFunds && (
+          <div className="bg-amber-50 rounded-2xl border-2 border-amber-100 p-4 mb-4 flex items-start gap-3">
+            <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Wallet className="w-5 h-5 text-amber-700" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-amber-900">Wallet required to post demands</p>
+              <p className="text-xs text-amber-700 mt-0.5 mb-2 leading-relaxed">
+                Add a small amount to your wallet. When a seller accepts your bid, 10% of the offer value is locked as commitment deposit — released if the seller declines.
+              </p>
+              <Link href="/wallet" className="inline-flex items-center gap-1.5 text-xs font-black text-amber-900 bg-amber-200 hover:bg-amber-300 transition-colors px-3 py-1.5 rounded-lg">
+                <Wallet className="w-3.5 h-3.5" /> Fund wallet →
+              </Link>
+            </div>
+          </div>
+        )}
+
         {isProductDemand && (
           <div className="bg-blue-50 rounded-2xl border-2 border-blue-100 p-4 mb-4 flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">

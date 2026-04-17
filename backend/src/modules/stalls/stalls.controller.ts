@@ -82,6 +82,17 @@ export class StallsController {
     return this.stallsService.recordVisit(id);
   }
 
+  // ── Stall Boost (must come BEFORE :id routes) ─────────────────────────────
+
+  @Get('boost/pricing')
+  @Public()
+  @ApiOperation({ summary: 'Get stall boost pricing tiers' })
+  async getBoostPricing() {
+    return this.stallsService.getStallBoostPricing();
+  }
+
+  // ── Parameterised routes ──────────────────────────────────────────────────
+
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get stall by ID' })
@@ -105,5 +116,18 @@ export class StallsController {
   @ApiOperation({ summary: 'Add attendant to stall' })
   async addAttendant(@Param('id') stallId: string, @Body() data: { userId: string; pin?: string }) {
     return this.stallsService.addAttendant(stallId, data.userId, data.pin);
+  }
+
+  @Post(':id/boost')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STALL_OWNER)
+  @ApiOperation({ summary: 'Boost (feature) a stall for N days' })
+  async boostStall(
+    @Param('id') stallId: string,
+    @CurrentUser('id') userId: string,
+    @Body('days') days: number,
+  ) {
+    return this.stallsService.boostStall(userId, stallId, Number(days));
   }
 }

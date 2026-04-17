@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, MapPin, Star, Gavel, ShoppingBag, Loader2, X, ChevronRight } from 'lucide-react';
+import { Search, MapPin, Star, Gavel, ShoppingBag, Loader2, X, ChevronRight, Zap } from 'lucide-react';
 import { useState, Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -12,6 +12,7 @@ import { resolveStoreLogo } from '@/lib/storeBranding';
 import { Logo } from '@/components/Logo';
 import { useAuthStore } from '@/lib/store';
 import { useDebounce } from '@/lib/hooks/useDebounce';
+import { AdBanner } from '@/components/AdBanner';
 
 // Resolve image URL — handles Meilisearch flat shape, DB nested, and cdnUrl vs url
 function resolveImageUrl(product: any): string {
@@ -70,6 +71,14 @@ function ProductCard({ product }: { product: any }) {
       {/* Gradient overlay — only when we have an image, so the ShoppingBag fallback stays visible */}
       {hasImage && (
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+      )}
+
+      {/* Featured badge — promoted products */}
+      {product.isPromoted && (
+        <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-amber-400/90 backdrop-blur-sm text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm">
+          <Zap className="w-2.5 h-2.5 fill-white text-white" />
+          Featured
+        </div>
       )}
 
       {/* Trusted badge — glassmorphism, top-right */}
@@ -378,11 +387,19 @@ function MarketplaceContent() {
               )}
             </div>
 
+            {/* Top banner ad */}
+            <AdBanner placement="BANNER_TOP" role={user?.role} className="mb-4" />
+
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
               {products.map((product: any) => (
                 <ProductCard key={product.id} product={product} />
               ))}
             </div>
+
+            {/* Bottom banner ad (shown after items load) */}
+            {products.length > 0 && (
+              <AdBanner placement="BANNER_BOTTOM" role={user?.role} className="mt-4" />
+            )}
 
             {products.length === 0 && (
               <div className="text-center py-20">

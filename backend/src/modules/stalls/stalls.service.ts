@@ -1,6 +1,10 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
-import { StallAnalyticsEventType, StallStatus, UserRole } from '@prisma/client';
+import { StallAnalyticsEventType, StallStatus, UserRole, WalletTransactionType, WalletTransactionStatus, Prisma } from '@prisma/client';
+
+// Stall boost pricing in USD
+const STALL_BOOST_PRICES: Record<number, number> = { 7: 1.00, 14: 2.00, 30: 4.00 };
 
 const ADMIN_ROLES: UserRole[] = [
   UserRole.SUPER_ADMIN,
@@ -255,6 +259,78 @@ export class StallsService {
       where: { id: mallId },
       data: updateData,
       include: { _count: { select: { stalls: true } } },
+    });
+  }
+
+  // ── Stall Boost ───────────────────────────────────────────────────────────
+
+  getStallBoostPricing() {
+    return Object.entries(STALL_BOOST_PRICES).map(([days, price]) => ({
+      days: parseInt(days),
+      priceUsd: price,
+    }));
+  }
+
+  async boostStall(userId: string, stallId: string, days: number) {
+    const price = STALL_BOOST_PRICES[days];
+    if (!price) throw new BadRequestException('Invalid boost duration. Choose 7, 14, or 30 days.');
+
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: stallId },
+      include: { merchant: true },
+    });
+    if (!stall) throw new NotFoundException('Stall not found');
+    if (stall.merchant.userId !== userId) throw new ForbiddenException('Not your stall');
+
+    const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+    if (!wallet) throw new BadRequestException('Wallet not found');
+    const feeDec = new Prisma.Decimal(price);
+    if (wallet.availableBalance.lessThan(feeDec)) {
+      throw new BadRequestException(
+        `Insufficient wallet balance. You need $${price.toFixed(2)} to boost for ${days} days. ` +
+        `Current balance: $${wallet.availableBalance.toFixed(2)}`,
+      );
+    }
+
+    const promotedUntil = new Date();
+    promotedUntil.setDate(promotedUntil.getDate() + days);
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        const balanceBefore = wallet.availableBalance;
+        const balanceAfter = balanceBefore.minus(feeDec);
+        await tx.wallet.update({
+          where: { userId },
+          data: { availableBalance: balanceAfter, lastActivityAt: new Date() },
+        });
+        await tx.walletTransaction.create({
+          data: {
+            walletId: wallet.id,
+            type: WalletTransactionType.FEE,
+            status: WalletTransactionStatus.COMPLETED,
+            amount: feeDec,
+            balanceBefore,
+            balanceAfter,
+            completedAt: new Date(),
+            description: `Stall featured boost: ${days} days for "${stall.name}"`,
+          },
+        });
+        await tx.stall.update({
+          where: { id: stallId },
+          data: { isPromoted: true, promotedUntil },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    return { message: `Stall boosted for ${days} days until ${promotedUntil.toLocaleDateString()}`, promotedUntil };
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async expirePromotedStalls() {
+    await this.prisma.stall.updateMany({
+      where: { isPromoted: true, promotedUntil: { lte: new Date() } },
+      data: { isPromoted: false, promotedUntil: null },
     });
   }
 }

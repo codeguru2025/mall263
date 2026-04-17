@@ -356,6 +356,8 @@ model Stall {
   imageUrl      String?     @map("image_url")
   logoUrl       String?     @map("logo_url")
   viewCount     Int         @default(0) @map("view_count")
+  isPromoted    Boolean     @default(false) @map("is_promoted")
+  promotedUntil DateTime?   @map("promoted_until")
   status        StallStatus @default(ACTIVE)
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
@@ -375,6 +377,7 @@ model Stall {
   @@index([merchantId])
   @@index([mallId])
   @@index([status])
+  @@index([isPromoted])
   @@map("stalls")
 }
 
@@ -573,9 +576,11 @@ model Product {
   minPrice    Decimal       @map("min_price") @db.Decimal(12, 2)
   maxPrice    Decimal       @map("max_price") @db.Decimal(12, 2)
   currency    String        @default("USD")
-  viewCount   Int           @default(0) @map("view_count")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  viewCount     Int           @default(0) @map("view_count")
+  isPromoted    Boolean       @default(false) @map("is_promoted")
+  promotedUntil DateTime?     @map("promoted_until")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
   stall    Stall            @relation(fields: [stallId], references: [id], onDelete: Cascade)
   category Category?        @relation(fields: [categoryId], references: [id])
@@ -590,6 +595,7 @@ model Product {
   @@index([name])
   @@index([minPrice])
   @@index([createdAt])
+  @@index([isPromoted])
   @@map("products")
 }
 
@@ -1179,6 +1185,7 @@ model Subscription {
   lastPaymentRef   String?            @map("last_payment_ref")
   failedAttempts   Int                @default(0) @map("failed_attempts")
   nextRetryAt      DateTime?          @map("next_retry_at")
+  planId           String?            @map("plan_id") @db.Uuid
   createdAt        DateTime           @default(now()) @map("created_at")
   updatedAt        DateTime           @updatedAt @map("updated_at")
   payments         SubscriptionPayment[]
@@ -1206,4 +1213,91 @@ model SubscriptionPayment {
   @@index([status])
   @@index([paynowRef])
   @@map("subscription_payments")
+}
+
+// ============================================================
+// SUBSCRIPTION PLANS
+// ============================================================
+
+model SubscriptionPlan {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  priceUsd    Decimal  @db.Decimal(10, 2) @map("price_usd")
+  trialDays   Int      @default(7) @map("trial_days")
+  description String?
+  features    Json     @default("[]")
+  isActive    Boolean  @default(true) @map("is_active")
+  isDefault   Boolean  @default(false) @map("is_default")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@index([isDefault])
+  @@map("subscription_plans")
+}
+
+// ============================================================
+// PROMOTIONS
+// ============================================================
+
+enum PromoType {
+  REFERRAL
+  COUPON
+  DISCOUNT
+}
+
+model Promotion {
+  id            String    @id @default(uuid()) @db.Uuid
+  code          String    @unique
+  type          PromoType
+  discountPct   Decimal?  @db.Decimal(5, 2) @map("discount_pct")
+  discountAmt   Decimal?  @db.Decimal(10, 2) @map("discount_amt")
+  maxUses       Int?      @map("max_uses")
+  usedCount     Int       @default(0) @map("used_count")
+  validFrom     DateTime  @map("valid_from")
+  validUntil    DateTime? @map("valid_until")
+  isActive      Boolean   @default(true) @map("is_active")
+  description   String?
+  createdById   String    @map("created_by_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([code])
+  @@index([isActive])
+  @@map("promotions")
+}
+
+// ============================================================
+// ADS
+// ============================================================
+
+enum AdPlacement {
+  BANNER_TOP
+  BANNER_BOTTOM
+  SIDEBAR
+  INTERSTITIAL
+}
+
+model Ad {
+  id           String      @id @default(uuid()) @db.Uuid
+  title        String
+  imageUrl     String?     @map("image_url")
+  linkUrl      String?     @map("link_url")
+  placement    AdPlacement
+  targetRole   String?     @map("target_role")
+  isActive     Boolean     @default(true) @map("is_active")
+  startsAt     DateTime    @map("starts_at")
+  endsAt       DateTime?   @map("ends_at")
+  impressions  Int         @default(0)
+  createdById  String      @map("created_by_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@index([placement])
+  @@map("ads")
 }
