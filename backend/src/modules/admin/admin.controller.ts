@@ -39,16 +39,45 @@ export class AdminController {
   @ApiOperation({ summary: 'List all users' })
   async listUsers(
     @Query('search') search?: string,
+    @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.adminService.listUsers({ search, limit });
+    return this.adminService.listUsers({ search, page, limit });
+  }
+
+  @Patch('users/:id')
+  @ApiOperation({ summary: 'Update a user (name, phone, avatar, optional password)' })
+  async updateUser(
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('role') actorRole: UserRole,
+    @Param('id') id: string,
+    @Body() body: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+      avatarUrl?: string | null;
+      phoneVerified?: boolean;
+      password?: string;
+    },
+  ) {
+    return this.adminService.updateUser(actorId, actorRole, id, body);
+  }
+
+  @Delete('users/:id')
+  @ApiOperation({ summary: 'Deactivate a user and revoke sessions (soft delete)' })
+  async deleteUser(@CurrentUser('id') actorId: string, @CurrentUser('role') actorRole: UserRole, @Param('id') id: string) {
+    return this.adminService.softDeleteUser(actorId, actorRole, id);
   }
 
   @Patch('users/:id/role')
-  @Roles(UserRole.SUPER_ADMIN)
-  @ApiOperation({ summary: 'Change a user role (super admin only)' })
-  async changeUserRole(@Param('id') id: string, @Body('role') role: UserRole) {
-    return this.adminService.changeUserRole(id, role);
+  @ApiOperation({ summary: 'Change a user role (super admin role requires super admin)' })
+  async changeUserRole(
+    @CurrentUser('id') actorId: string,
+    @CurrentUser('role') actorRole: UserRole,
+    @Param('id') id: string,
+    @Body('role') role: UserRole,
+  ) {
+    return this.adminService.changeUserRole(actorId, actorRole, id, role);
   }
 
   @Patch('users/:id/suspend')

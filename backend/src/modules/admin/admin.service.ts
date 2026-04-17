@@ -1,4 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException,
+} from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   StallStatus, ProductStatus, POSSaleStatus,
@@ -43,8 +46,10 @@ export class AdminService {
 
   // ── Users ─────────────────────────────────────────────────────────────────
 
-  async listUsers(params: { search?: string; limit?: number }) {
-    const { search, limit = 50 } = params;
+  async listUsers(params: { search?: string; page?: number; limit?: number }) {
+    const { search } = params;
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.max(1, Math.min(100, params.limit ?? 50));
     const where: any = {};
     if (search) {
       where.OR = [
@@ -53,17 +58,123 @@ export class AdminService {
         { phone: { contains: search } },
       ];
     }
-    const data = await this.prisma.user.findMany({
-      where,
-      take: limit,
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, firstName: true, lastName: true, phone: true, role: true, status: true, createdAt: true },
-    });
-    return { data };
+    const [data, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, firstName: true, lastName: true, phone: true, role: true, status: true, createdAt: true },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+    return { data, total, page, limit };
   }
 
-  async changeUserRole(userId: string, role: UserRole) {
-    return this.prisma.user.update({ where: { id: userId }, data: { role } });
+  async updateUser(
+    actorId: string,
+    actorRole: UserRole,
+    userId: string,
+    data: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string;
+      avatarUrl?: string | null;
+      phoneVerified?: boolean;
+      password?: string;
+    },
+  ) {
+    const target = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!target) throw new NotFoundException('User not found');
+    if (target.role === UserRole.SUPER_ADMIN && actorRole !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Only super admins can edit super admin accounts');
+    }
+
+    if (data.phone !== undefined && data.phone.trim()) {
+      const normalized = data.phone.trim();
+      const taken = await this.prisma.user.findFirst({
+        where: { phone: normalized, NOT: { id: userId } },
+        select: { id: true },
+      });
+      if (taken) throw new ConflictException('Phone number already in use');
+    }
+
+    const updateData: Record<string, unknown> = {};
+    if (data.firstName !== undefined) {
+      const t = data.firstName.trim();
+      if (!t) throw new BadRequestException('First name cannot be empty');
+      updateData.firstName = t;
+    }
+    if (data.lastName !== undefined) updateData.lastName = data.lastName.trim();
+    if (data.phone !== undefined && data.phone.trim()) updateData.phone = data.phone.trim();
+    if (data.avatarUrl !== undefined) updateData.avatarUrl = data.avatarUrl;
+    if (data.phoneVerified !== undefined) updateData.phoneVerified = data.phoneVerified;
+    if (data.password !== undefined && data.password.length > 0) {
+      if (data.password.length < 8) throw new BadRequestException('Password must be at least 8 characters');
+      updateData.passwordHash = await bcrypt.hash(data.password, 12);
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('No fields to update');
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: updateData as any,
+      select: { id: true, firstName: true, lastName: true, phone: true, role: true, status: true, avatarUrl: true, phoneVerified: true, updatedAt: true },
+    });
+  }
+
+  async softDeleteUser(actorId: string, actorRole: UserRole, userId: string) {
+    if (userId === actorId) throw new BadRequestException('Cannot delete your own account');
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role === UserRole.SUPER_ADMIN && actorRole !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Only super admins can delete super admin accounts');
+    }
+    if (user.role === UserRole.SUPER_ADMIN) {
+      const others = await this.prisma.user.count({
+        where: { role: UserRole.SUPER_ADMIN, status: UserStatus.ACTIVE, id: { not: userId } },
+      });
+      if (others === 0) throw new BadRequestException('Cannot delete the last active super admin');
+    }
+
+    const archivalPhone = `deleted:${user.id}:${Date.now()}`;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.refreshToken.updateMany({ where: { userId }, data: { revokedAt: new Date() } });
+      await tx.session.deleteMany({ where: { userId } });
+      await tx.user.update({
+        where: { id: userId },
+        data: { status: UserStatus.DEACTIVATED, phone: archivalPhone },
+      });
+    });
+
+    return { id: userId, status: UserStatus.DEACTIVATED };
+  }
+
+  async changeUserRole(actorId: string, actorRole: UserRole, userId: string, role: UserRole) {
+    const target = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!target) throw new NotFoundException('User not found');
+    if (target.role === UserRole.SUPER_ADMIN && actorRole !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Only super admins can change roles of super admin accounts');
+    }
+    if (role === UserRole.SUPER_ADMIN && actorRole !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Only super admins can assign the super admin role');
+    }
+    if (userId === actorId && role !== target.role && target.role === UserRole.SUPER_ADMIN) {
+      const others = await this.prisma.user.count({
+        where: { role: UserRole.SUPER_ADMIN, status: UserStatus.ACTIVE, id: { not: userId } },
+      });
+      if (others === 0) throw new BadRequestException('Cannot demote the last active super admin');
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { role },
+      select: { id: true, firstName: true, lastName: true, phone: true, role: true, status: true },
+    });
   }
 
   async suspendUser(userId: string) {

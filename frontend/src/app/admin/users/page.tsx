@@ -6,11 +6,20 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
-import { Users, ArrowLeft, Search, Plus, X, Phone, Lock, User, Shield, ChevronRight, Ban, CheckCircle } from 'lucide-react';
+import { Users, ArrowLeft, Search, Plus, X, Phone, Lock, User, Shield, Ban, CheckCircle, Pencil, Trash2 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import toast from 'react-hot-toast';
 
-type UserRole = 'BUYER' | 'STALL_OWNER' | 'ATTENDANT' | 'FIELD_AGENT' | 'ADMIN_OPS' | 'FINANCE_ADMIN' | 'SUPER_ADMIN';
+type UserRole =
+  | 'BUYER'
+  | 'STALL_OWNER'
+  | 'ATTENDANT'
+  | 'FIELD_AGENT'
+  | 'ADMIN_OPS'
+  | 'FINANCE_ADMIN'
+  | 'SUPPORT_ADMIN'
+  | 'SUPER_ADMIN'
+  | 'MALL_MANAGER';
 
 interface CreateUserForm {
   firstName: string;
@@ -18,6 +27,24 @@ interface CreateUserForm {
   phone: string;
   password: string;
   role: UserRole;
+}
+
+interface EditUserForm {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  role: UserRole;
+  password: string;
+}
+
+interface ListedUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  role: UserRole;
+  status: string;
+  createdAt?: string;
 }
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'];
@@ -28,6 +55,14 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<ListedUser | null>(null);
+  const [editForm, setEditForm] = useState<EditUserForm>({
+    firstName: '',
+    lastName: '',
+    phone: '',
+    role: 'BUYER',
+    password: '',
+  });
   const [form, setForm] = useState<CreateUserForm>({
     firstName: '',
     lastName: '',
@@ -66,6 +101,30 @@ export default function AdminUsersPage() {
     onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to create user'),
   });
 
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ id, body, roleChanged, newRole }: { id: string; body: Record<string, unknown>; roleChanged: boolean; newRole: UserRole }) => {
+      await api.patch(`/api/v1/admin/users/${id}`, body);
+      if (roleChanged) {
+        await api.patch(`/api/v1/admin/users/${id}/role`, { role: newRole });
+      }
+    },
+    onSuccess: () => {
+      toast.success('User updated');
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setEditingUser(null);
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to update user'),
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/api/v1/admin/users/${id}`).then((r) => r.data),
+    onSuccess: () => {
+      toast.success('User deactivated');
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Failed to delete user'),
+  });
+
   const suspendMutation = useMutation({
     mutationFn: ({ id, suspend }: { id: string; suspend: boolean }) =>
       api.patch(`/api/v1/admin/users/${id}/${suspend ? 'suspend' : 'activate'}`).then((r) => r.data),
@@ -99,8 +158,64 @@ export default function AdminUsersPage() {
     FIELD_AGENT: 'bg-purple-50 text-purple-600',
     ADMIN_OPS: 'bg-red-50 text-brand-red',
     FINANCE_ADMIN: 'bg-yellow-50 text-yellow-700',
+    SUPPORT_ADMIN: 'bg-gray-100 text-gray-700',
     SUPER_ADMIN: 'bg-navy-50 text-navy-700',
+    MALL_MANAGER: 'bg-teal-50 text-teal-700',
   };
+
+  const openEdit = (u: ListedUser) => {
+    if (u.role === 'SUPER_ADMIN' && user?.role !== 'SUPER_ADMIN') {
+      toast.error('Only super admins can edit super admin accounts');
+      return;
+    }
+    setEditingUser(u);
+    setEditForm({
+      firstName: u.firstName || '',
+      lastName: u.lastName || '',
+      phone: u.phone || '',
+      role: u.role,
+      password: '',
+    });
+  };
+
+  const saveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    if (!editForm.firstName.trim() || !editForm.phone.trim()) {
+      toast.error('First name and phone are required');
+      return;
+    }
+    const body: Record<string, unknown> = {
+      firstName: editForm.firstName.trim(),
+      lastName: editForm.lastName.trim(),
+      phone: editForm.phone.trim(),
+    };
+    if (editForm.password.trim().length > 0) {
+      if (editForm.password.length < 8) {
+        toast.error('Password must be at least 8 characters');
+        return;
+      }
+      body.password = editForm.password;
+    }
+    const roleChanged = editForm.role !== editingUser.role;
+    updateUserMutation.mutate({
+      id: editingUser.id,
+      body,
+      roleChanged,
+      newRole: editForm.role,
+    });
+  };
+
+  const confirmDelete = (u: ListedUser) => {
+    if (u.role === 'SUPER_ADMIN' && user?.role !== 'SUPER_ADMIN') {
+      toast.error('Only super admins can deactivate a super admin account');
+      return;
+    }
+    if (!window.confirm(`Deactivate ${u.firstName} ${u.lastName}? They will be signed out and cannot log in.`)) return;
+    deleteUserMutation.mutate(u.id);
+  };
+
+  const canAssignSuperAdmin = user?.role === 'SUPER_ADMIN';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -166,14 +281,34 @@ export default function AdminUsersPage() {
                   <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${roleColors[user.role] || 'bg-gray-100 text-gray-600'}`}>
                     {user.role.replace(/_/g, ' ')}
                   </span>
-                  <button
-                    onClick={() => { setActiveUserId(user.id); suspendMutation.mutate({ id: user.id, suspend: user.status === 'ACTIVE' }); }}
-                    disabled={suspendMutation.isPending && activeUserId === user.id}
-                    className={`flex-shrink-0 p-2 rounded-xl transition-colors ${user.status === 'SUSPENDED' ? 'hover:bg-green-50 text-brand-green' : 'hover:bg-red-50 text-brand-red'}`}
-                    title={user.status === 'SUSPENDED' ? 'Activate user' : 'Suspend user'}
-                  >
-                    {user.status === 'SUSPENDED' ? <CheckCircle className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
-                  </button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(user)}
+                      className="p-2 rounded-xl hover:bg-brand-blue/10 text-brand-blue transition-colors"
+                      title="Edit user"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => confirmDelete(user)}
+                      disabled={deleteUserMutation.isPending}
+                      className="p-2 rounded-xl hover:bg-red-50 text-brand-red transition-colors disabled:opacity-40"
+                      title="Deactivate user"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setActiveUserId(user.id); suspendMutation.mutate({ id: user.id, suspend: user.status === 'ACTIVE' }); }}
+                      disabled={suspendMutation.isPending && activeUserId === user.id}
+                      className={`p-2 rounded-xl transition-colors ${user.status === 'SUSPENDED' ? 'hover:bg-green-50 text-brand-green' : 'hover:bg-red-50 text-brand-red'}`}
+                      title={user.status === 'SUSPENDED' ? 'Activate user' : 'Suspend user'}
+                    >
+                      {user.status === 'SUSPENDED' ? <CheckCircle className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -191,6 +326,91 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Create User Modal — keyboard-safe with overflow-y-auto */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setEditingUser(null)} />
+          <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-90dvh flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <h2 className="text-lg font-black text-navy-700">Edit User</h2>
+              <button type="button" onClick={() => setEditingUser(null)} className="p-2 rounded-xl hover:bg-gray-100 transition-colors">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              <form onSubmit={saveEdit} className="px-6 py-5 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">First Name <span className="text-brand-red">*</span></label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input type="text" className="input pl-10 text-sm" value={editForm.firstName} onChange={(e) => setEditForm((f) => ({ ...f, firstName: e.target.value }))} required />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label">Last Name</label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input type="text" className="input pl-10 text-sm" value={editForm.lastName} onChange={(e) => setEditForm((f) => ({ ...f, lastName: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Phone <span className="text-brand-red">*</span></label>
+                  <div className="relative">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input type="tel" className="input pl-11" value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} required />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Role</label>
+                  <div className="relative">
+                    <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <select
+                      className="input pl-11 appearance-none"
+                      value={editForm.role}
+                      onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value as UserRole }))}
+                    >
+                      <option value="BUYER">Buyer</option>
+                      <option value="STALL_OWNER">Stall Owner</option>
+                      <option value="ATTENDANT">Attendant</option>
+                      <option value="FIELD_AGENT">Field Agent</option>
+                      <option value="ADMIN_OPS">Admin Ops</option>
+                      <option value="FINANCE_ADMIN">Finance Admin</option>
+                      <option value="SUPPORT_ADMIN">Support Admin</option>
+                      <option value="MALL_MANAGER">Mall Manager</option>
+                      {canAssignSuperAdmin ? <option value="SUPER_ADMIN">Super Admin</option> : null}
+                    </select>
+                  </div>
+                  {!canAssignSuperAdmin ? (
+                    <p className="text-xs text-gray-500 mt-1">Only super admins can assign the super admin role.</p>
+                  ) : null}
+                </div>
+                <div>
+                  <label className="label">New password (optional)</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="password"
+                      className="input pl-11"
+                      placeholder="Leave blank to keep current"
+                      value={editForm.password}
+                      onChange={(e) => setEditForm((f) => ({ ...f, password: e.target.value }))}
+                      minLength={8}
+                    />
+                  </div>
+                </div>
+                <div className="pt-2 pb-safe flex gap-2">
+                  <button type="button" className="btn-secondary flex-1" onClick={() => setEditingUser(null)}>Cancel</button>
+                  <button type="submit" disabled={updateUserMutation.isPending} className="btn-primary flex-1">
+                    {updateUserMutation.isPending ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
           {/* Backdrop */}
@@ -253,7 +473,9 @@ export default function AdminUsersPage() {
                       <option value="FIELD_AGENT">Field Agent</option>
                       <option value="ADMIN_OPS">Admin Ops</option>
                       <option value="FINANCE_ADMIN">Finance Admin</option>
-                      <option value="SUPER_ADMIN">Super Admin</option>
+                      <option value="SUPPORT_ADMIN">Support Admin</option>
+                      <option value="MALL_MANAGER">Mall Manager</option>
+                      {canAssignSuperAdmin ? <option value="SUPER_ADMIN">Super Admin</option> : null}
                     </select>
                   </div>
                 </div>
