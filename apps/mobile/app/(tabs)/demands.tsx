@@ -88,7 +88,7 @@ export default function DemandsScreen() {
           <Pressable style={styles.secondaryBtn} onPress={() => router.push('/demand/open')}>
             <Text style={styles.secondaryBtnText}>Browse open</Text>
           </Pressable>
-          <Pressable style={styles.secondaryBtn} onPress={() => router.push('/chat/index')}>
+          <Pressable style={styles.secondaryBtn} onPress={() => router.push('/chat')}>
             <Text style={styles.secondaryBtnText}>
               Chats
               {unreadChatCount > 0 ? ` (${unreadChatCount})` : ''}
