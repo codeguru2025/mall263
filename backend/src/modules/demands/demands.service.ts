@@ -21,7 +21,11 @@ const BUYER_FEE_RATE = 0.025; // 2.5% platform fee charged to buyer on purchase
 const BID_LOCK_HOURS = 1;     // BID lock released after 1 hour if demand not matched
 const BUYER_TRIAL_DAYS = 7;
 
-/** Ops roles: skip buyer wallet lock when posting a demand (support / QA; not marketplace buyers). */
+/**
+ * Ops roles: skip buyer-side wallet rules for demands (support / QA).
+ * - Posting: no 10% bid lock.
+ * - Accepting an offer: no 2.5% buyer platform fee (real buyers still pay the fee).
+ */
 const DEMAND_WALLET_EXEMPT_ROLES: ReadonlySet<UserRole> = new Set([
   UserRole.SUPER_ADMIN,
   UserRole.ADMIN_OPS,
@@ -411,6 +415,10 @@ export class DemandsService {
         if (offer.status !== OfferStatus.PENDING) throw new BadRequestException('Offer is no longer pending');
         if (offer.demand.status !== DemandStatus.OPEN) throw new BadRequestException('Demand is no longer open');
 
+        const buyerUser = await tx.user.findUnique({ where: { id: buyerId }, select: { role: true } });
+        const skipBuyerPlatformFee =
+          buyerUser?.role != null && DEMAND_WALLET_EXEMPT_ROLES.has(buyerUser.role);
+
         // Release the buyer's BID lock — demand is matched, funds no longer need to be held
         const buyerWallet = await tx.wallet.findUnique({ where: { userId: buyerId } });
         if (buyerWallet) {
@@ -448,39 +456,43 @@ export class DemandsService {
           }
         }
 
-        // Deduct 2.5% platform fee from buyer wallet on purchase
-        const offerPrice = new Prisma.Decimal(offer.totalPrice.toString());
-        const feeDec = offerPrice.mul(BUYER_FEE_RATE.toString());
-        const buyerWalletFresh = await tx.wallet.findUnique({ where: { userId: buyerId } });
-        if (!buyerWalletFresh) throw new NotFoundException('Buyer wallet not found');
+        let feeCharged = 0;
+        if (!skipBuyerPlatformFee) {
+          // Deduct 2.5% platform fee from buyer wallet on purchase
+          const offerPrice = new Prisma.Decimal(offer.totalPrice.toString());
+          const feeDec = offerPrice.mul(BUYER_FEE_RATE.toString());
+          const buyerWalletFresh = await tx.wallet.findUnique({ where: { userId: buyerId } });
+          if (!buyerWalletFresh) throw new NotFoundException('Buyer wallet not found');
 
-        if (buyerWalletFresh.availableBalance.lessThan(feeDec)) {
-          throw new BadRequestException(
-            `Insufficient wallet balance for platform fee. ` +
-            `Fee: $${feeDec.toFixed(2)} (2.5% of $${offerPrice.toFixed(2)}). ` +
-            `Available: $${buyerWalletFresh.availableBalance.toFixed(2)}. Please fund your wallet.`,
-          );
+          if (buyerWalletFresh.availableBalance.lessThan(feeDec)) {
+            throw new BadRequestException(
+              `Insufficient wallet balance for platform fee. ` +
+              `Fee: $${feeDec.toFixed(2)} (2.5% of $${offerPrice.toFixed(2)}). ` +
+              `Available: $${buyerWalletFresh.availableBalance.toFixed(2)}. Please fund your wallet.`,
+            );
+          }
+
+          const buyerNewBalance = buyerWalletFresh.availableBalance.sub(feeDec);
+          await tx.wallet.update({
+            where: { id: buyerWalletFresh.id },
+            data: { availableBalance: buyerNewBalance, lastActivityAt: now },
+          });
+          await tx.walletTransaction.create({
+            data: {
+              walletId: buyerWalletFresh.id,
+              type: WalletTransactionType.COMMISSION_DEDUCTION,
+              amount: feeDec,
+              balanceBefore: buyerWalletFresh.availableBalance,
+              balanceAfter: buyerNewBalance,
+              status: WalletTransactionStatus.COMPLETED,
+              description: `Platform fee (2.5%) for accepted offer ${offerId}`,
+              referenceId: offerId,
+              referenceType: 'seller_offer',
+              completedAt: now,
+            },
+          });
+          feeCharged = feeDec.toNumber();
         }
-
-        const buyerNewBalance = buyerWalletFresh.availableBalance.sub(feeDec);
-        await tx.wallet.update({
-          where: { id: buyerWalletFresh.id },
-          data: { availableBalance: buyerNewBalance, lastActivityAt: now },
-        });
-        await tx.walletTransaction.create({
-          data: {
-            walletId: buyerWalletFresh.id,
-            type: WalletTransactionType.COMMISSION_DEDUCTION,
-            amount: feeDec,
-            balanceBefore: buyerWalletFresh.availableBalance,
-            balanceAfter: buyerNewBalance,
-            status: WalletTransactionStatus.COMPLETED,
-            description: `Platform fee (2.5%) for accepted offer ${offerId}`,
-            referenceId: offerId,
-            referenceType: 'seller_offer',
-            completedAt: now,
-          },
-        });
 
         // Accept this offer
         await tx.sellerOffer.update({
@@ -500,7 +512,7 @@ export class DemandsService {
           data: { status: DemandStatus.MATCHED },
         });
 
-        return { accepted: true, offerId, feeCharged: feeDec.toNumber() };
+        return { accepted: true, offerId, feeCharged };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
