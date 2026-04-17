@@ -112,6 +112,11 @@ export default function ProfileScreen() {
             <Text style={styles.primaryBtnText}>Save changes</Text>
           )}
         </Pressable>
+        {(q.data?.merchant || (q.data?.attendantStall ?? []).length > 0) && (
+          <Pressable style={styles.posBtn} onPress={() => router.push('/pos')}>
+            <Text style={styles.posBtnText}>🧾  POS Register</Text>
+          </Pressable>
+        )}
         {q.data?.merchant && (
           <Pressable style={styles.sellerBtn} onPress={() => router.push('/seller')}>
             <Text style={styles.sellerBtnText}>🏪  Seller Hub</Text>
@@ -303,6 +308,14 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   outlineBtnText: { fontSize: 15, fontWeight: '700', color: Brand.navy },
+  posBtn: {
+    backgroundColor: Brand.green,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  posBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
   sellerBtn: {
     backgroundColor: Brand.navy,
     paddingVertical: 14,
