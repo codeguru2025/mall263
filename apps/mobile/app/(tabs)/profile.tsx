@@ -112,6 +112,11 @@ export default function ProfileScreen() {
             <Text style={styles.primaryBtnText}>Save changes</Text>
           )}
         </Pressable>
+        {['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN', 'SUPPORT_ADMIN'].includes(q.data?.role ?? '') && (
+          <Pressable style={styles.adminBtn} onPress={() => router.push('/admin')}>
+            <Text style={styles.adminBtnText}>⚙️  Admin Panel</Text>
+          </Pressable>
+        )}
         {q.data?.role === 'FIELD_AGENT' && (
           <Pressable style={styles.agentBtn} onPress={() => router.push('/agent')}>
             <Text style={styles.agentBtnText}>🗂  Field Agent</Text>
@@ -313,6 +318,14 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   outlineBtnText: { fontSize: 15, fontWeight: '700', color: Brand.navy },
+  adminBtn: {
+    backgroundColor: '#DC2626',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  adminBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
   agentBtn: {
     backgroundColor: '#7C3AED',
     paddingVertical: 14,
