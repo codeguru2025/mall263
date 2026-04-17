@@ -37,12 +37,7 @@ export default {
         googleMapsApiKey: googleMapsKey,
       },
     },
-    plugins: (Array.isArray(base.plugins) ? base.plugins : []).map((p) => {
-      if (Array.isArray(p) && p[0] === 'react-native-maps') {
-        return ['react-native-maps', { googleMapsApiKey: googleMapsKey }];
-      }
-      return p;
-    }),
+    plugins: Array.isArray(base.plugins) ? base.plugins : [],
     extra: {
       ...(typeof base.extra === 'object' && base.extra ? (base.extra as Record<string, unknown>) : {}),
       apiBaseUrl,

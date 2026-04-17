@@ -2,13 +2,13 @@ import { useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
   ActivityIndicator,
-  Image,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { api } from '@/lib/api';
 import { Brand } from '@/constants/brand';
 import { formatMoney } from '@/lib/products';
@@ -73,7 +73,13 @@ export default function ProductDetailScreen() {
     <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
       <View style={styles.heroWrap}>
         {hero ? (
-          <Image source={{ uri: hero }} style={styles.hero} resizeMode="cover" />
+          <Image
+            source={{ uri: hero }}
+            style={styles.hero}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={250}
+          />
         ) : (
           <View style={[styles.hero, styles.heroPh]}>
             <Text style={styles.heroLetter}>{name.charAt(0).toUpperCase()}</Text>

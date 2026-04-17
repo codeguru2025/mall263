@@ -6,6 +6,11 @@ module.exports = function (api) {
   const { expoRouterBabelPlugin } = require('babel-preset-expo/build/expo-router-plugin');
   return {
     presets: ['babel-preset-expo'],
-    plugins: [expoRouterBabelPlugin],
+    plugins: [
+      expoRouterBabelPlugin,
+      // react-native-reanimated v4 relies on react-native-worklets.
+      // The worklets Babel plugin MUST be listed last.
+      'react-native-worklets/plugin',
+    ],
   };
 };

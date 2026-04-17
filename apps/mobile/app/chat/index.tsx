@@ -16,6 +16,26 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Brand } from '@/constants/brand';
 import { fetchMyChatRooms, type ChatRoomRow } from '@/lib/chat-api';
 import { useAuth } from '@/contexts/AuthContext';
+import axios from 'axios';
+
+function extractErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as
+      | { message?: string | string[]; prismaCode?: string }
+      | undefined;
+    const msg = Array.isArray(data?.message) ? data?.message.join(', ') : data?.message;
+    const code = data?.prismaCode ? ` [${data.prismaCode}]` : '';
+    if (typeof msg === 'string' && msg.trim()) return `${msg}${code}`;
+    if (err.response?.status === 401) return 'Please sign in again to view chats.';
+    if (err.response && err.response.status >= 500) {
+      return 'Chat service is temporarily unavailable. Please try again shortly.';
+    }
+    if (err.message === 'Network Error') return 'No connection — check your internet and retry.';
+    return err.message;
+  }
+  if (err instanceof Error) return err.message;
+  return 'Something went wrong.';
+}
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -142,7 +162,8 @@ export default function ChatInboxScreen() {
   if (q.isError) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.error}>Could not load chats.</Text>
+        <Text style={styles.errorTitle}>Chats unavailable</Text>
+        <Text style={styles.errorBody}>{extractErrorMessage(q.error)}</Text>
         <Pressable style={styles.retry} onPress={() => q.refetch()}>
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
@@ -186,7 +207,8 @@ const styles = StyleSheet.create({
   preview: { marginTop: 8, fontSize: 13, color: Brand.text, lineHeight: 18 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: Brand.pageBg },
   muted: { marginTop: 10, color: Brand.muted },
-  error: { color: Brand.red, fontWeight: '700' },
+  errorTitle: { color: Brand.red, fontWeight: '800', fontSize: 18, marginBottom: 8 },
+  errorBody: { color: Brand.muted, fontSize: 14, textAlign: 'center', lineHeight: 20 },
   retry: { marginTop: 16, backgroundColor: Brand.blue, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10 },
   retryText: { color: '#fff', fontWeight: '700' },
   empty: { textAlign: 'center', color: Brand.muted, marginTop: 20, fontSize: 15, paddingHorizontal: 12 },

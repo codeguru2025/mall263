@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Platform,
   Pressable,
   RefreshControl,
@@ -11,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Brand } from '@/constants/brand';
@@ -78,7 +78,14 @@ export default function ShopScreen() {
         >
           <View style={styles.thumbWrap}>
             {img ? (
-              <Image source={{ uri: img }} style={styles.thumb} resizeMode="cover" />
+              <Image
+                source={{ uri: img }}
+                style={styles.thumb}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={200}
+                recyclingKey={item.id}
+              />
             ) : (
               <View style={[styles.thumb, styles.thumbPlaceholder]}>
                 <Text style={styles.thumbLetter}>{item.name.charAt(0).toUpperCase()}</Text>

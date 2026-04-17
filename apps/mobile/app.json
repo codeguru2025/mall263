@@ -45,12 +45,6 @@
         }
       ],
       [
-        "react-native-maps",
-        {
-          "googleMapsApiKey": ""
-        }
-      ],
-      [
         "@sentry/react-native/expo",
         {
           "url": "https://sentry.io/",

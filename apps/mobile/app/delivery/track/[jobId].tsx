@@ -9,7 +9,7 @@ import {
   View,
   Dimensions,
 } from 'react-native';
-import MapView, { Circle, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { MapView, Circle, Marker, PROVIDER_GOOGLE } from '@/components/MapViewSafe';
 import Constants from 'expo-constants';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -60,7 +60,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 function DeliveryMap({ job }: { job: DeliveryJob }) {
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<any>(null);
 
   const driverLat = job.driver?.currentLat != null ? Number(job.driver.currentLat) : null;
   const driverLng = job.driver?.currentLng != null ? Number(job.driver.currentLng) : null;

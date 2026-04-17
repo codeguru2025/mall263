@@ -1,7 +1,11 @@
+import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { api } from '@/lib/api';
+
+const isExpoGo =
+  Constants.executionEnvironment === 'storeClient' || Constants.appOwnership === 'expo';
 
 // How foreground notifications appear while the app is open
 Notifications.setNotificationHandler({
@@ -13,31 +17,45 @@ Notifications.setNotificationHandler({
 });
 
 export async function registerForPushNotifications(): Promise<string | null> {
-  // Push tokens only work on physical devices
-  if (!Device.isDevice) return null;
+  try {
+    // Push tokens only work on physical devices
+    if (!Device.isDevice) return null;
 
-  // Android needs a notification channel
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Mall263',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#3B9AE1',
-    });
+    // Remote push is not supported in Expo Go on SDK 53+; skip silently.
+    if (isExpoGo) return null;
+
+    // Android needs a notification channel
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Mall263',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#3B9AE1',
+      });
+    }
+
+    const { status: existing } = await Notifications.getPermissionsAsync();
+    let finalStatus = existing;
+
+    if (existing !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') return null;
+
+    const projectId =
+      (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas
+        ?.projectId ??
+      (Constants as unknown as { easConfig?: { projectId?: string } }).easConfig?.projectId;
+
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
+    return tokenData.data;
+  } catch {
+    return null;
   }
-
-  const { status: existing } = await Notifications.getPermissionsAsync();
-  let finalStatus = existing;
-
-  if (existing !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
-  }
-
-  if (finalStatus !== 'granted') return null;
-
-  const tokenData = await Notifications.getExpoPushTokenAsync();
-  return tokenData.data;
 }
 
 export async function savePushTokenToBackend(token: string) {

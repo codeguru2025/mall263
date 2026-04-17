@@ -48,9 +48,15 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
-          headerTitle: () => <Logo size={36} />,
-          headerStyle: { backgroundColor: '#1B2A4A' },
-          headerTintColor: '#fff',
+          headerTitle: () => <Logo size={32} />,
+          headerTitleAlign: 'center',
+          headerStyle: {
+            backgroundColor: '#ffffff',
+            borderBottomWidth: 1,
+            borderBottomColor: '#e2e8f0',
+          },
+          headerShadowVisible: false,
+          headerTintColor: '#1B2A4A',
         }}
       />
       <Tabs.Screen

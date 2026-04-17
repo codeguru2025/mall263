@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, View, Text, Platform } from 'react-native';
+import { ScrollView, StyleSheet, View, Text, Platform, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Brand } from '@/constants/brand';
 import { Logo } from '@/components/Logo';
@@ -21,25 +22,34 @@ function ZimStripes() {
   );
 }
 
-const QUICK_LINKS = [
-  { label: 'Shop', icon: '🛍️', desc: 'Browse the marketplace' },
-  { label: 'Demands', icon: '📢', desc: 'Post or bid on demands' },
-  { label: 'Wallet', icon: '💳', desc: 'Balances & history' },
-  { label: 'Profile', icon: '👤', desc: 'Settings & Driver Hub' },
+type QuickLink = {
+  label: string;
+  icon: string;
+  desc: string;
+  route: '/(tabs)/shop' | '/(tabs)/demands' | '/(tabs)/wallet' | '/(tabs)/profile';
+};
+
+const QUICK_LINKS: QuickLink[] = [
+  { label: 'Shop', icon: '🛍️', desc: 'Browse the marketplace', route: '/(tabs)/shop' },
+  { label: 'Demands', icon: '📢', desc: 'Post or bid on demands', route: '/(tabs)/demands' },
+  { label: 'Wallet', icon: '💳', desc: 'Balances & history', route: '/(tabs)/wallet' },
+  { label: 'Profile', icon: '👤', desc: 'Settings & Driver Hub', route: '/(tabs)/profile' },
 ];
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const router = useRouter();
 
   return (
     <ScrollView style={styles.page} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Hero card */}
       <View style={[styles.hero, cardShadow]}>
-        {/* Decorative Zimbabwe stripes across top */}
         <ZimStripes />
 
         <View style={styles.heroBody}>
-          <Logo size={44} />
+          <View style={styles.logoPanel}>
+            <Logo size={48} />
+          </View>
           <Text style={styles.tagline}>Zimbabwe's marketplace{'\n'}Find it. Bid on it. Get it.</Text>
         </View>
       </View>
@@ -58,11 +68,20 @@ export default function HomeScreen() {
       <Text style={styles.sectionTitle}>Quick access</Text>
       <View style={styles.grid}>
         {QUICK_LINKS.map((item) => (
-          <View key={item.label} style={[styles.quickCard, cardShadow]}>
+          <Pressable
+            key={item.label}
+            style={({ pressed }) => [
+              styles.quickCard,
+              cardShadow,
+              pressed && styles.quickCardPressed,
+            ]}
+            onPress={() => router.push(item.route as never)}
+            android_ripple={{ color: Brand.border, borderless: false }}
+          >
             <Text style={styles.quickIcon}>{item.icon}</Text>
             <Text style={styles.quickLabel}>{item.label}</Text>
             <Text style={styles.quickDesc}>{item.desc}</Text>
-          </View>
+          </Pressable>
         ))}
       </View>
 
@@ -89,8 +108,14 @@ const styles = StyleSheet.create({
   },
   stripes: { flexDirection: 'row', height: 6 },
   stripe: { flex: 1 },
-  heroBody: { padding: 22, gap: 14 },
-  tagline: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '500', lineHeight: 20 },
+  heroBody: { padding: 22, gap: 14, alignItems: 'flex-start' },
+  logoPanel: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  tagline: { color: 'rgba(255,255,255,0.9)', fontSize: 14, fontWeight: '500', lineHeight: 20 },
 
   // Welcome card
   card: {
@@ -127,6 +152,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Brand.border,
   },
+  quickCardPressed: { opacity: 0.7, transform: [{ scale: 0.98 }] },
   quickIcon: { fontSize: 26, marginBottom: 8 },
   quickLabel: { fontSize: 15, fontWeight: '800', color: Brand.navy, marginBottom: 2 },
   quickDesc: { fontSize: 12, color: Brand.muted },
