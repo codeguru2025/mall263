@@ -112,6 +112,11 @@ export default function ProfileScreen() {
             <Text style={styles.primaryBtnText}>Save changes</Text>
           )}
         </Pressable>
+        {q.data?.role === 'FIELD_AGENT' && (
+          <Pressable style={styles.agentBtn} onPress={() => router.push('/agent')}>
+            <Text style={styles.agentBtnText}>🗂  Field Agent</Text>
+          </Pressable>
+        )}
         {(q.data?.merchant || (q.data?.attendantStall ?? []).length > 0) && (
           <Pressable style={styles.posBtn} onPress={() => router.push('/pos')}>
             <Text style={styles.posBtnText}>🧾  POS Register</Text>
@@ -308,6 +313,14 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   outlineBtnText: { fontSize: 15, fontWeight: '700', color: Brand.navy },
+  agentBtn: {
+    backgroundColor: '#7C3AED',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  agentBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
   posBtn: {
     backgroundColor: Brand.green,
     paddingVertical: 14,

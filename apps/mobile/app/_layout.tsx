@@ -72,6 +72,10 @@ function RootLayoutNav() {
             <Stack.Screen name="pos/index" options={{ title: 'POS' }} />
             <Stack.Screen name="pos/cart" options={{ title: 'Register' }} />
             <Stack.Screen name="pos/receipt/[saleId]" options={{ title: 'Receipt' }} />
+            <Stack.Screen name="agent/index" options={{ title: 'Field Agent' }} />
+            <Stack.Screen name="agent/onboard" options={{ title: 'Onboard merchant' }} />
+            <Stack.Screen name="agent/capture" options={{ title: 'Capture product' }} />
+            <Stack.Screen name="agent/tasks" options={{ title: 'My tasks' }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           </Stack>
         </ThemeProvider>
