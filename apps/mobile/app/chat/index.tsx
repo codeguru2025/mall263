@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Platform,
   Pressable,
@@ -11,8 +12,10 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { useFocusEffect } from '@react-navigation/native';
 import { Brand } from '@/constants/brand';
 import { fetchMyChatRooms, type ChatRoomRow } from '@/lib/chat-api';
+import { useAuth } from '@/contexts/AuthContext';
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -50,6 +53,7 @@ function roomSubTitle(room: ChatRoomRow): string {
 
 export default function ChatInboxScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
   const q = useQuery({
@@ -57,6 +61,22 @@ export default function ChatInboxScreen() {
     queryFn: fetchMyChatRooms,
     refetchInterval: 10000,
   });
+  const { refetch } = q;
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const sub = AppState.addEventListener('change', (state) => {
+        if (state === 'active') refetch();
+      });
+      return () => sub.remove();
+    }, [refetch]),
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -80,6 +100,7 @@ export default function ChatInboxScreen() {
   const renderItem = useCallback(
     ({ item }: { item: ChatRoomRow }) => {
       const last = item.messages?.[0];
+      const unread = !!last?.sender?.id && last.sender.id !== user?.id;
       return (
         <Pressable
           style={[styles.card, cardShadow]}
@@ -94,13 +115,19 @@ export default function ChatInboxScreen() {
           <Text style={styles.cardSub} numberOfLines={1}>
             {roomSubTitle(item)}
           </Text>
+          {unread ? (
+            <View style={styles.unreadRow}>
+              <View style={styles.unreadDot} />
+              <Text style={styles.unreadText}>Unread</Text>
+            </View>
+          ) : null}
           <Text style={styles.preview} numberOfLines={2}>
             {last ? `${last.sender?.firstName ?? 'User'}: ${last.content}` : 'No messages yet. Start the conversation.'}
           </Text>
         </Pressable>
       );
     },
-    [router],
+    [router, user?.id],
   );
 
   if (q.isPending && !q.data) {
@@ -153,6 +180,9 @@ const styles = StyleSheet.create({
   cardTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: Brand.navy },
   when: { fontSize: 11, color: Brand.muted, fontWeight: '600' },
   cardSub: { marginTop: 4, fontSize: 13, color: Brand.blue, fontWeight: '700' },
+  unreadRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  unreadDot: { width: 8, height: 8, borderRadius: 999, backgroundColor: Brand.orange },
+  unreadText: { fontSize: 12, fontWeight: '800', color: Brand.orange },
   preview: { marginTop: 8, fontSize: 13, color: Brand.text, lineHeight: 18 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: Brand.pageBg },
   muted: { marginTop: 10, color: Brand.muted },

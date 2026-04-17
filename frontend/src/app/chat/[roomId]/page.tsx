@@ -9,7 +9,6 @@ import { Logo } from '@/components/Logo';
 import { ArrowLeft, Send, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
 
 export default function ChatRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -18,7 +17,8 @@ export default function ChatRoomPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
   const [message, setMessage] = useState('');
-  const [lastTimestamp, setLastTimestamp] = useState<string | undefined>(undefined);
+  const [pollError, setPollError] = useState<string | null>(null);
+  const [pollFailures, setPollFailures] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -36,9 +36,31 @@ export default function ChatRoomPage() {
 
   // Poll for new messages every 3 seconds
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!roomId || !isAuthenticated) return;
+    const onFocus = () => {
+      queryClient.invalidateQueries({ queryKey: ['chat', roomId] });
+    };
+    const onOnline = () => {
+      setPollError(null);
+      setPollFailures(0);
+      queryClient.invalidateQueries({ queryKey: ['chat', roomId] });
+    };
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('online', onOnline);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [roomId, isAuthenticated, queryClient]);
+
   useEffect(() => {
     if (!roomId || !isAuthenticated) return;
     const interval = setInterval(async () => {
+      if (document.hidden || !window.navigator.onLine) return;
       const current: any[] = queryClient.getQueryData(['chat', roomId]) ?? [];
       const after = current.length > 0 ? current[current.length - 1].createdAt : undefined;
       try {
@@ -50,8 +72,14 @@ export default function ChatRoomPage() {
             const ids = new Set(old.map((m: any) => m.id));
             return [...old, ...newMsgs.filter((m: any) => !ids.has(m.id))];
           });
+          queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
         }
-      } catch { /* ignore poll errors */ }
+        setPollError(null);
+        setPollFailures(0);
+      } catch {
+        setPollFailures((n) => n + 1);
+        setPollError('Connection issue while refreshing messages.');
+      }
     }, 3000);
     return () => clearInterval(interval);
   }, [roomId, isAuthenticated, queryClient]);
@@ -68,6 +96,9 @@ export default function ChatRoomPage() {
       queryClient.setQueryData(['chat', roomId], (old: any[] = []) => [...old, newMsg]);
       setMessage('');
       inputRef.current?.focus();
+      setPollError(null);
+      setPollFailures(0);
+      queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
     },
     onError: (err: any) => {
       const serverMsg = err?.response?.data?.message;
@@ -83,6 +114,7 @@ export default function ChatRoomPage() {
   };
 
   if (authLoading) return null;
+  const reconnecting = !!pollError && pollFailures >= 2;
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -146,6 +178,11 @@ export default function ChatRoomPage() {
         )}
         <div ref={bottomRef} />
       </div>
+      {reconnecting ? (
+        <div className="max-w-2xl w-full mx-auto px-4 pb-2">
+          <p className="text-xs font-semibold text-brand-red">{pollError}</p>
+        </div>
+      ) : null}
 
       {/* Input */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 pb-safe z-40">

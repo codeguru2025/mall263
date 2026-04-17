@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useFocusEffect } from '@react-navigation/native';
 import { Brand } from '@/constants/brand';
 import { fetchChatMessages, sendChatMessage, type ChatMessageRow } from '@/lib/chat-api';
 import { getApiErrorMessage } from '@/lib/api-errors';
@@ -23,6 +25,7 @@ export default function ChatRoomScreen() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState('');
   const [pollError, setPollError] = useState<string | null>(null);
+  const [pollFailures, setPollFailures] = useState(0);
   const listRef = useRef<FlatList<ChatMessageRow>>(null);
 
   const q = useQuery({
@@ -30,10 +33,18 @@ export default function ChatRoomScreen() {
     queryFn: () => fetchChatMessages(roomId!),
     enabled: !!roomId,
   });
+  const { refetch } = q;
+
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
 
   useEffect(() => {
     if (!roomId) return;
     const interval = setInterval(async () => {
+      if (AppState.currentState !== 'active') return;
       const current = (queryClient.getQueryData(['chat-room', roomId]) as ChatMessageRow[] | undefined) ?? [];
       const after = current.length ? current[current.length - 1]?.createdAt : undefined;
       try {
@@ -43,9 +54,12 @@ export default function ChatRoomScreen() {
             const ids = new Set(old.map((m) => m.id));
             return [...old, ...incoming.filter((m) => !ids.has(m.id))];
           });
+          queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
         }
         setPollError(null);
+        setPollFailures(0);
       } catch (err) {
+        setPollFailures((n) => n + 1);
         setPollError(getApiErrorMessage(err, 'Failed to refresh messages.'));
       }
     }, 3000);
@@ -62,8 +76,10 @@ export default function ChatRoomScreen() {
     mutationFn: (content: string) => sendChatMessage(roomId!, content),
     onSuccess: (created) => {
       queryClient.setQueryData(['chat-room', roomId], (old: ChatMessageRow[] = []) => [...old, created]);
+      queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
       setDraft('');
       setPollError(null);
+      setPollFailures(0);
     },
     onError: (err) => {
       setPollError(getApiErrorMessage(err, 'Could not send message.'));
@@ -101,6 +117,8 @@ export default function ChatRoomScreen() {
     );
   }
 
+  const reconnecting = !!pollError && pollFailures >= 2;
+
   return (
     <KeyboardAvoidingView
       style={styles.page}
@@ -129,7 +147,7 @@ export default function ChatRoomScreen() {
         ListEmptyComponent={<Text style={styles.empty}>No messages yet. Start the conversation.</Text>}
       />
 
-      {pollError ? <Text style={styles.pollError}>{pollError}</Text> : null}
+      {reconnecting ? <Text style={styles.pollError}>Reconnecting… {pollError}</Text> : null}
 
       <View style={styles.inputBar}>
         <TextInput

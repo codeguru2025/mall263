@@ -8,7 +8,7 @@ export type ChatRoomRow = {
     id: string;
     content: string;
     createdAt: string;
-    sender?: { firstName?: string | null } | null;
+    sender?: { id: string; firstName?: string | null } | null;
   }>;
   offer?: {
     id: string;

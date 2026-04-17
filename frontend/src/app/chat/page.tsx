@@ -16,7 +16,7 @@ type ChatRoomRow = {
     id: string;
     content: string;
     createdAt: string;
-    sender?: { firstName?: string | null } | null;
+    sender?: { id: string; firstName?: string | null } | null;
   }>;
   offer?: {
     demand?: { title?: string | null } | null;
@@ -47,6 +47,7 @@ export default function ChatInboxPage() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
+  const user = useAuthStore((s) => s.user);
 
   useEffect(() => {
     if (authLoading) return;
@@ -58,6 +59,8 @@ export default function ChatInboxPage() {
     queryFn: () => api.get('/api/v1/chat/rooms').then((r) => r.data),
     enabled: isAuthenticated,
     refetchInterval: 10000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   if (authLoading) return null;
@@ -98,6 +101,7 @@ export default function ChatInboxPage() {
           <div className="space-y-3">
             {data.map((room) => {
               const last = room.messages?.[0];
+              const unread = !!last?.sender?.id && last.sender.id !== user?.id;
               return (
                 <Link
                   key={room.id}
@@ -116,6 +120,12 @@ export default function ChatInboxPage() {
                   <p className="text-sm text-gray-600 mt-3 line-clamp-2">
                     {last ? `${last.sender?.firstName ?? 'User'}: ${last.content}` : 'No messages yet.'}
                   </p>
+                  {unread ? (
+                    <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold text-brand-orange">
+                      <span className="w-2 h-2 rounded-full bg-brand-orange" />
+                      Unread
+                    </div>
+                  ) : null}
                   <div className="mt-3 flex items-center gap-1.5 text-[11px] text-gray-400">
                     <Clock className="w-3 h-3" />
                     <span>Tap to open room</span>

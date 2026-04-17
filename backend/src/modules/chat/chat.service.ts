@@ -107,7 +107,7 @@ export class ChatService {
         messages: {
           orderBy: { createdAt: 'desc' },
           take: 1,
-          include: { sender: { select: { firstName: true } } },
+          include: { sender: { select: { id: true, firstName: true } } },
         },
         offer: {
           select: {
