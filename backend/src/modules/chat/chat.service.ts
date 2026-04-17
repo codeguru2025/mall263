@@ -1,10 +1,14 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OfferStatus } from '@prisma/client';
 import { containsContactInfo } from '../../common/contact-info.util';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(private prisma: PrismaService) {}
 
   private async verifyAccess(offerId: string, userId: string) {
@@ -96,21 +100,26 @@ export class ChatService {
   }
 
   async getMyRooms(userId: string) {
-    // Resolve offer IDs in three independent queries instead of one nested OR.
-    // This avoids Prisma P2023 "Inconsistent column data" crashes caused by
-    // a single orphaned/corrupted row on one join path taking down the whole
-    // chat inbox. Each branch is also wrapped so a failure in one (e.g. a
-    // stall with a bad merchant FK) still lets the other branches return.
-    const safe = async <T>(p: Promise<T>, fallback: T): Promise<T> => {
+    // Hard-guard: a malformed sub (e.g. old CUID) would cause Prisma to throw
+    // P2023 the moment it hits any @db.Uuid filter. Short-circuit cleanly.
+    if (!userId || !UUID_RE.test(userId)) {
+      this.logger.warn(`getMyRooms called with non-UUID userId=${JSON.stringify(userId)} — returning []`);
+      return [];
+    }
+
+    const safe = async <T>(label: string, p: Promise<T>, fallback: T): Promise<T> => {
       try {
         return await p;
-      } catch {
+      } catch (err) {
+        const e = err as { code?: string; message?: string };
+        this.logger.error(`getMyRooms:${label} failed — ${e.code ?? ''} ${e.message ?? err}`);
         return fallback;
       }
     };
 
     const [buyerOffers, sellerOffers, attendantOffers] = await Promise.all([
       safe(
+        'buyerOffers',
         this.prisma.sellerOffer.findMany({
           where: { demand: { buyerId: userId } },
           select: { id: true },
@@ -118,6 +127,7 @@ export class ChatService {
         [] as { id: string }[],
       ),
       safe(
+        'sellerOffers',
         this.prisma.sellerOffer.findMany({
           where: { stall: { merchant: { userId } } },
           select: { id: true },
@@ -125,6 +135,7 @@ export class ChatService {
         [] as { id: string }[],
       ),
       safe(
+        'attendantOffers',
         this.prisma.sellerOffer.findMany({
           where: { stall: { attendants: { some: { userId } } } },
           select: { id: true },
@@ -135,29 +146,48 @@ export class ChatService {
 
     const offerIdSet = new Set<string>();
     for (const o of [...buyerOffers, ...sellerOffers, ...attendantOffers]) {
-      offerIdSet.add(o.id);
+      if (o?.id && UUID_RE.test(o.id)) offerIdSet.add(o.id);
     }
     if (offerIdSet.size === 0) return [];
 
-    return this.prisma.chatRoom.findMany({
-      where: { offerId: { in: Array.from(offerIdSet) } },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          include: { sender: { select: { id: true, firstName: true } } },
-        },
-        offer: {
-          select: {
-            id: true,
-            totalPrice: true,
-            status: true,
-            demand: { select: { title: true } },
-            stall: { select: { name: true } },
+    // Try the full nested query first; if Prisma hates any joined row, fall
+    // back to a minimal query that skips the rich includes so the inbox still
+    // renders.
+    const offerIds = Array.from(offerIdSet);
+    const richRooms = await safe(
+      'chatRoom.findMany:rich',
+      this.prisma.chatRoom.findMany({
+        where: { offerId: { in: offerIds } },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: { sender: { select: { id: true, firstName: true } } },
+          },
+          offer: {
+            select: {
+              id: true,
+              totalPrice: true,
+              status: true,
+              demand: { select: { title: true } },
+              stall: { select: { name: true } },
+            },
           },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      }),
+      null as Awaited<ReturnType<typeof this.prisma.chatRoom.findMany>> | null,
+    );
+    if (richRooms) return richRooms;
+
+    // Minimal fallback so the user at least sees the rooms that exist.
+    return safe(
+      'chatRoom.findMany:minimal',
+      this.prisma.chatRoom.findMany({
+        where: { offerId: { in: offerIds } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      [] as Awaited<ReturnType<typeof this.prisma.chatRoom.findMany>>,
+    );
   }
 }
