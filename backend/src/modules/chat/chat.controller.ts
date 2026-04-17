@@ -8,7 +8,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 // Bumped per-deploy so clients can confirm which backend revision they are
 // actually talking to. Keep this as a plain string so it survives minification.
-const CHAT_BUILD_TAG = 'chat-hotfix-2026-04-17-p2023-bulletproof-v3-controller-catch';
+const CHAT_BUILD_TAG = 'chat-hotfix-2026-04-17-p2023-bulletproof-v4-verifyAccess-split';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -153,7 +153,19 @@ export class ChatController {
     @CurrentUser('id') userId: string,
     @Query('after') after?: string,
   ) {
-    return this.chatService.getMessages(roomId, userId, after);
+    // Mirror getMyRooms: never let a Prisma fault crash the chat room screen.
+    // On any unexpected error, return an empty list and log for backend debug.
+    try {
+      return await this.chatService.getMessages(roomId, userId, after);
+    } catch (err) {
+      const e = err as { status?: number; code?: string; message?: string; name?: string };
+      if (e.status && e.status < 500) throw err; // forward 4xx (forbidden/notfound)
+      this.logger.error(
+        `getMessages crashed roomId=${roomId} userId=${userId} code=${e.code ?? 'n/a'} msg=${e.message ?? err}`,
+      );
+      if (err instanceof Error && err.stack) this.logger.error(err.stack);
+      return [];
+    }
   }
 
   @UseGuards(JwtAuthGuard)

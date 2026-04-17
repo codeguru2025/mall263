@@ -11,25 +11,85 @@ export class ChatService {
 
   constructor(private prisma: PrismaService) {}
 
-  private async verifyAccess(offerId: string, userId: string) {
-    const offer = await this.prisma.sellerOffer.findUnique({
-      where: { id: offerId },
-      include: {
-        demand: { select: { buyerId: true } },
-        stall: {
-          select: {
-            merchant: { select: { userId: true } },
-            attendants: {
-              select: { userId: true },
-            },
-          },
-        },
-      },
-    });
+  // Deep nested includes like `stall.merchant` + `stall.attendants` will
+  // throw P2023 at runtime if any joined row stores a malformed @db.Uuid.
+  // We split the lookup into independent, flat queries so a bad value in
+  // one side can't take down the whole authorization check. The query is
+  // also wrapped in a try/catch so we emit a clear BadRequest instead of
+  // the generic Prisma 500 the mobile client used to see as a red banner.
+  private async verifyAccess(
+    offerId: string,
+    userId: string,
+  ): Promise<{
+    offer: { id: string; status: OfferStatus; stallId: string; demandId: string };
+    buyerId: string;
+    sellerId: string;
+  }> {
+    if (!offerId || !UUID_RE.test(offerId)) {
+      throw new BadRequestException('Invalid offer id');
+    }
+    if (!userId || !UUID_RE.test(userId)) {
+      throw new ForbiddenException('Not authorized');
+    }
+
+    let offer: { id: string; status: OfferStatus; stallId: string; demandId: string } | null;
+    try {
+      offer = await this.prisma.sellerOffer.findUnique({
+        where: { id: offerId },
+        select: { id: true, status: true, stallId: true, demandId: true },
+      });
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      this.logger.error(`verifyAccess:offer failed offerId=${offerId} code=${e.code} msg=${e.message}`);
+      throw new BadRequestException('Could not load offer — please retry.');
+    }
     if (!offer) throw new NotFoundException('Offer not found');
-    const buyerId = offer.demand.buyerId;
-    const sellerId = offer.stall.merchant.userId;
-    const isAssignedAttendant = offer.stall.attendants.some((attendant) => attendant.userId === userId);
+
+    // Buyer side: look up the demand by the offer's demandId (flat query).
+    let buyerId = '';
+    try {
+      const demand = await this.prisma.buyerDemand.findUnique({
+        where: { id: offer.demandId },
+        select: { buyerId: true },
+      });
+      buyerId = demand?.buyerId ?? '';
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      this.logger.error(`verifyAccess:demand failed demandId=${offer.demandId} code=${e.code} msg=${e.message}`);
+    }
+
+    // Seller side: look up the stall, merchant, and attendants independently
+    // so a bad FK in one of them doesn't poison the whole query.
+    let sellerId = '';
+    let isAssignedAttendant = false;
+    try {
+      const stall = await this.prisma.stall.findUnique({
+        where: { id: offer.stallId },
+        select: { merchantId: true },
+      });
+      if (stall?.merchantId) {
+        const merchant = await this.prisma.merchant.findUnique({
+          where: { id: stall.merchantId },
+          select: { userId: true },
+        });
+        sellerId = merchant?.userId ?? '';
+      }
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      this.logger.error(`verifyAccess:stall/merchant failed stallId=${offer.stallId} code=${e.code} msg=${e.message}`);
+    }
+
+    try {
+      const attendant = await this.prisma.stallAttendant.findFirst({
+        where: { stallId: offer.stallId, userId },
+        select: { id: true },
+      });
+      isAssignedAttendant = !!attendant;
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      this.logger.error(`verifyAccess:attendant failed stallId=${offer.stallId} code=${e.code} msg=${e.message}`);
+    }
+
     if (userId !== buyerId && userId !== sellerId && !isAssignedAttendant) {
       throw new ForbiddenException('Not authorized');
     }
@@ -37,10 +97,20 @@ export class ChatService {
   }
 
   private async verifyRoomAccess(roomId: string, userId: string) {
-    const room = await this.prisma.chatRoom.findUnique({
-      where: { id: roomId },
-      select: { offerId: true, offer: { select: { status: true } } },
-    });
+    if (!roomId || !UUID_RE.test(roomId)) {
+      throw new BadRequestException('Invalid chat room id');
+    }
+    let room: { offerId: string; offer: { status: OfferStatus } | null } | null;
+    try {
+      room = await this.prisma.chatRoom.findUnique({
+        where: { id: roomId },
+        select: { offerId: true, offer: { select: { status: true } } },
+      });
+    } catch (err) {
+      const e = err as { code?: string; message?: string };
+      this.logger.error(`verifyRoomAccess:room failed roomId=${roomId} code=${e.code} msg=${e.message}`);
+      throw new BadRequestException('Could not load chat room — please retry.');
+    }
     if (!room) throw new NotFoundException('Chat room not found');
     await this.verifyAccess(room.offerId, userId);
     return room;
