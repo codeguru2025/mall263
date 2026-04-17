@@ -149,6 +149,37 @@ export async function getDriverProfile(): Promise<{
   return data;
 }
 
+// ── COD (Cash on Delivery) APIs ─────────────────────────────────────────────
+
+export type CodLiability = {
+  codCashHeld: number | string;
+  maxCodExposure: number | string;
+  overdueCount?: number;
+  pendingRemits?: Array<{
+    jobId: string;
+    amount: number | string;
+    createdAt: string;
+    trackingNumber?: string | null;
+  }>;
+  [key: string]: unknown;
+};
+
+export async function fetchCodLiability(): Promise<CodLiability> {
+  const { data } = await api.get<CodLiability>('/api/v1/cod/my-liability');
+  return data;
+}
+
+export async function confirmCodCollected(jobId: string): Promise<void> {
+  await api.post(`/api/v1/cod/${jobId}/confirm-collected`);
+}
+
+export async function remitCodCash(
+  jobId: string,
+  method: 'ECOCASH' | 'BANK' | 'CASH_DROP' = 'ECOCASH',
+): Promise<void> {
+  await api.post(`/api/v1/cod/${jobId}/remit`, { method });
+}
+
 // ── Dispute APIs ─────────────────────────────────────────────────────────────
 
 export async function openDispute(

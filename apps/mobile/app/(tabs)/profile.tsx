@@ -123,9 +123,14 @@ export default function ProfileScreen() {
           </Pressable>
         )}
         {q.data?.role === 'DRIVER' && (
-          <Pressable style={styles.driverBtn} onPress={() => router.push('/(driver)/jobs')}>
-            <Text style={styles.driverBtnText}>🚗  Driver Hub</Text>
-          </Pressable>
+          <>
+            <Pressable style={styles.driverBtn} onPress={() => router.push('/(driver)/jobs')}>
+              <Text style={styles.driverBtnText}>🚗  Driver Hub</Text>
+            </Pressable>
+            <Pressable style={styles.outlineBtn} onPress={() => router.push('/driver/cod')}>
+              <Text style={styles.outlineBtnText}>💵  Cash on Delivery</Text>
+            </Pressable>
+          </>
         )}
         {(q.data?.merchant || (q.data?.attendantStall ?? []).length > 0) && (
           <Pressable style={styles.posBtn} onPress={() => router.push('/pos')}>
@@ -137,6 +142,32 @@ export default function ProfileScreen() {
             <Text style={styles.sellerBtnText}>🏪  Seller Hub</Text>
           </Pressable>
         )}
+
+        <View style={styles.linksCard}>
+          <Pressable style={styles.linkRow} onPress={() => router.push('/services')}>
+            <Text style={styles.linkText}>🛠  Services marketplace</Text>
+            <Text style={styles.linkChevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.linkRow} onPress={() => router.push('/subscriptions')}>
+            <Text style={styles.linkText}>⭐  Subscription</Text>
+            <Text style={styles.linkChevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.linkRow} onPress={() => router.push('/disputes')}>
+            <Text style={styles.linkText}>⚖️  My disputes</Text>
+            <Text style={styles.linkChevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.linkRow} onPress={() => router.push('/support')}>
+            <Text style={styles.linkText}>💬  Help &amp; support</Text>
+            <Text style={styles.linkChevron}>›</Text>
+          </Pressable>
+          {q.data?.role !== 'DRIVER' && (
+            <Pressable style={[styles.linkRow, styles.linkRowLast]} onPress={() => router.push('/driver/register')}>
+              <Text style={styles.linkText}>🚗  Become a driver</Text>
+              <Text style={styles.linkChevron}>›</Text>
+            </Pressable>
+          )}
+        </View>
+
         <Pressable style={styles.outlineBtn} onPress={() => logout()}>
           <Text style={styles.outlineBtnText}>Sign out</Text>
         </Pressable>
@@ -363,4 +394,24 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   driverBtnText: { fontSize: 15, fontWeight: '800', color: '#fff' },
+  linksCard: {
+    backgroundColor: Brand.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    marginTop: 14,
+    overflow: 'hidden',
+  },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Brand.border,
+  },
+  linkRowLast: { borderBottomWidth: 0 },
+  linkText: { fontSize: 15, fontWeight: '600', color: Brand.navy },
+  linkChevron: { fontSize: 22, color: Brand.muted, fontWeight: '300' },
 });

@@ -94,10 +94,11 @@ You are building **one native app** (Expo) that talks to the **same Nest API** a
 
 ## Phase 10 — Hardening
 
-- [ ] Sentry (or similar) on mobile builds.
-- [ ] EAS Build pipelines (staging vs production env).
-- [ ] EAS Update (optional) for JS-only fixes.
-- [ ] App Store / Play listing assets, privacy policy URL, review notes.
+- [x] Sentry crash reporting wired in `_layout.tsx` (disabled in `__DEV__`, enabled in staging/production builds). Set `EXPO_PUBLIC_SENTRY_DSN` env var + EAS secret.
+- [x] EAS Build pipelines — `eas.json` with `development` / `staging` / `production` profiles; `appVersionSource: remote`.
+- [ ] Run `eas init` (links project to your Expo account — adds `projectId` to `app.json`). Then `eas build --profile development --platform android` to validate.
+- [ ] EAS Update (optional) for JS-only fixes — enable after first store release.
+- [ ] App Store / Play listing assets — icon, screenshots, privacy policy URL, review notes.
 
 ---
 

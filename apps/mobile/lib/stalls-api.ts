@@ -78,3 +78,42 @@ export async function recordStallVisit(stallId: string): Promise<void> {
     // Visit counter failures must never disrupt the store page UX.
   }
 }
+
+export type Mall = {
+  id: string;
+  name: string;
+  city?: string | null;
+  address?: string | null;
+};
+
+export async function fetchMalls(city?: string): Promise<Mall[]> {
+  const { data } = await api.get<Mall[]>('/api/v1/stalls/malls', {
+    params: city ? { city } : undefined,
+  });
+  return Array.isArray(data) ? data : [];
+}
+
+export type MerchantSelfSetup = {
+  businessName: string;
+  businessPhone?: string;
+  stallName: string;
+  stallNumber: string;
+  mallId?: string;
+  description?: string;
+  address?: string;
+  phone?: string;
+};
+
+export async function submitMerchantSetup(payload: MerchantSelfSetup) {
+  const { data } = await api.post('/api/v1/merchants/me/setup', payload);
+  return data;
+}
+
+export async function fetchMyMerchant(): Promise<{ id: string; businessName: string } | null> {
+  try {
+    const { data } = await api.get('/api/v1/merchants/me');
+    return data;
+  } catch {
+    return null;
+  }
+}

@@ -13,11 +13,21 @@ import type { MeProfile } from '@/lib/me-profile';
 /** Session user — same payload as `GET /api/v1/users/me` after login. */
 export type AuthUser = MeProfile;
 
+export type RegisterPayload = {
+  phone: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  role?: 'BUYER' | 'STALL_OWNER' | 'DELIVERY_DRIVER' | 'FIELD_AGENT';
+  avatarUrl?: string;
+};
+
 type AuthContextValue = {
   isReady: boolean;
   isAuthenticated: boolean;
   user: AuthUser | null;
   login: (phone: string, password: string) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
   reloadUser: () => Promise<void>;
 };
@@ -65,6 +75,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(me);
   }, []);
 
+  const register = useCallback(async (payload: RegisterPayload) => {
+    const normalized = payload.phone.trim().replace(/[\s\-().]/g, '');
+    const body: Record<string, unknown> = {
+      phone: normalized,
+      password: payload.password,
+      firstName: payload.firstName.trim(),
+      lastName: payload.lastName.trim(),
+    };
+    if (payload.role) body.role = payload.role;
+    if (payload.avatarUrl) body.avatarUrl = payload.avatarUrl;
+    const { data } = await api.post('/api/v1/auth/register', body);
+    if (data?.accessToken) {
+      await setTokens(data.accessToken, data.refreshToken);
+      const { data: me } = await api.get<MeProfile>('/api/v1/users/me');
+      setUser(me);
+    } else {
+      // Backend didn't return tokens — fall back to a normal login.
+      await login(normalized, payload.password);
+    }
+  }, [login]);
+
   const logout = useCallback(async () => {
     try {
       await api.post('/api/v1/auth/logout');
@@ -81,10 +112,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: !!user,
       user,
       login,
+      register,
       logout,
       reloadUser,
     }),
-    [isReady, user, login, logout, reloadUser],
+    [isReady, user, login, register, logout, reloadUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

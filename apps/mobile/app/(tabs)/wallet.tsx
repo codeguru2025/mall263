@@ -94,9 +94,14 @@ export default function WalletScreen() {
           <Text style={styles.balanceBig}>{formatMoney(b.available, currency)}</Text>
           <Text style={styles.balanceLabelMuted}>Locked</Text>
           <Text style={styles.balanceLocked}>{formatMoney(b.locked, currency)}</Text>
-          <Pressable style={styles.depositBtn} onPress={() => router.push('/deposit')}>
-            <Text style={styles.depositBtnText}>+ Deposit funds</Text>
-          </Pressable>
+          <View style={styles.btnRow}>
+            <Pressable style={styles.depositBtn} onPress={() => router.push('/deposit')}>
+              <Text style={styles.depositBtnText}>+ Deposit</Text>
+            </Pressable>
+            <Pressable style={styles.withdrawBtn} onPress={() => router.push('/withdraw')}>
+              <Text style={styles.withdrawBtnText}>Withdraw</Text>
+            </Pressable>
+          </View>
         </View>
         <Text style={styles.sectionTitle}>Transactions</Text>
       </View>
@@ -192,15 +197,23 @@ const styles = StyleSheet.create({
   balanceBig: { fontSize: 28, fontWeight: '900', color: Brand.navy, marginTop: 4 },
   balanceLabelMuted: { fontSize: 11, fontWeight: '700', color: Brand.muted, marginTop: 12 },
   balanceLocked: { fontSize: 18, fontWeight: '800', color: Brand.navy, marginTop: 2 },
+  btnRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   depositBtn: {
-    marginTop: 16,
-    alignSelf: 'flex-start',
     paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderRadius: 10,
     backgroundColor: Brand.blue,
   },
   depositBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  withdrawBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: Brand.blue,
+  },
+  withdrawBtnText: { color: Brand.blue, fontWeight: '800', fontSize: 14 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: Brand.navy, marginBottom: 10 },
   txRow: {
     flexDirection: 'row',

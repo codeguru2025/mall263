@@ -63,8 +63,16 @@ export default function SellerHubScreen() {
   if (!merchantId) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.emptyText}>Your account is not set up as a merchant.</Text>
-        <Text style={styles.mutedText}>Contact support to enable seller features.</Text>
+        <Text style={styles.emptyText}>You haven&apos;t set up your stall yet.</Text>
+        <Text style={styles.mutedText}>
+          Tell us about your business and create your first storefront — takes about a minute.
+        </Text>
+        <Pressable
+          style={({ pressed }) => [styles.setupBtn, pressed && { opacity: 0.85 }]}
+          onPress={() => router.push('/seller/setup')}
+        >
+          <Text style={styles.setupBtnText}>Set up my stall</Text>
+        </Pressable>
       </View>
     );
   }
@@ -238,5 +246,13 @@ const styles = StyleSheet.create({
 
   empty: { alignItems: 'center', paddingTop: 32 },
   emptyText: { fontSize: 15, fontWeight: '700', color: Brand.navy, textAlign: 'center' },
-  mutedText: { fontSize: 13, color: Brand.muted, textAlign: 'center', marginTop: 6 },
+  mutedText: { fontSize: 13, color: Brand.muted, textAlign: 'center', marginTop: 6, marginBottom: 16 },
+  setupBtn: {
+    marginTop: 10,
+    backgroundColor: Brand.blue,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  setupBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });

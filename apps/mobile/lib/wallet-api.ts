@@ -35,3 +35,13 @@ export async function fetchWalletTransactionsPage(page: number, limit = 25): Pro
   });
   return data;
 }
+
+export async function requestWalletWithdrawal(
+  amount: number,
+  description?: string,
+): Promise<WalletTxRow> {
+  const body: Record<string, unknown> = { amount };
+  if (description?.trim()) body.description = description.trim();
+  const { data } = await api.post<WalletTxRow>('/api/v1/wallets/me/withdraw', body);
+  return data;
+}

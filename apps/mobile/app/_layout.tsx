@@ -94,8 +94,10 @@ function RootLayoutNav() {
           <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ title: 'Sign in' }} />
+            <Stack.Screen name="register" options={{ title: 'Create account' }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="product/[id]" options={{ title: 'Product' }} />
+            <Stack.Screen name="store/[stallId]" options={{ title: 'Store' }} />
             <Stack.Screen name="demand/[id]" options={{ title: 'Demand' }} />
             <Stack.Screen name="demand/new" options={{ title: 'Post demand' }} />
             <Stack.Screen name="demand/open" options={{ title: 'Open demands' }} />
@@ -103,9 +105,21 @@ function RootLayoutNav() {
             <Stack.Screen name="chat/index" options={{ title: 'Chats' }} />
             <Stack.Screen name="chat/[roomId]" options={{ title: 'Chat room' }} />
             <Stack.Screen name="deposit" options={{ title: 'Deposit funds' }} />
+            <Stack.Screen name="withdraw" options={{ title: 'Withdraw funds' }} />
+            <Stack.Screen name="subscriptions/index" options={{ title: 'Subscription' }} />
+            <Stack.Screen name="support" options={{ title: 'Help & support' }} />
+            <Stack.Screen name="disputes/index" options={{ title: 'My disputes' }} />
             <Stack.Screen name="seller/index" options={{ title: 'Seller Hub' }} />
+            <Stack.Screen name="seller/setup" options={{ title: 'Seller setup' }} />
             <Stack.Screen name="seller/product/new" options={{ title: 'Add product' }} />
             <Stack.Screen name="seller/product/[id]" options={{ title: 'Edit product' }} />
+            <Stack.Screen name="services/index" options={{ title: 'Services' }} />
+            <Stack.Screen name="services/[id]" options={{ title: 'Service' }} />
+            <Stack.Screen name="services/request/[listingId]" options={{ title: 'Request quote' }} />
+            <Stack.Screen name="services/requests/index" options={{ title: 'Service requests' }} />
+            <Stack.Screen name="services/requests/[requestId]" options={{ title: 'Request' }} />
+            <Stack.Screen name="services/invoice/[invoiceId]" options={{ title: 'Invoice' }} />
+            <Stack.Screen name="services/chat/[roomId]" options={{ title: 'Service chat' }} />
             <Stack.Screen name="pos/index" options={{ title: 'POS' }} />
             <Stack.Screen name="pos/cart" options={{ title: 'Register' }} />
             <Stack.Screen name="pos/receipt/[saleId]" options={{ title: 'Receipt' }} />
@@ -119,6 +133,8 @@ function RootLayoutNav() {
             <Stack.Screen name="admin/subscriptions" options={{ title: 'Subscriptions' }} />
             <Stack.Screen name="delivery/track/[jobId]" options={{ title: 'Track Delivery' }} />
             <Stack.Screen name="delivery/checkout" options={{ title: 'Arrange Delivery' }} />
+            <Stack.Screen name="driver/register" options={{ title: 'Become a driver' }} />
+            <Stack.Screen name="driver/cod" options={{ title: 'Cash on Delivery' }} />
             <Stack.Screen name="dispute/[jobId]" options={{ title: 'Open Dispute' }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           </Stack>

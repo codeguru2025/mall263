@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import axios from 'axios';
-import { useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiBaseUrl } from '@/lib/config';
 import { Brand } from '@/constants/brand';
@@ -94,6 +94,17 @@ export default function LoginScreen() {
             <Text style={styles.buttonText}>Sign in</Text>
           )}
         </Pressable>
+
+        <View style={styles.divider} />
+
+        <View style={styles.registerRow}>
+          <Text style={styles.registerPrompt}>New to Mall263?</Text>
+          <Link href="/register" asChild>
+            <Pressable hitSlop={8}>
+              <Text style={styles.registerLink}>Create account</Text>
+            </Pressable>
+          </Link>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -161,5 +172,25 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: Brand.border,
+    marginVertical: 18,
+  },
+  registerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  registerPrompt: {
+    fontSize: 13,
+    color: Brand.muted,
+  },
+  registerLink: {
+    fontSize: 13,
+    color: Brand.blue,
+    fontWeight: '800',
   },
 });
