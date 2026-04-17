@@ -96,16 +96,51 @@ export class ChatService {
   }
 
   async getMyRooms(userId: string) {
+    // Resolve offer IDs in three independent queries instead of one nested OR.
+    // This avoids Prisma P2023 "Inconsistent column data" crashes caused by
+    // a single orphaned/corrupted row on one join path taking down the whole
+    // chat inbox. Each branch is also wrapped so a failure in one (e.g. a
+    // stall with a bad merchant FK) still lets the other branches return.
+    const safe = async <T>(p: Promise<T>, fallback: T): Promise<T> => {
+      try {
+        return await p;
+      } catch {
+        return fallback;
+      }
+    };
+
+    const [buyerOffers, sellerOffers, attendantOffers] = await Promise.all([
+      safe(
+        this.prisma.sellerOffer.findMany({
+          where: { demand: { buyerId: userId } },
+          select: { id: true },
+        }),
+        [] as { id: string }[],
+      ),
+      safe(
+        this.prisma.sellerOffer.findMany({
+          where: { stall: { merchant: { userId } } },
+          select: { id: true },
+        }),
+        [] as { id: string }[],
+      ),
+      safe(
+        this.prisma.sellerOffer.findMany({
+          where: { stall: { attendants: { some: { userId } } } },
+          select: { id: true },
+        }),
+        [] as { id: string }[],
+      ),
+    ]);
+
+    const offerIdSet = new Set<string>();
+    for (const o of [...buyerOffers, ...sellerOffers, ...attendantOffers]) {
+      offerIdSet.add(o.id);
+    }
+    if (offerIdSet.size === 0) return [];
+
     return this.prisma.chatRoom.findMany({
-      where: {
-        offer: {
-          OR: [
-            { demand: { buyerId: userId } },
-            { stall: { merchant: { userId } } },
-            { stall: { attendants: { some: { userId } } } },
-          ],
-        },
-      },
+      where: { offerId: { in: Array.from(offerIdSet) } },
       include: {
         messages: {
           orderBy: { createdAt: 'desc' },

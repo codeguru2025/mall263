@@ -111,6 +111,14 @@ export class PrismaExceptionFilter implements ExceptionFilter {
           error: 'Service Unavailable',
           prismaCode: code,
         });
+      case 'P2023':
+        return response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+          statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+          message:
+            'Inconsistent data in the database — a stored value does not match the expected column type (e.g. a malformed UUID). Please contact support.',
+          error: 'Internal Server Error',
+          prismaCode: code,
+        });
       case 'P2025':
         return response.status(HttpStatus.NOT_FOUND).json({
           statusCode: HttpStatus.NOT_FOUND,
