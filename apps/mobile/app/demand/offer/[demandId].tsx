@@ -102,11 +102,18 @@ export default function SellerOfferScreen() {
   }, [stallId, stallOptions]);
 
   const productsQ = useInfiniteQuery({
-    queryKey: ['stall-products', stallId],
+    // Distinct key from the plain-array ['stall-products', id] used by POS/
+    // seller screens so the two cache shapes never collide.
+    queryKey: ['stall-products-infinite', stallId],
     initialPageParam: 1,
     queryFn: ({ pageParam }) => fetchStallProductsPage(stallId!, pageParam as number, 25),
     enabled: !!stallId,
-    getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
+    getNextPageParam: (last) => {
+      if (!last || typeof last.page !== 'number' || typeof last.totalPages !== 'number') {
+        return undefined;
+      }
+      return last.page < last.totalPages ? last.page + 1 : undefined;
+    },
   });
 
   const catalogLines = useMemo(
