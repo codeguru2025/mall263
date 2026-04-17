@@ -78,7 +78,7 @@ export default function SellerOfferScreen() {
 
   const stallOptions = useMemo(() => {
     const map = new Map<string, { id: string; name: string; subtitle?: string }>();
-    for (const row of user?.attendantStalls ?? []) {
+    for (const row of user?.attendantStall ?? []) {
       const s = row.stall;
       map.set(s.id, {
         id: s.id,
@@ -93,7 +93,7 @@ export default function SellerOfferScreen() {
       }
     }
     return [...map.values()];
-  }, [user?.attendantStalls, stallsQ.data]);
+  }, [user?.attendantStall, stallsQ.data]);
 
   const [stallId, setStallId] = useState<string | null>(null);
   useEffect(() => {

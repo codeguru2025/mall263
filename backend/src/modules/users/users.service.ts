@@ -13,7 +13,7 @@ export class UsersService {
         wallet: { select: { availableBalance: true, lockedBalance: true, currency: true } },
         trustScore: { select: { overallScore: true } },
         merchant: { select: { id: true, businessName: true, status: true } },
-        attendantStalls: {
+        attendantStall: {
           where: { isActive: true },
           select: {
             stall: { select: { id: true, name: true, stallNumber: true, merchantId: true } },

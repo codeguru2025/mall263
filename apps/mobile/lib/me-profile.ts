@@ -17,8 +17,8 @@ export type MeProfile = {
   } | null;
   trustScore?: { overallScore: unknown } | null;
   merchant?: { id: string; businessName: string; status: string } | null;
-  /** Active stall assignments (attendants). */
-  attendantStalls?: Array<{
+  /** Active stall assignments (attendants). Matches Prisma `User.attendantStall`. */
+  attendantStall?: Array<{
     stall: { id: string; name: string; stallNumber?: string | null; merchantId: string };
   }>;
 };

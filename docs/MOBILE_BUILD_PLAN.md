@@ -54,7 +54,7 @@ You are building **one native app** (Expo) that talks to the **same Nest API** a
 ## Phase 4 — Buyer: demands & chat (current focus)
 
 - [x] Buyer demands — **Demands** tab: `GET /api/v1/demands/my` (All / Open), **Post** → `POST /api/v1/demands`, detail `GET .../demands/:id`, **Accept** → `POST .../demands/offers/:offerId/accept` (wallet lock rules apply after trial — see backend `createDemand`).
-- [x] Seller path on mobile: browse `GET .../demands/open`, submit `POST .../demands/:demandId/offers` (stall + one line item from stall catalog). Attendant stalls included via `GET /users/me`.
+- [x] Seller path on mobile: browse `GET .../demands/open`, submit `POST .../demands/:demandId/offers` (stall + one line item from stall catalog). Attendant stalls included on `GET /users/me` as `attendantStall` (Prisma relation name).
 - [ ] Chat rooms / messages — socket lifecycle on mobile, reconnect, unread.
 
 ---
