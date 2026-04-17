@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Linking,
   Platform,
   Pressable,
   RefreshControl,
@@ -11,11 +10,11 @@ import {
   View,
 } from 'react-native';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { router } from 'expo-router';
 import { isWalletTxCredit, walletTxTypeLabel } from '@mall263/shared';
 import { Brand } from '@/constants/brand';
 import { fetchWalletBalance, fetchWalletTransactionsPage, type WalletTxRow } from '@/lib/wallet-api';
 import { formatMoney } from '@/lib/products';
-import { getApiBaseUrl } from '@/lib/config';
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -95,13 +94,8 @@ export default function WalletScreen() {
           <Text style={styles.balanceBig}>{formatMoney(b.available, currency)}</Text>
           <Text style={styles.balanceLabelMuted}>Locked</Text>
           <Text style={styles.balanceLocked}>{formatMoney(b.locked, currency)}</Text>
-          <Pressable
-            style={styles.linkBtn}
-            onPress={() =>
-              Linking.openURL(`${getApiBaseUrl()}/wallet/deposit`).catch(() => undefined)
-            }
-          >
-            <Text style={styles.linkBtnText}>Open top up in browser</Text>
+          <Pressable style={styles.depositBtn} onPress={() => router.push('/deposit')}>
+            <Text style={styles.depositBtnText}>+ Deposit funds</Text>
           </Pressable>
         </View>
         <Text style={styles.sectionTitle}>Transactions</Text>
@@ -198,7 +192,7 @@ const styles = StyleSheet.create({
   balanceBig: { fontSize: 28, fontWeight: '900', color: Brand.navy, marginTop: 4 },
   balanceLabelMuted: { fontSize: 11, fontWeight: '700', color: Brand.muted, marginTop: 12 },
   balanceLocked: { fontSize: 18, fontWeight: '800', color: Brand.navy, marginTop: 2 },
-  linkBtn: {
+  depositBtn: {
     marginTop: 16,
     alignSelf: 'flex-start',
     paddingVertical: 10,
@@ -206,7 +200,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: Brand.blue,
   },
-  linkBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  depositBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: Brand.navy, marginBottom: 10 },
   txRow: {
     flexDirection: 'row',
