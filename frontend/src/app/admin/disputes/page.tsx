@@ -121,7 +121,7 @@ export default function AdminDisputesPage() {
                   <span className="text-xs text-gray-400">{new Date(d.createdAt).toLocaleDateString()}</span>
                 </div>
 
-                <p className="text-sm font-bold text-navy-700 mb-1">"{d.reason}"</p>
+                <p className="text-sm font-bold text-navy-700 mb-1">&ldquo;{d.reason}&rdquo;</p>
 
                 <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-3">
                   <span>Job: <span className="font-mono text-navy-700">{d.jobId?.slice(0, 8)}…</span></span>
