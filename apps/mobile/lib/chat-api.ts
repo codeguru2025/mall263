@@ -1,4 +1,15 @@
+import axios from 'axios';
 import { api } from '@/lib/api';
+
+export type ChatInboxResult = {
+  rooms: ChatRoomRow[];
+  /**
+   * When the backend returns 5xx we swallow it to an empty list so the screen
+   * never gets stuck on an error. The UI shows a soft banner instead. This
+   * carries the extracted server message / Prisma code for that banner.
+   */
+  softError?: string;
+};
 
 export type ChatRoomRow = {
   id: string;
@@ -36,6 +47,50 @@ export type ChatMessageRow = {
 export async function fetchMyChatRooms(): Promise<ChatRoomRow[]> {
   const { data } = await api.get<ChatRoomRow[]>('/api/v1/chat/rooms');
   return data;
+}
+
+/**
+ * Resilient variant used by the inbox screen. 5xx responses are converted into
+ * an empty result + a soft banner so the UI never blocks on a transient
+ * backend hiccup. Anything else (401 / network error) is rethrown so React
+ * Query can surface it normally.
+ */
+export async function fetchMyChatRoomsSafe(): Promise<ChatInboxResult> {
+  try {
+    const { data } = await api.get<ChatRoomRow[]>('/api/v1/chat/rooms');
+    return { rooms: Array.isArray(data) ? data : [] };
+  } catch (err) {
+    if (axios.isAxiosError(err)) {
+      const status = err.response?.status ?? 0;
+      if (status >= 500) {
+        const body = err.response?.data as
+          | { message?: string | string[]; prismaCode?: string }
+          | undefined;
+        const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+        const code = body?.prismaCode ? ` [${body.prismaCode}]` : '';
+        const softError =
+          typeof msg === 'string' && msg.trim()
+            ? `${msg}${code}`
+            : 'Chat service is temporarily unavailable — showing empty inbox.';
+        return { rooms: [], softError };
+      }
+    }
+    throw err;
+  }
+}
+
+export async function fetchChatVersion(): Promise<{
+  tag?: string;
+  commit?: string;
+  deployedAt?: string | null;
+  now?: string;
+} | null> {
+  try {
+    const { data } = await api.get('/api/v1/chat/_version');
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 export async function openOfferChatRoom(offerId: string): Promise<{ id: string }> {

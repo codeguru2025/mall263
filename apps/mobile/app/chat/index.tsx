@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import { Brand } from '@/constants/brand';
-import { fetchMyChatRooms, type ChatRoomRow } from '@/lib/chat-api';
+import { fetchMyChatRoomsSafe, type ChatRoomRow } from '@/lib/chat-api';
 import { useAuth } from '@/contexts/AuthContext';
 import axios from 'axios';
 
@@ -78,10 +78,12 @@ export default function ChatInboxScreen() {
 
   const q = useQuery({
     queryKey: ['chat-rooms'],
-    queryFn: fetchMyChatRooms,
+    queryFn: fetchMyChatRoomsSafe,
     refetchInterval: 10000,
   });
   const { refetch } = q;
+  const rooms = q.data?.rooms ?? [];
+  const softError = q.data?.softError;
 
   useFocusEffect(
     useCallback(() => {
@@ -112,9 +114,18 @@ export default function ChatInboxScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Chats</Text>
         <Text style={styles.subtitle}>Messages from accepted demand offers.</Text>
+        {softError ? (
+          <View style={styles.softBanner}>
+            <Text style={styles.softBannerTitle}>Inbox may be incomplete</Text>
+            <Text style={styles.softBannerBody}>{softError}</Text>
+            <Pressable onPress={() => q.refetch()} style={styles.softBannerRetry}>
+              <Text style={styles.softBannerRetryText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
     ),
-    [],
+    [softError, q],
   );
 
   const renderItem = useCallback(
@@ -173,7 +184,7 @@ export default function ChatInboxScreen() {
 
   return (
     <FlatList
-      data={q.data ?? []}
+      data={rooms}
       keyExtractor={(item) => item.id}
       renderItem={renderItem}
       ListHeaderComponent={header}
@@ -212,4 +223,23 @@ const styles = StyleSheet.create({
   retry: { marginTop: 16, backgroundColor: Brand.blue, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10 },
   retryText: { color: '#fff', fontWeight: '700' },
   empty: { textAlign: 'center', color: Brand.muted, marginTop: 20, fontSize: 15, paddingHorizontal: 12 },
+  softBanner: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  softBannerTitle: { fontWeight: '800', color: '#92400E', marginBottom: 4 },
+  softBannerBody: { color: '#78350F', fontSize: 12, lineHeight: 16 },
+  softBannerRetry: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    backgroundColor: '#92400E',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  softBannerRetryText: { color: '#fff', fontWeight: '700', fontSize: 12 },
 });
