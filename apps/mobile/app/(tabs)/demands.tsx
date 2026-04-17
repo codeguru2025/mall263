@@ -12,6 +12,8 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Brand } from '@/constants/brand';
+import { useAuth } from '@/contexts/AuthContext';
+import { fetchMyChatRooms } from '@/lib/chat-api';
 import { fetchMyDemands, type DemandListItem } from '@/lib/demands-api';
 import { formatMoney } from '@/lib/products';
 
@@ -37,6 +39,7 @@ function formatWhen(iso: string): string {
 
 export default function DemandsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [refreshing, setRefreshing] = useState(false);
 
@@ -46,6 +49,21 @@ export default function DemandsScreen() {
     queryKey: ['my-demands', statusParam ?? 'all'],
     queryFn: () => fetchMyDemands(statusParam),
   });
+
+  const chatRoomsQ = useQuery({
+    queryKey: ['chat-rooms'],
+    queryFn: fetchMyChatRooms,
+    refetchInterval: 10000,
+  });
+
+  const unreadChatCount = useMemo(
+    () =>
+      (chatRoomsQ.data ?? []).reduce((count, room) => {
+        const senderId = room.messages?.[0]?.sender?.id;
+        return senderId && senderId !== user?.id ? count + 1 : count;
+      }, 0),
+    [chatRoomsQ.data, user?.id],
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -71,7 +89,10 @@ export default function DemandsScreen() {
             <Text style={styles.secondaryBtnText}>Browse open</Text>
           </Pressable>
           <Pressable style={styles.secondaryBtn} onPress={() => router.push('/chat/index')}>
-            <Text style={styles.secondaryBtnText}>Chats</Text>
+            <Text style={styles.secondaryBtnText}>
+              Chats
+              {unreadChatCount > 0 ? ` (${unreadChatCount})` : ''}
+            </Text>
           </Pressable>
         </View>
         <View style={styles.filterRow}>

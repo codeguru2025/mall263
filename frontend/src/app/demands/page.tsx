@@ -21,6 +21,18 @@ export default function DemandsPage() {
   const user = useAuthStore((s) => s.user);
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
 
+  const { data: chatRooms = [] } = useQuery<any[]>({
+    queryKey: ['chat-rooms'],
+    queryFn: () => api.get('/api/v1/chat/rooms').then((r) => r.data),
+    enabled: isAuthenticated,
+    refetchInterval: 10000,
+  });
+
+  const unreadChatCount = chatRooms.reduce((count, room) => {
+    const senderId = room?.messages?.[0]?.sender?.id as string | undefined;
+    return senderId && senderId !== user?.id ? count + 1 : count;
+  }, 0);
+
   // Get user location for distance-based ranking
   useEffect(() => {
     if (navigator.geolocation && isSeller) {
@@ -123,6 +135,11 @@ export default function DemandsPage() {
                   className="text-sm py-2.5 px-4 rounded-xl border-2 border-gray-100 text-navy-700 font-bold hover:border-gray-200 transition-colors flex items-center gap-2"
                 >
                   <MessageCircle className="w-4 h-4" /> Chats
+                  {unreadChatCount > 0 ? (
+                    <span className="inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-brand-orange text-white text-[10px] leading-none">
+                      {unreadChatCount}
+                    </span>
+                  ) : null}
                 </Link>
               )}
               {!isSeller && (
