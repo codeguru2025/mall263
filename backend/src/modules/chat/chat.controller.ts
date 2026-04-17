@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
+import { ChatGateway } from './chat.gateway';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -9,7 +10,10 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 @UseGuards(JwtAuthGuard)
 @Controller('chat')
 export class ChatController {
-  constructor(private chatService: ChatService) {}
+  constructor(
+    private chatService: ChatService,
+    private chatGateway: ChatGateway,
+  ) {}
 
   @Get('rooms')
   @ApiOperation({ summary: 'Get my chat rooms' })
@@ -40,6 +44,8 @@ export class ChatController {
     @CurrentUser('id') senderId: string,
     @Body('content') content: string,
   ) {
-    return this.chatService.sendMessage(roomId, senderId, content);
+    const message = await this.chatService.sendMessage(roomId, senderId, content);
+    this.chatGateway.emitRoomMessage(roomId, message);
+    return message;
   }
 }

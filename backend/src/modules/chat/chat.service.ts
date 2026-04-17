@@ -43,6 +43,10 @@ export class ChatService {
     return room;
   }
 
+  async assertRoomAccess(roomId: string, userId: string) {
+    await this.verifyRoomAccess(roomId, userId);
+  }
+
   async getOrCreateRoom(offerId: string, userId: string) {
     const { offer } = await this.verifyAccess(offerId, userId);
     if (offer.status !== OfferStatus.ACCEPTED) {

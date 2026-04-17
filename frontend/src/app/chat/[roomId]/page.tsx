@@ -7,6 +7,7 @@ import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { Logo } from '@/components/Logo';
 import { ArrowLeft, Send, Loader2 } from 'lucide-react';
+import { io, type Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { useState, useEffect, useRef } from 'react';
 
@@ -54,6 +55,39 @@ export default function ChatRoomPage() {
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('online', onOnline);
       document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [roomId, isAuthenticated, queryClient]);
+
+  useEffect(() => {
+    if (!roomId || !isAuthenticated) return;
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+
+    const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/api\/v1\/?$/, '');
+    const socket: Socket = io(`${baseUrl}/chat`, {
+      transports: ['websocket', 'polling'],
+      auth: { token: `Bearer ${token}` },
+    });
+
+    socket.on('connect', () => {
+      socket.emit('chat.join', { roomId });
+    });
+
+    socket.on('chat.message', (msg: any) => {
+      if (!msg?.id) return;
+      queryClient.setQueryData(['chat', roomId], (old: any[] = []) => {
+        if (old.some((m) => m.id === msg.id)) return old;
+        return [...old, msg];
+      });
+      queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
+    });
+
+    socket.on('connect_error', () => {
+      setPollError((prev) => prev ?? 'Realtime connection unavailable. Using fallback refresh.');
+    });
+
+    return () => {
+      socket.disconnect();
     };
   }, [roomId, isAuthenticated, queryClient]);
 

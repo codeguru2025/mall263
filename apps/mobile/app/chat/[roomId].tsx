@@ -14,9 +14,12 @@ import {
 import { useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
+import { io, type Socket } from 'socket.io-client';
 import { Brand } from '@/constants/brand';
 import { fetchChatMessages, sendChatMessage, type ChatMessageRow } from '@/lib/chat-api';
 import { getApiErrorMessage } from '@/lib/api-errors';
+import { getApiBaseUrl } from '@/lib/config';
+import { getAccessToken } from '@/lib/token-storage';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function ChatRoomScreen() {
@@ -64,6 +67,44 @@ export default function ChatRoomScreen() {
       }
     }, 3000);
     return () => clearInterval(interval);
+  }, [roomId, queryClient]);
+
+  useEffect(() => {
+    if (!roomId) return;
+    let socket: Socket | null = null;
+    let mounted = true;
+
+    (async () => {
+      const token = await getAccessToken();
+      if (!token || !mounted) return;
+
+      socket = io(`${getApiBaseUrl()}/chat`, {
+        transports: ['websocket', 'polling'],
+        auth: { token: `Bearer ${token}` },
+      });
+
+      socket.on('connect', () => {
+        socket?.emit('chat.join', { roomId });
+      });
+
+      socket.on('chat.message', (msg: ChatMessageRow) => {
+        if (!msg?.id) return;
+        queryClient.setQueryData(['chat-room', roomId], (old: ChatMessageRow[] = []) => {
+          if (old.some((m) => m.id === msg.id)) return old;
+          return [...old, msg];
+        });
+        queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
+      });
+
+      socket.on('connect_error', () => {
+        setPollError((prev) => prev ?? 'Realtime connection unavailable. Using fallback refresh.');
+      });
+    })();
+
+    return () => {
+      mounted = false;
+      socket?.disconnect();
+    };
   }, [roomId, queryClient]);
 
   useEffect(() => {
