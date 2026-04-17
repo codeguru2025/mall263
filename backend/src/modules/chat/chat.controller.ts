@@ -1,21 +1,27 @@
-import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, Body, UseGuards, Logger } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
+import { PrismaService } from '../../prisma/prisma.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 // Bumped per-deploy so clients can confirm which backend revision they are
 // actually talking to. Keep this as a plain string so it survives minification.
-const CHAT_BUILD_TAG = 'chat-hotfix-2026-04-17-p2023-bulletproof-v2';
+const CHAT_BUILD_TAG = 'chat-hotfix-2026-04-17-p2023-bulletproof-v3-controller-catch';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @ApiTags('Chat')
 @ApiBearerAuth()
 @Controller('chat')
 export class ChatController {
+  private readonly logger = new Logger(ChatController.name);
+
   constructor(
     private chatService: ChatService,
     private chatGateway: ChatGateway,
+    private prisma: PrismaService,
   ) {}
 
   // Public, unauthenticated version probe so we can verify from the phone /
@@ -35,7 +41,101 @@ export class ChatController {
   @Get('rooms')
   @ApiOperation({ summary: 'Get my chat rooms' })
   async getMyRooms(@CurrentUser('id') userId: string) {
-    return this.chatService.getMyRooms(userId);
+    // Absolute last line of defense: even if every safeguard inside the
+    // service somehow leaks an exception, we log it and return an empty
+    // list so the mobile inbox never wedges on a 5xx.
+    try {
+      return await this.chatService.getMyRooms(userId);
+    } catch (err) {
+      const e = err as { code?: string; message?: string; meta?: unknown };
+      this.logger.error(
+        `getMyRooms crashed for userId=${userId} code=${e.code ?? 'n/a'} msg=${e.message ?? err} meta=${JSON.stringify(e.meta ?? null)}`,
+      );
+      if (err instanceof Error && err.stack) this.logger.error(err.stack);
+      return [];
+    }
+  }
+
+  // Authenticated step-by-step diagnostic. Runs each piece of the inbox
+  // query in isolation and reports which one (if any) fails, along with
+  // the Prisma error code. Safe to call from the phone — never throws.
+  @UseGuards(JwtAuthGuard)
+  @Get('_debug')
+  @ApiOperation({ summary: 'Diagnose chat inbox queries for the current user' })
+  async debugInbox(@CurrentUser('id') userId: string) {
+    const steps: Array<{
+      step: string;
+      ok: boolean;
+      count?: number;
+      code?: string;
+      message?: string;
+    }> = [];
+
+    const run = async <T>(step: string, fn: () => Promise<T>) => {
+      try {
+        const result = await fn();
+        const count = Array.isArray(result) ? result.length : undefined;
+        steps.push({ step, ok: true, count });
+        return result;
+      } catch (err) {
+        const e = err as { code?: string; message?: string };
+        steps.push({ step, ok: false, code: e.code, message: e.message ?? String(err) });
+        return null;
+      }
+    };
+
+    const userIdLooksValid = !!userId && UUID_RE.test(userId);
+    steps.push({ step: 'userId.uuid-shape', ok: userIdLooksValid, message: userId });
+    if (!userIdLooksValid) return { userId, tag: CHAT_BUILD_TAG, steps };
+
+    await run('sellerOffer.findMany({demand.buyerId})', () =>
+      this.prisma.sellerOffer.findMany({
+        where: { demand: { buyerId: userId } },
+        select: { id: true },
+      }),
+    );
+    await run('sellerOffer.findMany({stall.merchant.userId})', () =>
+      this.prisma.sellerOffer.findMany({
+        where: { stall: { merchant: { userId } } },
+        select: { id: true },
+      }),
+    );
+    await run('sellerOffer.findMany({stall.attendants.some.userId})', () =>
+      this.prisma.sellerOffer.findMany({
+        where: { stall: { attendants: { some: { userId } } } },
+        select: { id: true },
+      }),
+    );
+    await run('chatRoom.findMany:minimal', () =>
+      this.prisma.chatRoom.findMany({ take: 1, orderBy: { createdAt: 'desc' } }),
+    );
+    await run('chatRoom.findMany:rich(global)', () =>
+      this.prisma.chatRoom.findMany({
+        take: 1,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: { sender: { select: { id: true, firstName: true } } },
+          },
+          offer: {
+            select: {
+              id: true,
+              totalPrice: true,
+              status: true,
+              demand: { select: { title: true } },
+              stall: { select: { name: true } },
+            },
+          },
+        },
+      }),
+    );
+    await run('user.findUnique', () =>
+      this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } }),
+    );
+
+    return { userId, tag: CHAT_BUILD_TAG, steps };
   }
 
   @UseGuards(JwtAuthGuard)

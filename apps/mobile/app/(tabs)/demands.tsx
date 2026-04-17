@@ -13,7 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Brand } from '@/constants/brand';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchMyChatRooms } from '@/lib/chat-api';
+import { fetchMyChatRoomsSafe } from '@/lib/chat-api';
 import { fetchMyDemands, type DemandListItem } from '@/lib/demands-api';
 import { formatMoney } from '@/lib/products';
 
@@ -52,13 +52,13 @@ export default function DemandsScreen() {
 
   const chatRoomsQ = useQuery({
     queryKey: ['chat-rooms'],
-    queryFn: fetchMyChatRooms,
+    queryFn: fetchMyChatRoomsSafe,
     refetchInterval: 10000,
   });
 
   const unreadChatCount = useMemo(
     () =>
-      (chatRoomsQ.data ?? []).reduce((count, room) => {
+      (chatRoomsQ.data?.rooms ?? []).reduce((count, room) => {
         const senderId = room.messages?.[0]?.sender?.id;
         return senderId && senderId !== user?.id ? count + 1 : count;
       }, 0),
