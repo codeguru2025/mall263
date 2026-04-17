@@ -163,6 +163,12 @@ export default function ChatRoomScreen() {
     return (
       <View style={styles.centered}>
         <Text style={styles.error}>{loadError || 'Could not load this chat room.'}</Text>
+        <Text style={styles.debug} selectable>
+          room id: {String(resolvedRoomId ?? 'missing')}
+        </Text>
+        <Text style={styles.debug} selectable>
+          raw: {JSON.stringify(roomId)}
+        </Text>
         <Pressable style={styles.retry} onPress={() => q.refetch()}>
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
@@ -276,6 +282,14 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: Brand.pageBg },
   muted: { marginTop: 10, color: Brand.muted },
   error: { color: Brand.red, fontWeight: '700', textAlign: 'center' },
+  debug: {
+    marginTop: 10,
+    fontSize: 11,
+    color: Brand.muted,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    textAlign: 'center',
+    paddingHorizontal: 12,
+  },
   retry: { marginTop: 16, backgroundColor: Brand.blue, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10 },
   retryText: { color: '#fff', fontWeight: '700' },
   empty: { textAlign: 'center', color: Brand.muted, marginTop: 16, fontSize: 14 },

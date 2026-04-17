@@ -73,8 +73,9 @@ export default function ShopScreen() {
       const img = item.imageUrl;
       return (
         <Pressable
-          style={[styles.card, cardShadow]}
+          style={({ pressed }) => [styles.card, cardShadow, pressed && styles.cardPressed]}
           onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
+          android_ripple={{ color: Brand.border, borderless: false }}
         >
           <View style={styles.thumbWrap}>
             {img ? (
@@ -92,7 +93,7 @@ export default function ShopScreen() {
               </View>
             )}
           </View>
-          <View style={styles.rowBody}>
+          <View style={styles.cardBody}>
             <Text style={styles.name} numberOfLines={2}>
               {item.name}
             </Text>
@@ -101,7 +102,7 @@ export default function ShopScreen() {
                 {item.subtitle}
               </Text>
             ) : null}
-            <Text style={styles.price}>
+            <Text style={styles.price} numberOfLines={1}>
               {formatMoney(item.minPrice, item.currency || 'USD')}
               {String(item.minPrice) !== String(item.maxPrice)
                 ? ` – ${formatMoney(item.maxPrice, item.currency || 'USD')}`
@@ -174,9 +175,12 @@ export default function ShopScreen() {
   return (
     <View style={styles.page}>
       <FlatList
+        key="shop-grid-2col"
         data={items}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
+        numColumns={2}
+        columnWrapperStyle={styles.columnWrapper}
         ListHeaderComponent={header}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} colors={[Brand.blue]} />
@@ -248,29 +252,31 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  listContent: { paddingHorizontal: 12, paddingTop: 4, paddingBottom: 24 },
+  listContent: { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 24 },
+  columnWrapper: { gap: 10, marginBottom: 10 },
   card: {
-    flexDirection: 'row',
-    padding: 12,
-    marginBottom: 10,
+    flex: 1,
+    flexBasis: '48%',
+    maxWidth: '50%',
     backgroundColor: Brand.card,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: Brand.border,
+    overflow: 'hidden',
   },
-  thumbWrap: { marginRight: 12 },
-  thumb: { width: 80, height: 80, borderRadius: 12, backgroundColor: Brand.pageBg, overflow: 'hidden' },
+  cardPressed: { opacity: 0.88, transform: [{ scale: 0.98 }] },
+  thumbWrap: { width: '100%', aspectRatio: 1, backgroundColor: '#fff' },
+  thumb: { width: '100%', height: '100%' },
   thumbPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Brand.border,
+    backgroundColor: '#f8fafc',
   },
-  thumbLetter: { fontSize: 28, fontWeight: '800', color: Brand.blue },
-  rowBody: { flex: 1, justifyContent: 'center' },
-  name: { fontSize: 16, fontWeight: '700', color: Brand.navy, lineHeight: 21 },
-  meta: { fontSize: 13, color: Brand.muted, marginTop: 4 },
-  price: { fontSize: 15, fontWeight: '700', color: Brand.blue, marginTop: 8 },
+  thumbLetter: { fontSize: 40, fontWeight: '800', color: Brand.blue },
+  cardBody: { padding: 10, paddingTop: 8, gap: 4 },
+  name: { fontSize: 13, fontWeight: '800', color: Brand.navy, lineHeight: 17 },
+  meta: { fontSize: 11, color: Brand.muted },
+  price: { fontSize: 14, fontWeight: '800', color: Brand.blue, marginTop: 2 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   muted: { marginTop: 10, color: Brand.muted, textAlign: 'center', fontSize: 15 },
   errorTitle: { fontSize: 18, fontWeight: '800', color: Brand.red },
