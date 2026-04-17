@@ -5,7 +5,7 @@ import { useAuthStore } from '@/lib/store';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight, LogOut, Receipt, TrendingUp, AlertTriangle, Gift, X, Camera, Loader2, QrCode, Share2, Copy, ExternalLink } from 'lucide-react';
+import { Store, ShoppingCart, Wallet, Package, Gavel, Users, Bell, Settings, BarChart3, PlusCircle, ArrowUpRight, ArrowDownLeft, Lock, ChevronRight, LogOut, Receipt, TrendingUp, AlertTriangle, Gift, X, Camera, Loader2, QrCode, Share2, Copy, ExternalLink, List } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useRef } from 'react';
@@ -363,9 +363,12 @@ export default function DashboardPage() {
                 <Lock className="w-3 h-3" /> Locked: {formatCurrency(parseFloat(wallet?.locked ?? '0'))}
               </div>
             )}
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <Link href="/wallet/deposit" className="flex items-center gap-2 bg-brand-orange hover:bg-orange-500 text-white text-sm font-bold py-2.5 px-5 rounded-xl transition-all shadow-md">
                 <ArrowDownLeft className="w-4 h-4" /> Deposit
+              </Link>
+              <Link href="/wallet" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold py-2.5 px-5 rounded-xl transition-colors">
+                <List className="w-4 h-4" /> Overview
               </Link>
               <Link href="/wallet/history" className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white text-sm font-semibold py-2.5 px-5 rounded-xl transition-colors">
                 <ArrowUpRight className="w-4 h-4" /> History

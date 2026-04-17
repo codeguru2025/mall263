@@ -34,7 +34,7 @@ export default function HomeScreen() {
       </View>
 
       <Text style={styles.hint}>
-        Shop, Demands (post & accept offers), Alerts, Profile — same API as the website.
+        Shop, Demands, Wallet (balances & history), Alerts, Profile — same API as the website.
       </Text>
     </View>
   );

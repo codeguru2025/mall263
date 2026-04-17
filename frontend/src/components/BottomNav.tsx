@@ -12,7 +12,7 @@ const CUSTOMER_TABS = [
   { href: '/for-you',       icon: Sparkles,        label: 'For You' },
   { href: '/marketplace',    icon: Search,          label: 'Browse' },
   { href: '/demands',        icon: Gavel,           label: 'Demands' },
-  { href: '/wallet/deposit', icon: Wallet,          label: 'Top Up' },
+  { href: '/wallet',         icon: Wallet,          label: 'Wallet' },
   { href: '/dashboard',      icon: LayoutDashboard, label: 'Account' },
 ];
 
@@ -20,7 +20,7 @@ const SELLER_TABS = [
   { href: '/dashboard',      icon: LayoutDashboard, label: 'Home' },
   { href: '/pos',            icon: Store,           label: 'POS' },
   { href: '/demands',        icon: Gavel,           label: 'Demands' },
-  { href: '/wallet/deposit', icon: Wallet,          label: 'Top Up' },
+  { href: '/wallet',         icon: Wallet,          label: 'Wallet' },
   { href: '/inventory',      icon: Package,         label: 'Stock' },
   { href: '/seller/reports', icon: BarChart3,       label: 'Reports' },
 ];
@@ -38,7 +38,7 @@ const AGENT_TABS = [
   { href: '/dashboard',      icon: LayoutDashboard, label: 'Home' },
   { href: '/agent',          icon: MapPin,          label: 'Agent' },
   { href: '/marketplace',    icon: Search,          label: 'Browse' },
-  { href: '/wallet/deposit', icon: Wallet,          label: 'Top Up' },
+  { href: '/wallet',         icon: Wallet,          label: 'Wallet' },
 ];
 
 export default function BottomNav() {
@@ -54,16 +54,16 @@ export default function BottomNav() {
   const isAdmin = user ? ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'].includes(user.role) : false;
   const isFieldAgent = user?.role === 'FIELD_AGENT';
   const TABS = isAdmin ? ADMIN_TABS : isSeller ? SELLER_TABS : isFieldAgent ? AGENT_TABS : CUSTOMER_TABS;
-  const TOP_UP_HREF = '/wallet/deposit';
+  const WALLET_HREF = '/wallet';
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 sm:hidden bg-white border-t border-gray-100 safe-area-bottom">
       <div className="flex items-stretch">
         {TABS.map(({ href, icon: Icon, label }) => {
           const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
-          const isTopUp = href === TOP_UP_HREF && !isAdmin;
+          const isWalletTab = href === WALLET_HREF && !isAdmin;
 
-          if (isTopUp) {
+          if (isWalletTab) {
             return (
               <Link
                 key={href}
@@ -77,7 +77,7 @@ export default function BottomNav() {
                 >
                   <Icon className="w-6 h-6 text-white" />
                 </motion.div>
-                <span className="text-[10px] font-bold text-brand-orange mt-0.5">Top Up</span>
+                <span className="text-[10px] font-bold text-brand-orange mt-0.5">Wallet</span>
               </Link>
             );
           }
@@ -92,6 +92,7 @@ export default function BottomNav() {
                 href !== '/for-you' &&
                 href !== '/services' &&
                 href !== '/demands' &&
+                href !== '/wallet' &&
                 href !== '/agent'
                   ? '/auth/login'
                   : href
