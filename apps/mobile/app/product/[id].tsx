@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -14,6 +15,8 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { api } from '@/lib/api';
 import { Brand } from '@/constants/brand';
 import { formatMoney } from '@/lib/products';
+import { isWishlisted, toggleWishlist } from '@/lib/wishlist';
+import { recordView } from '@/lib/recently-viewed';
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -50,6 +53,7 @@ type ProductDetail = {
 export default function ProductDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const [hearted, setHearted] = useState(false);
 
   const q = useQuery({
     queryKey: ['product', id],
@@ -59,6 +63,39 @@ export default function ProductDetailScreen() {
     },
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (id) isWishlisted(id).then(setHearted);
+  }, [id]);
+
+  useEffect(() => {
+    if (!q.data || !id) return;
+    const p = q.data;
+    const img = (p.images ?? [])[0]?.url ?? null;
+    recordView({
+      id,
+      name: String(p.name ?? ''),
+      minPrice: p.minPrice,
+      maxPrice: p.maxPrice,
+      currency: (p.currency as string) || 'USD',
+      imageUrl: img,
+    });
+  }, [q.data, id]);
+
+  const onToggleWishlist = useCallback(async () => {
+    if (!q.data || !id) return;
+    const p = q.data;
+    const img = (p.images ?? [])[0]?.url ?? null;
+    const added = await toggleWishlist({
+      id,
+      name: String(p.name ?? ''),
+      minPrice: p.minPrice,
+      maxPrice: p.maxPrice,
+      currency: (p.currency as string) || 'USD',
+      imageUrl: img,
+    });
+    setHearted(added);
+  }, [q.data, id]);
 
   if (!id) {
     return (
@@ -128,6 +165,14 @@ export default function ProductDetailScreen() {
               : ''}
           </Text>
         </View>
+        <Pressable
+          style={styles.heartBtn}
+          onPress={onToggleWishlist}
+          hitSlop={8}
+          android_ripple={{ color: '#fee2e2', radius: 22, borderless: true }}
+        >
+          <FontAwesome name={hearted ? 'heart' : 'heart-o'} size={22} color={hearted ? Brand.red : Brand.muted} />
+        </Pressable>
       </View>
 
       <View style={[styles.panel, cardShadow]}>
@@ -261,6 +306,16 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   pricePillText: { color: '#fff', fontWeight: '800', fontSize: 14, letterSpacing: 0.2 },
+  heartBtn: {
+    position: 'absolute',
+    top: 20,
+    right: 28,
+    backgroundColor: Brand.card,
+    padding: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Brand.border,
+  },
 
   panel: {
     marginHorizontal: 16,

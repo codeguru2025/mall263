@@ -144,6 +144,25 @@ export default function ProfileScreen() {
         )}
 
         <View style={styles.linksCard}>
+          <Pressable style={styles.linkRow} onPress={() => router.push('/wishlist' as any)}>
+            <Text style={styles.linkText}>❤️  Wishlist</Text>
+            <Text style={styles.linkChevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.linkRow} onPress={() => router.push('/for-you' as any)}>
+            <Text style={styles.linkText}>👁  Recently viewed</Text>
+            <Text style={styles.linkChevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.linkRow} onPress={() => router.push('/referral' as any)}>
+            <Text style={styles.linkText}>🎁  Referrals &amp; promo codes</Text>
+            <Text style={styles.linkChevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.linkRow} onPress={() => router.push('/settings/notifications' as any)}>
+            <Text style={styles.linkText}>🔔  Notification preferences</Text>
+            <Text style={styles.linkChevron}>›</Text>
+          </Pressable>
+        </View>
+
+        <View style={[styles.linksCard, { marginTop: 14 }]}>
           <Pressable style={styles.linkRow} onPress={() => router.push('/malls')}>
             <Text style={styles.linkText}>🏬  Browse malls</Text>
             <Text style={styles.linkChevron}>›</Text>

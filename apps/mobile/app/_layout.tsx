@@ -143,6 +143,10 @@ function RootLayoutNav() {
             <Stack.Screen name="driver/register" options={{ title: 'Become a driver' }} />
             <Stack.Screen name="driver/cod" options={{ title: 'Cash on Delivery' }} />
             <Stack.Screen name="dispute/[jobId]" options={{ title: 'Open Dispute' }} />
+            <Stack.Screen name="wishlist" options={{ title: 'Wishlist' }} />
+            <Stack.Screen name="for-you" options={{ title: 'For You' }} />
+            <Stack.Screen name="referral" options={{ title: 'Referrals & Promo' }} />
+            <Stack.Screen name="settings/notifications" options={{ title: 'Notification preferences' }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
           </Stack>
         </ThemeProvider>
