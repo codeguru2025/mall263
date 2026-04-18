@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Brand } from '@/constants/brand';
 import { createDemand } from '@/lib/demands-api';
 import { getApiErrorMessage } from '@/lib/api-errors';
@@ -22,10 +22,16 @@ const URGENCIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const;
 export default function NewDemandScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [maxBudget, setMaxBudget] = useState('');
-  const [minBudget, setMinBudget] = useState('');
+  const params = useLocalSearchParams<{
+    title?: string;
+    description?: string;
+    maxBudget?: string;
+    minBudget?: string;
+  }>();
+  const [title, setTitle] = useState(params.title ?? '');
+  const [description, setDescription] = useState(params.description ?? '');
+  const [maxBudget, setMaxBudget] = useState(params.maxBudget ?? '');
+  const [minBudget, setMinBudget] = useState(params.minBudget ?? '');
   const [urgency, setUrgency] = useState<(typeof URGENCIES)[number]>('MEDIUM');
 
   const mutation = useMutation({

@@ -144,6 +144,10 @@ export default function ProfileScreen() {
         )}
 
         <View style={styles.linksCard}>
+          <Pressable style={styles.linkRow} onPress={() => router.push('/malls')}>
+            <Text style={styles.linkText}>🏬  Browse malls</Text>
+            <Text style={styles.linkChevron}>›</Text>
+          </Pressable>
           <Pressable style={styles.linkRow} onPress={() => router.push('/services')}>
             <Text style={styles.linkText}>🛠  Services marketplace</Text>
             <Text style={styles.linkChevron}>›</Text>
@@ -158,6 +162,14 @@ export default function ProfileScreen() {
           </Pressable>
           <Pressable style={styles.linkRow} onPress={() => router.push('/support')}>
             <Text style={styles.linkText}>💬  Help &amp; support</Text>
+            <Text style={styles.linkChevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.linkRow} onPress={() => router.push('/help/faq')}>
+            <Text style={styles.linkText}>❓  FAQ</Text>
+            <Text style={styles.linkChevron}>›</Text>
+          </Pressable>
+          <Pressable style={styles.linkRow} onPress={() => router.push('/help/terms')}>
+            <Text style={styles.linkText}>📄  Terms of service</Text>
             <Text style={styles.linkChevron}>›</Text>
           </Pressable>
           {q.data?.role !== 'DRIVER' && (

@@ -84,6 +84,10 @@ export type Mall = {
   name: string;
   city?: string | null;
   address?: string | null;
+  imageUrl?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  _count?: { stalls?: number };
 };
 
 export async function fetchMalls(city?: string): Promise<Mall[]> {
@@ -91,6 +95,18 @@ export async function fetchMalls(city?: string): Promise<Mall[]> {
     params: city ? { city } : undefined,
   });
   return Array.isArray(data) ? data : [];
+}
+
+/** Fetches products filtered by mallId — used as a proxy for "products in this mall". */
+export async function fetchMallProducts(
+  mallId: string,
+  page = 1,
+  limit = 24,
+): Promise<StallBrowseResponse> {
+  const { data } = await api.get<StallBrowseResponse>('/api/v1/products/browse', {
+    params: { mallId, page, limit, sortBy: 'newest' },
+  });
+  return data;
 }
 
 export type MerchantSelfSetup = {

@@ -139,6 +139,30 @@ export default function ProductDetailScreen() {
             : ''}
         </Text>
         {description ? <Text style={styles.desc}>{description}</Text> : null}
+
+        <Pressable
+          style={({ pressed }) => [styles.wantBtn, pressed && styles.wantBtnPressed]}
+          onPress={() => {
+            const maxStr = typeof maxPrice === 'number' ? String(maxPrice) : typeof maxPrice === 'string' ? maxPrice : '';
+            const minStr = typeof minPrice === 'number' ? String(minPrice) : typeof minPrice === 'string' ? minPrice : '';
+            router.push({
+              pathname: '/demand/new',
+              params: {
+                title: name,
+                description: description || `Looking for "${name}" — see product for reference.`,
+                maxBudget: maxStr,
+                minBudget: minStr && minStr !== maxStr ? minStr : '',
+              },
+            });
+          }}
+          android_ripple={{ color: '#ffffff22' }}
+        >
+          <FontAwesome name="hand-o-up" size={16} color="#fff" />
+          <Text style={styles.wantBtnText}>I want this — post a demand</Text>
+        </Pressable>
+        <Text style={styles.wantHint}>
+          Sellers across the mall will see your request and send offers.
+        </Text>
       </View>
 
       {stall ? (
@@ -250,6 +274,20 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '900', color: Brand.navy, lineHeight: 30, letterSpacing: -0.3 },
   priceLine: { fontSize: 20, fontWeight: '800', color: Brand.blue, marginTop: 10 },
   desc: { fontSize: 15, color: '#334155', marginTop: 16, lineHeight: 23 },
+
+  wantBtn: {
+    marginTop: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: Brand.blue,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  wantBtnPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
+  wantBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  wantHint: { marginTop: 8, fontSize: 11, color: Brand.muted, textAlign: 'center' },
 
   storePanel: {
     marginHorizontal: 16,

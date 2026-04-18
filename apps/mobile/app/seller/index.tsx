@@ -144,6 +144,22 @@ export default function SellerHubScreen() {
         )}
       </View>
 
+      {/* Quick ops links */}
+      <View style={styles.opsRow}>
+        <Pressable style={styles.opsCard} onPress={() => router.push('/seller/sales')}>
+          <Text style={styles.opsCardIcon}>💰</Text>
+          <Text style={styles.opsCardText}>Sales</Text>
+        </Pressable>
+        <Pressable style={styles.opsCard} onPress={() => router.push('/seller/expenses')}>
+          <Text style={styles.opsCardIcon}>🧾</Text>
+          <Text style={styles.opsCardText}>Expenses</Text>
+        </Pressable>
+        <Pressable style={styles.opsCard} onPress={() => router.push('/seller/reports')}>
+          <Text style={styles.opsCardIcon}>📊</Text>
+          <Text style={styles.opsCardText}>Reports</Text>
+        </Pressable>
+      </View>
+
       {/* Section header */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>
@@ -217,6 +233,20 @@ const styles = StyleSheet.create({
   stallPickerBtnActive: { backgroundColor: Brand.blue, borderColor: Brand.blue },
   stallPickerText: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '700' },
   stallPickerTextActive: { color: '#fff' },
+
+  opsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  opsCard: {
+    flex: 1,
+    backgroundColor: Brand.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 6,
+  },
+  opsCardIcon: { fontSize: 22 },
+  opsCardText: { fontSize: 12, fontWeight: '800', color: Brand.navy },
 
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: Brand.navy },

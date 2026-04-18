@@ -113,6 +113,13 @@ function RootLayoutNav() {
             <Stack.Screen name="seller/setup" options={{ title: 'Seller setup' }} />
             <Stack.Screen name="seller/product/new" options={{ title: 'Add product' }} />
             <Stack.Screen name="seller/product/[id]" options={{ title: 'Edit product' }} />
+            <Stack.Screen name="seller/sales" options={{ title: 'Sales' }} />
+            <Stack.Screen name="seller/expenses" options={{ title: 'Expenses' }} />
+            <Stack.Screen name="seller/reports" options={{ title: 'Reports' }} />
+            <Stack.Screen name="malls/index" options={{ title: 'Malls' }} />
+            <Stack.Screen name="malls/[id]" options={{ title: 'Mall' }} />
+            <Stack.Screen name="help/faq" options={{ title: 'FAQ' }} />
+            <Stack.Screen name="help/terms" options={{ title: 'Terms of service' }} />
             <Stack.Screen name="services/index" options={{ title: 'Services' }} />
             <Stack.Screen name="services/[id]" options={{ title: 'Service' }} />
             <Stack.Screen name="services/request/[listingId]" options={{ title: 'Request quote' }} />
