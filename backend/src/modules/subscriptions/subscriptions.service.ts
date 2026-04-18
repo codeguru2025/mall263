@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
-import { NotificationType, SubscriptionStatus } from '@prisma/client';
+import { AgentCommissionStatus, NotificationType, SubscriptionStatus, WalletTransactionStatus, WalletTransactionType, Prisma } from '@prisma/client';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { Paynow } = require('paynow');
 
@@ -10,6 +10,7 @@ const FALLBACK_PRICE_USD = 5;
 const FALLBACK_TRIAL_DAYS = 7;
 const GRACE_DAYS = 3;
 const RETRY_INTERVAL_MINUTES = 30;
+const AGENT_COMMISSION_RATE = 0.10; // 10% of subscription payment
 
 @Injectable()
 export class SubscriptionsService {
@@ -460,6 +461,74 @@ export class SubscriptionsService {
         data: { type: 'subscription', reference },
       },
     });
+
+    // Credit the referring agent's commission if this merchant was onboarded by an agent
+    try {
+      const payment = await this.prisma.subscriptionPayment.findUnique({ where: { paynowRef: reference } });
+      const merchant = await this.prisma.merchant.findUnique({
+        where: { userId: sub.userId },
+        select: { id: true, onboardedById: true },
+      });
+
+      if (merchant?.onboardedById) {
+        const commissionAmount = new Prisma.Decimal(Number(payment?.amount ?? FALLBACK_PRICE_USD) * AGENT_COMMISSION_RATE);
+
+        // Check no commission already credited for this subscription payment
+        const alreadyCredited = await this.prisma.agentCommission.findFirst({
+          where: { merchantId: merchant.id, subscriptionId: sub.id, status: AgentCommissionStatus.CREDITED },
+        });
+
+        if (!alreadyCredited) {
+          const agentWallet = await this.prisma.wallet.findUnique({ where: { userId: merchant.onboardedById } });
+          if (agentWallet) {
+            const balanceBefore = agentWallet.availableBalance;
+            const balanceAfter = balanceBefore.plus(commissionAmount);
+
+            await this.prisma.$transaction(async (tx) => {
+              await tx.wallet.update({
+                where: { userId: merchant.onboardedById! },
+                data: { availableBalance: balanceAfter, lastActivityAt: new Date() },
+              });
+              await tx.walletTransaction.create({
+                data: {
+                  walletId: agentWallet.id,
+                  type: WalletTransactionType.AGENT_COMMISSION,
+                  status: WalletTransactionStatus.COMPLETED,
+                  amount: commissionAmount,
+                  balanceBefore,
+                  balanceAfter,
+                  completedAt: new Date(),
+                  description: `Agent commission: ${AGENT_COMMISSION_RATE * 100}% of subscription payment (ref ${reference})`,
+                },
+              });
+              await tx.agentCommission.create({
+                data: {
+                  agentId: merchant.onboardedById!,
+                  merchantId: merchant.id,
+                  subscriptionId: sub.id,
+                  amount: commissionAmount,
+                  status: AgentCommissionStatus.CREDITED,
+                  paidAt: new Date(),
+                },
+              });
+              await tx.notification.create({
+                data: {
+                  userId: merchant.onboardedById!,
+                  type: NotificationType.AGENT_COMMISSION_CREDITED,
+                  title: 'Commission credited',
+                  body: `You earned $${commissionAmount.toFixed(2)} for a subscription renewal.`,
+                  data: { type: 'agent_commission', merchantId: merchant.id },
+                },
+              });
+            }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+            this.logger.log(`Agent commission $${commissionAmount.toFixed(2)} credited to agent ${merchant.onboardedById}`);
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.error('Failed to credit agent commission (non-fatal)', err);
+    }
 
     this.logger.log(`Subscription activated for user ${sub.userId} via ref ${reference}`);
   }

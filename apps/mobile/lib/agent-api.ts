@@ -70,3 +70,26 @@ export async function searchOnboardingCandidates(q: string): Promise<{ data: Onb
   });
   return data;
 }
+
+export type AgentCommission = {
+  id: string;
+  agentId: string;
+  merchantId: string;
+  subscriptionId?: string | null;
+  amount: string;
+  currency: string;
+  status: 'PENDING' | 'CREDITED' | 'REVERSED';
+  paidAt?: string | null;
+  createdAt: string;
+  merchant: { id: string; businessName: string; status: string };
+};
+
+export type CommissionsResult = {
+  data: AgentCommission[];
+  totalEarned: number;
+};
+
+export async function fetchMyCommissions(): Promise<CommissionsResult> {
+  const { data } = await api.get<CommissionsResult>('/api/v1/agents/commissions');
+  return data;
+}

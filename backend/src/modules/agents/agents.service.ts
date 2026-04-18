@@ -138,4 +138,42 @@ export class AgentsService {
     ]);
     return { total, completed, pending, failed };
   }
+
+  async listMyCommissions(agentId: string) {
+    const commissions = await this.prisma.agentCommission.findMany({
+      where: { agentId },
+      include: {
+        merchant: { select: { id: true, businessName: true, status: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const totalEarned = commissions
+      .filter((c) => c.status === 'CREDITED')
+      .reduce((sum, c) => sum + Number(c.amount), 0);
+
+    return { data: commissions, totalEarned };
+  }
+
+  async getMerchantSubscriptionForAgent(agentId: string, merchantId: string) {
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { id: true, businessName: true, onboardedById: true, userId: true },
+    });
+    if (!merchant) throw new NotFoundException('Merchant not found');
+    if (merchant.onboardedById !== agentId) {
+      throw new ForbiddenException('You did not onboard this merchant');
+    }
+
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { userId: merchant.userId },
+      select: { status: true, trialEndsAt: true, currentPeriodEnd: true, lastBilledAt: true },
+    });
+
+    return {
+      merchantId: merchant.id,
+      businessName: merchant.businessName,
+      subscription: subscription ?? null,
+    };
+  }
 }

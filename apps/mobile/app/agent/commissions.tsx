@@ -14,7 +14,7 @@ import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Brand } from '@/constants/brand';
-import { fetchMyTasks, type AgentTask } from '@/lib/agent-api';
+import { fetchMyTasks, fetchMyCommissions, type AgentTask } from '@/lib/agent-api';
 import { fetchMeProfile } from '@/lib/me-profile';
 
 const cardShadow =
@@ -53,19 +53,26 @@ export default function CommissionsScreen() {
     queryFn: () => fetchMyTasks('COMPLETED'),
   });
 
+  const commissionsQ = useQuery({
+    queryKey: ['agent-commissions'],
+    queryFn: fetchMyCommissions,
+  });
+
   const meQ = useQuery({
     queryKey: ['me-profile'],
     queryFn: fetchMeProfile,
   });
 
   const onboarded = (tasksQ.data ?? []).filter((t) => t.type === 'MERCHANT_ONBOARDING');
+  const commissions = commissionsQ.data?.data ?? [];
+  const totalEarned = commissionsQ.data?.totalEarned ?? 0;
   const wallet = meQ.data?.wallet;
   const currency = wallet?.currency || 'USD';
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    try { await Promise.all([tasksQ.refetch(), meQ.refetch()]); } finally { setRefreshing(false); }
-  }, [tasksQ, meQ]);
+    try { await Promise.all([tasksQ.refetch(), commissionsQ.refetch(), meQ.refetch()]); } finally { setRefreshing(false); }
+  }, [tasksQ, commissionsQ, meQ]);
 
   const shareNudge = useCallback(async (task: AgentTask) => {
     const first = merchantName(task).split(' ')[0];
@@ -151,6 +158,12 @@ export default function CommissionsScreen() {
           <Text style={styles.summaryValue}>{onboarded.length}</Text>
           <Text style={styles.summaryLabel}>Merchants recruited</Text>
         </View>
+        <View style={[styles.summaryCard, cardShadow]}>
+          <Text style={[styles.summaryValue, { color: Brand.green }]}>
+            {fmtBalance(totalEarned, currency)}
+          </Text>
+          <Text style={styles.summaryLabel}>Total earned</Text>
+        </View>
         <Pressable
           style={[styles.summaryCard, cardShadow, styles.recruitCard]}
           onPress={() => router.push('/agent/recruit' as any)}
@@ -180,13 +193,32 @@ export default function CommissionsScreen() {
         </Text>
       </View>
 
+      {commissions.length > 0 && (
+        <>
+          <Text style={styles.listLabel}>Recent commissions ({commissions.length})</Text>
+          {commissions.slice(0, 5).map((c) => (
+            <View key={c.id} style={[styles.commissionRow, cardShadow]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.commissionMerchant}>{c.merchant.businessName}</Text>
+                <Text style={styles.commissionDate}>{fmtDate(c.paidAt ?? c.createdAt)}</Text>
+              </View>
+              <View style={[styles.commissionBadge, c.status === 'CREDITED' && styles.commissionBadgeCredited]}>
+                <Text style={[styles.commissionBadgeText, c.status === 'CREDITED' && styles.commissionBadgeTextCredited]}>
+                  {c.status === 'CREDITED' ? `+${fmtBalance(c.amount, c.currency)}` : c.status}
+                </Text>
+              </View>
+            </View>
+          ))}
+          <View style={styles.divider} />
+        </>
+      )}
       {onboarded.length > 0 && (
-        <Text style={styles.listLabel}>Your merchant pipeline ({onboarded.length})</Text>
+        <Text style={styles.listLabel}>Merchant pipeline ({onboarded.length})</Text>
       )}
     </>
   );
 
-  if (tasksQ.isPending) {
+  if (tasksQ.isPending || commissionsQ.isPending) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator size="large" color={Brand.blue} />
@@ -357,4 +389,20 @@ const styles = StyleSheet.create({
   empty: { paddingTop: 32, alignItems: 'center', gap: 10 },
   emptyTitle: { fontSize: 18, fontWeight: '900', color: Brand.navy },
   emptyBody: { fontSize: 14, color: Brand.muted, textAlign: 'center', lineHeight: 20, paddingHorizontal: 16 },
+
+  commissionRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Brand.card, borderRadius: 12,
+    padding: 12, borderWidth: 1, borderColor: Brand.border,
+  },
+  commissionMerchant: { fontSize: 14, fontWeight: '700', color: Brand.navy },
+  commissionDate: { fontSize: 11, color: Brand.muted, marginTop: 2 },
+  commissionBadge: {
+    borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: Brand.border,
+  },
+  commissionBadgeCredited: { backgroundColor: '#f0fdf4', borderWidth: 1, borderColor: '#bbf7d0' },
+  commissionBadgeText: { fontSize: 13, fontWeight: '800', color: Brand.muted },
+  commissionBadgeTextCredited: { color: Brand.green },
+  divider: { height: 1, backgroundColor: Brand.border },
 });

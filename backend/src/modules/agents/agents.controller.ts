@@ -55,4 +55,19 @@ export class AgentsController {
   async getStats(@CurrentUser('id') agentId: string) {
     return this.agentsService.getAgentStats(agentId);
   }
+
+  @Get('commissions')
+  @ApiOperation({ summary: 'List my commissions' })
+  async listCommissions(@CurrentUser('id') agentId: string) {
+    return this.agentsService.listMyCommissions(agentId);
+  }
+
+  @Get('merchants/:merchantId/subscription')
+  @ApiOperation({ summary: 'Get subscription status of a merchant I recruited' })
+  async getMerchantSubscription(
+    @CurrentUser('id') agentId: string,
+    @Param('merchantId') merchantId: string,
+  ) {
+    return this.agentsService.getMerchantSubscriptionForAgent(agentId, merchantId);
+  }
 }

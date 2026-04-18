@@ -58,7 +58,7 @@ export default function MyDisputesScreen() {
             <Pressable
               style={styles.card}
               onPress={() =>
-                router.push({ pathname: '/tracking/[jobId]', params: { jobId: item.jobId } })
+                router.push({ pathname: '/delivery/track/[jobId]', params: { jobId: item.jobId } })
               }
             >
               <View style={styles.cardHeader}>

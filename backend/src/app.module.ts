@@ -33,6 +33,8 @@ import { DeliveryModule } from './modules/delivery/delivery.module';
 import { DriversModule } from './modules/drivers/drivers.module';
 import { CodModule } from './modules/cod/cod.module';
 import { DisputesModule } from './modules/disputes/disputes.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { AddressesModule } from './modules/addresses/addresses.module';
 
 @Module({
   imports: [
@@ -71,6 +73,8 @@ import { DisputesModule } from './modules/disputes/disputes.module';
     DriversModule,
     CodModule,
     DisputesModule,
+    ReviewsModule,
+    AddressesModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

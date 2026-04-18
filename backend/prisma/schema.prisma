@@ -79,6 +79,8 @@ enum WalletTransactionType {
   COD_REMITTED
   FLOAT_HOLD
   FLOAT_RELEASE
+  // Agent commissions
+  AGENT_COMMISSION
 }
 
 enum WalletTransactionStatus {
@@ -171,6 +173,7 @@ enum NotificationType {
   COD_REMINDER
   DISPUTE_OPENED
   DISPUTE_RESOLVED
+  AGENT_COMMISSION_CREDITED
 }
 
 enum AgentTaskType {
@@ -258,6 +261,9 @@ model User {
   escrowAccounts       EscrowAccount[]      @relation("BuyerEscrow")
   disputesRaised       Dispute[]            @relation("DisputeRaisedBy")
   disputesResolved     Dispute[]            @relation("DisputeResolvedBy")
+  agentCommissions     AgentCommission[]    @relation("AgentCommissions")
+  productReviews       ProductReview[]
+  addresses            UserAddress[]
 
   @@index([phone])
   @@index([role])
@@ -337,8 +343,9 @@ model Merchant {
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stalls Stall[]
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stalls      Stall[]
+  commissions AgentCommission[] @relation("AgentMerchantCommissions")
 
   @@index([status])
   @@index([onboardedById])
@@ -616,6 +623,7 @@ model Product {
   images   ProductImage[]
   analyticsEvents StallAnalyticsEvent[]
   demands  BuyerDemand[]
+  reviews  ProductReview[]
 
   @@index([stallId])
   @@index([categoryId])
@@ -1566,4 +1574,77 @@ model Ad {
   @@index([isActive])
   @@index([placement])
   @@map("ads")
+}
+
+// ============================================================
+// AGENT COMMISSIONS
+// ============================================================
+
+enum AgentCommissionStatus {
+  PENDING
+  CREDITED
+  REVERSED
+}
+
+model AgentCommission {
+  id             String                @id @default(uuid()) @db.Uuid
+  agentId        String                @map("agent_id") @db.Uuid
+  agent          User                  @relation("AgentCommissions", fields: [agentId], references: [id])
+  merchantId     String                @map("merchant_id") @db.Uuid
+  merchant       Merchant              @relation("AgentMerchantCommissions", fields: [merchantId], references: [id])
+  subscriptionId String?               @map("subscription_id") @db.Uuid
+  amount         Decimal               @db.Decimal(10, 2)
+  currency       String                @default("USD")
+  status         AgentCommissionStatus @default(PENDING)
+  paidAt         DateTime?             @map("paid_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  @@index([agentId])
+  @@index([merchantId])
+  @@index([status])
+  @@map("agent_commissions")
+}
+
+// ============================================================
+// PRODUCT REVIEWS
+// ============================================================
+
+model ProductReview {
+  id         String   @id @default(uuid()) @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  reviewerId String   @map("reviewer_id") @db.Uuid
+  reviewer   User     @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  rating     Int
+  title      String?
+  body       String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([productId, reviewerId])
+  @@index([productId])
+  @@index([reviewerId])
+  @@index([rating])
+  @@map("product_reviews")
+}
+
+// ============================================================
+// USER ADDRESSES
+// ============================================================
+
+model UserAddress {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String
+  line1     String   @map("line_1")
+  line2     String?  @map("line_2")
+  city      String
+  country   String   @default("ZW")
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("user_addresses")
 }

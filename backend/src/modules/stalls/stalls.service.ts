@@ -194,6 +194,23 @@ export class StallsService {
     });
   }
 
+  async listAttendants(stallId: string, requestingUserId: string) {
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: stallId },
+      include: { merchant: { select: { userId: true } } },
+    });
+    if (!stall) throw new NotFoundException('Stall not found');
+    if (stall.merchant.userId !== requestingUserId) throw new ForbiddenException('Not your stall');
+
+    return this.prisma.stallAttendant.findMany({
+      where: { stallId },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, phone: true, status: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   async listMalls(city?: string) {
     const where: any = { isActive: true };
     if (city) where.city = city;

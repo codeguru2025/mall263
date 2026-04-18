@@ -109,6 +109,15 @@ export class StallsController {
     return this.stallsService.update(id, userId, data);
   }
 
+  @Get(':id/attendants')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STALL_OWNER, UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
+  @ApiOperation({ summary: 'List attendants for a stall' })
+  async listAttendants(@Param('id') stallId: string, @CurrentUser('id') userId: string) {
+    return this.stallsService.listAttendants(stallId, userId);
+  }
+
   @Post(':id/attendants')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
