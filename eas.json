@@ -21,6 +21,10 @@
         "serviceAccountKeyPath": "C:\\Users\\ausiz\\Downloads\\mall263-9231fd7a26c2.json",
         "track": "internal",
         "releaseStatus": "draft"
+      },
+      "ios": {
+        "ascAppId": "6762513699",
+        "autoIncrement": true
       }
     }
   }
