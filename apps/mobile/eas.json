@@ -8,21 +8,24 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://mall263-r99jz.ondigitalocean.app"
+        "EXPO_PUBLIC_API_URL": "https://mall263-r99jz.ondigitalocean.app",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "staging": {
       "distribution": "internal",
       "channel": "staging",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://mall263-r99jz.ondigitalocean.app"
+        "EXPO_PUBLIC_API_URL": "https://mall263-r99jz.ondigitalocean.app",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
       "distribution": "store",
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://mall263-r99jz.ondigitalocean.app"
+        "EXPO_PUBLIC_API_URL": "https://mall263-r99jz.ondigitalocean.app",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     }
   },
