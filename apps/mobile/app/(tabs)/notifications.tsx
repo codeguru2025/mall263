@@ -10,6 +10,8 @@ import {
   View,
 } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Redirect } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
 import { Brand } from '@/constants/brand';
 import {
   fetchNotificationsPage,
@@ -39,6 +41,7 @@ function formatWhen(iso: string): string {
 }
 
 export default function NotificationsScreen() {
+  const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<NotificationFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
@@ -164,10 +167,12 @@ export default function NotificationsScreen() {
     );
   }
 
+  if (!isAuthenticated) return <Redirect href="/login" />;
+
   return (
     <FlatList
       data={rows}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item: { id: string }) => item.id}
       renderItem={renderItem}
       ListHeaderComponent={header}
       contentContainerStyle={styles.listContent}

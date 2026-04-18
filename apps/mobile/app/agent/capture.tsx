@@ -39,7 +39,7 @@ export default function CaptureScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.8,
-      allowsEditing: true,
+      allowsEditing: false,
       aspect: [1, 1],
     });
     if (result.canceled || !result.assets[0]) return;

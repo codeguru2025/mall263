@@ -35,12 +35,12 @@ const PAYMENT_METHODS: { key: PaymentMethod; label: string }[] = [
   { key: 'BANK_TRANSFER', label: 'Bank' },
 ];
 
-type View = 'products' | 'cart';
+type CartView = 'products' | 'cart';
 
 export default function POSCartScreen() {
   const { stallId, stallName } = useLocalSearchParams<{ stallId: string; stallName: string }>();
 
-  const [view, setView] = useState<View>('products');
+  const [view, setView] = useState<CartView>('products');
   const [search, setSearch] = useState('');
   const [cart, setCart] = useState<CartLine[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
@@ -168,7 +168,7 @@ export default function POSCartScreen() {
         ) : (
           <FlatList
             data={filtered}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item: { id: string }) => item.id}
             renderItem={renderProduct}
             contentContainerStyle={styles.productList}
             ListEmptyComponent={<Text style={styles.empty}>No products found.</Text>}

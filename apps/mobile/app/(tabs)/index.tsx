@@ -67,8 +67,38 @@ const QUICK_LINKS: QuickLink[] = [
 ];
 
 export default function HomeScreen() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const router = useRouter();
+
+  if (!isAuthenticated) {
+    return (
+      <ScrollView style={styles.page} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={[styles.hero, cardShadow]}>
+          <ZimStripes />
+          <View style={styles.heroBody}>
+            <View style={styles.logoPanel}><Logo size={44} /></View>
+            <Text style={styles.heroEyebrow}>Zimbabwe's marketplace</Text>
+            <Text style={styles.heroTitle}>Find it. Bid on it. Get it.</Text>
+          </View>
+        </View>
+        <View style={[styles.welcome, cardShadow]}>
+          <Text style={styles.welcomeEyebrow}>Get more from Mall263</Text>
+          <Text style={styles.welcomeName}>Sign in to your account</Text>
+          <Text style={[styles.welcomePhone, { marginTop: 4 }]}>Access your wallet, post demands and manage your stall.</Text>
+          <Pressable style={[styles.guestBtn]} onPress={() => router.push('/login')}>
+            <Text style={styles.guestBtnText}>Sign In</Text>
+          </Pressable>
+          <Pressable style={[styles.guestBtnOutline]} onPress={() => router.push('/register')}>
+            <Text style={styles.guestBtnOutlineText}>Create Account</Text>
+          </Pressable>
+        </View>
+        <Pressable style={[styles.shopBanner, cardShadow]} onPress={() => router.push('/(tabs)/shop')}>
+          <FontAwesome name="shopping-bag" size={22} color={Brand.blue} />
+          <Text style={styles.shopBannerText}>Browse the Marketplace →</Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
 
   const displayName =
     [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() || 'there';
@@ -112,7 +142,7 @@ export default function HomeScreen() {
         {QUICK_LINKS.map((item) => (
           <Pressable
             key={item.label}
-            style={({ pressed }) => [
+            style={({ pressed }: { pressed: boolean }) => [
               styles.quickCard,
               cardShadow,
               pressed && styles.quickCardPressed,
@@ -236,4 +266,34 @@ const styles = StyleSheet.create({
 
   bottomBand: { flexDirection: 'row', height: 5, borderRadius: 3, overflow: 'hidden' },
   bottomStripe: { flex: 1 },
+
+  guestBtn: {
+    backgroundColor: Brand.navy,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  guestBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  guestBtnOutline: {
+    borderWidth: 1.5,
+    borderColor: Brand.navy,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  guestBtnOutlineText: { color: Brand.navy, fontSize: 16, fontWeight: '800' },
+  shopBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: Brand.card,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    marginBottom: 24,
+  },
+  shopBannerText: { fontSize: 16, fontWeight: '800', color: Brand.blue },
 });

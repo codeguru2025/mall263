@@ -46,7 +46,8 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
-    "@types/react": "~19.1.0",
+    "@types/react": "~19.0.0",
+    "jimp": "^1.6.1",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
   },

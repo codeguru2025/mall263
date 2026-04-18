@@ -185,7 +185,7 @@ export default function ChatInboxScreen() {
   return (
     <FlatList
       data={rooms}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item: { id: string }) => item.id}
       renderItem={renderItem}
       ListHeaderComponent={header}
       ListEmptyComponent={<Text style={styles.empty}>No chat rooms yet. Accept an offer to start chatting.</Text>}

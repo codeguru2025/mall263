@@ -68,7 +68,7 @@ export default function SellerHubScreen() {
           Tell us about your business and create your first storefront — takes about a minute.
         </Text>
         <Pressable
-          style={({ pressed }) => [styles.setupBtn, pressed && { opacity: 0.85 }]}
+          style={({ pressed }: { pressed: boolean }) => [styles.setupBtn, pressed && { opacity: 0.85 }]}
           onPress={() => router.push('/seller/setup')}
         >
           <Text style={styles.setupBtnText}>Set up my stall</Text>
@@ -85,7 +85,7 @@ export default function SellerHubScreen() {
     const minPrice = item.variants?.reduce(
       (min, v) => Math.min(min, Number(v.sellingPrice)),
       Infinity,
-    );
+    ) ?? Infinity;
     const totalStock = item.variants?.reduce(
       (sum, v) => sum + (v.inventory?.quantity ?? 0),
       0,
@@ -204,7 +204,7 @@ export default function SellerHubScreen() {
   return (
     <FlatList
       data={products}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item: { id: string }) => item.id}
       renderItem={renderProduct}
       ListHeaderComponent={listHeader}
       contentContainerStyle={styles.listContent}

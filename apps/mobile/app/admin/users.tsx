@@ -148,7 +148,7 @@ export default function AdminUsersScreen() {
       ) : (
         <FlatList
           data={usersQ.data?.data ?? []}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: { id: string }) => item.id}
           renderItem={renderUser}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} />}

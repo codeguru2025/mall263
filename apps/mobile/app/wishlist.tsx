@@ -42,7 +42,7 @@ export default function WishlistScreen() {
   const renderItem = useCallback(
     ({ item }: { item: WishlistItem }) => (
       <Pressable
-        style={({ pressed }) => [styles.card, cardShadow, pressed && styles.cardPressed]}
+        style={({ pressed }: { pressed: boolean }) => [styles.card, cardShadow, pressed && styles.cardPressed]}
         onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
         android_ripple={{ color: Brand.border }}
       >
@@ -88,7 +88,7 @@ export default function WishlistScreen() {
     <View style={styles.page}>
       <FlatList
         data={items}
-        keyExtractor={(i) => i.id}
+        keyExtractor={(i: { id: string }) => i.id}
         renderItem={renderItem}
         numColumns={2}
         columnWrapperStyle={styles.colWrap}

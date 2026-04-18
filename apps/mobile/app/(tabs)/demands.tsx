@@ -166,7 +166,7 @@ export default function DemandsScreen() {
   return (
     <FlatList
       data={rows}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item: { id: string }) => item.id}
       renderItem={renderItem}
       ListHeaderComponent={header}
       contentContainerStyle={styles.listContent}

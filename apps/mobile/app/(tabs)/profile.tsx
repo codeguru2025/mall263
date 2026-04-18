@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, Redirect } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { Brand } from '@/constants/brand';
@@ -27,7 +27,7 @@ function fmtBalance(v: unknown, currency: string): string {
 }
 
 export default function ProfileScreen() {
-  const { reloadUser, logout } = useAuth();
+  const { reloadUser, logout, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -73,6 +73,8 @@ export default function ProfileScreen() {
     }
     saveMutation.mutate();
   }, [firstName, lastName, saveMutation]);
+
+  if (!isAuthenticated) return <Redirect href="/login" />;
 
   if (q.isPending) {
     return (

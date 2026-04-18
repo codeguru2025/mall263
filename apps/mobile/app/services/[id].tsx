@@ -118,7 +118,7 @@ export default function ServiceDetailScreen() {
       </View>
 
       <Pressable
-        style={({ pressed }) => [styles.requestBtn, pressed && styles.requestBtnPressed]}
+        style={({ pressed }: { pressed: boolean }) => [styles.requestBtn, pressed && styles.requestBtnPressed]}
         onPress={() => router.push({ pathname: '/services/request/[listingId]', params: { listingId: s.id } })}
       >
         <FontAwesome name="paper-plane" size={15} color="#fff" />

@@ -156,7 +156,7 @@ export default function AdminStallsScreen() {
       ) : (
         <FlatList
           data={stallsQ.data?.data ?? []}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: { id: string }) => item.id}
           renderItem={renderStall}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} />}

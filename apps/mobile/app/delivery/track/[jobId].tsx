@@ -218,7 +218,7 @@ export default function TrackJobScreen() {
       'Reason for cancellation:',
       [
         { text: 'Back', style: 'cancel' },
-        { text: 'Cancel Job', style: 'destructive', onPress: (r) => cancelMutation.mutate(r ?? 'No reason') },
+        { text: 'Cancel Job', style: 'destructive', onPress: (r: string | undefined) => cancelMutation.mutate(r ?? 'No reason') },
       ],
       'plain-text',
     );

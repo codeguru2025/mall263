@@ -30,12 +30,7 @@ export default function TabLayout() {
   });
   const unreadCount = notifPage?.unreadCount ?? 0;
 
-  if (!isReady) {
-    return null;
-  }
-  if (!isAuthenticated) {
-    return <Redirect href="/login" />;
-  }
+  if (!isReady) return null;
 
   return (
     <Tabs

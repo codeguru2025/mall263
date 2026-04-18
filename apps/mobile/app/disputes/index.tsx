@@ -49,10 +49,10 @@ export default function MyDisputesScreen() {
     <View style={styles.container}>
       <FlatList
         data={q.data ?? []}
-        keyExtractor={(d) => d.id}
+        keyExtractor={(d: { id: string }) => d.id}
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        renderItem={({ item }) => {
+        renderItem={({ item }: { item: { id: string; jobId: string; reason: string; status: string; resolution?: string; createdAt: string; job?: { pickupZone: string; dropZone: string; itemAmount: number | string } } }) => {
           const c = statusColor(item.status);
           return (
             <Pressable

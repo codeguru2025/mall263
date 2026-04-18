@@ -101,10 +101,10 @@ export default function MyServiceRequestsScreen() {
       ) : (
         <FlatList
           data={list}
-          keyExtractor={(r) => r.id}
+          keyExtractor={(r: { id: string }) => r.id}
           contentContainerStyle={styles.listContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          renderItem={({ item }) => <RequestRow req={item} />}
+          renderItem={({ item }: { item: ServiceRequestRow }) => <RequestRow req={item} />}
         />
       )}
     </View>
@@ -125,7 +125,7 @@ function RequestRow({ req }: { req: ServiceRequestRow }) {
   const created = new Date(req.createdAt);
   return (
     <Pressable
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+      style={({ pressed }: { pressed: boolean }) => [styles.row, pressed && styles.rowPressed]}
       onPress={() =>
         router.push({ pathname: '/services/requests/[requestId]', params: { requestId: req.id } })
       }

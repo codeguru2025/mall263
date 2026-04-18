@@ -55,11 +55,11 @@ export default function QualityReviewScreen() {
     if (!perm.granted) {
       const lib = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!lib.granted) { Alert.alert('Permission required', 'Grant camera or photo access.'); return; }
-      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, quality: 0.75 });
+      const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: false, quality: 0.75 });
       if (!r.canceled && r.assets[0]) setPhotoUri(r.assets[0].uri);
       return;
     }
-    const r = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.75 });
+    const r = await ImagePicker.launchCameraAsync({ allowsEditing: false, quality: 0.75 });
     if (!r.canceled && r.assets[0]) setPhotoUri(r.assets[0].uri);
   };
 

@@ -186,7 +186,7 @@ export default function ProductDetailScreen() {
         {description ? <Text style={styles.desc}>{description}</Text> : null}
 
         <Pressable
-          style={({ pressed }) => [styles.wantBtn, pressed && styles.wantBtnPressed]}
+          style={({ pressed }: { pressed: boolean }) => [styles.wantBtn, pressed && styles.wantBtnPressed]}
           onPress={() => {
             const maxStr = typeof maxPrice === 'number' ? String(maxPrice) : typeof maxPrice === 'string' ? maxPrice : '';
             const minStr = typeof minPrice === 'number' ? String(minPrice) : typeof minPrice === 'string' ? minPrice : '';
@@ -243,7 +243,7 @@ export default function ProductDetailScreen() {
 
           {stallId && !storeLocked ? (
             <Pressable
-              style={({ pressed }) => [styles.visitBtn, pressed && styles.visitBtnPressed]}
+              style={({ pressed }: { pressed: boolean }) => [styles.visitBtn, pressed && styles.visitBtnPressed]}
               onPress={() =>
                 router.push({ pathname: '/store/[stallId]', params: { stallId } })
               }

@@ -99,7 +99,7 @@ export default function ReferralScreen() {
             placeholder="e.g. LAUNCH50"
             placeholderTextColor={Brand.muted}
             value={promoCode}
-            onChangeText={(t) => setPromoCode(t.toUpperCase())}
+            onChangeText={(t: string) => setPromoCode(t.toUpperCase())}
             autoCapitalize="characters"
             autoCorrect={false}
             returnKeyType="done"

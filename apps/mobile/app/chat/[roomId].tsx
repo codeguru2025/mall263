@@ -15,6 +15,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -57,6 +58,7 @@ export default function ChatRoomScreen() {
   const { roomId } = useLocalSearchParams<{ roomId: string }>();
   const resolvedRoomId = Array.isArray(roomId) ? roomId[0] : roomId;
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState('');
   const [pollError, setPollError] = useState<string | null>(null);
@@ -366,15 +368,15 @@ export default function ChatRoomScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.page}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 84 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? (insets.top + 44) : 0}
     >
       <FlatList
         ref={listRef}
         data={rendered}
-        keyExtractor={(item) => (item.kind === 'day' ? item.key : `m-${item.msg.id}`)}
+        keyExtractor={(item: RenderItem) => (item.kind === 'day' ? item.key : `m-${item.msg.id}`)}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) =>
+        renderItem={({ item }: { item: RenderItem }) =>
           item.kind === 'day' ? (
             <DaySeparator label={item.day} />
           ) : (
@@ -423,12 +425,12 @@ export default function ChatRoomScreen() {
         </View>
       ) : null}
 
-      <View style={styles.inputBar}>
+      <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 10 : 8) }]}>
         <Pressable
           onPress={attachmentOptions}
           hitSlop={10}
           disabled={sendMut.isPending || uploadingAttachment}
-          style={({ pressed }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
+          style={({ pressed }: { pressed: boolean }) => [styles.iconBtn, pressed && styles.iconBtnPressed]}
         >
           <FontAwesome name="paperclip" size={20} color={Brand.muted} />
         </Pressable>
@@ -442,7 +444,7 @@ export default function ChatRoomScreen() {
           maxLength={1000}
         />
         <Pressable
-          style={({ pressed }) => [
+          style={({ pressed }: { pressed: boolean }) => [
             styles.sendBtn,
             disabled && styles.sendBtnDisabled,
             pressed && !disabled && styles.sendBtnPressed,

@@ -121,9 +121,9 @@ export default function ServiceChatScreen() {
         <FlatList
           ref={listRef}
           data={messages}
-          keyExtractor={(m) => m.id}
+          keyExtractor={(m: { id: string }) => m.id}
           contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => {
+          renderItem={({ item }: { item: ServiceChatMessageRow }) => {
             const mine = user?.id === item.senderId;
             return (
               <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>

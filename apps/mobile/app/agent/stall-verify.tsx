@@ -48,7 +48,7 @@ export default function StallVerifyScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: false,
       quality: 0.75,
     });
     if (!result.canceled && result.assets[0]) {
@@ -63,7 +63,7 @@ export default function StallVerifyScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
+      allowsEditing: false,
       quality: 0.75,
     });
     if (!result.canceled && result.assets[0]) {

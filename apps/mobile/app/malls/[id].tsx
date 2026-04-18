@@ -67,7 +67,7 @@ export default function MallDetailScreen() {
     <View style={styles.container}>
       <FlatList
         data={products}
-        keyExtractor={(p) => p.id}
+        keyExtractor={(p: { id: string }) => p.id}
         numColumns={COLS}
         columnWrapperStyle={{ gap: GRID_GAP, paddingHorizontal: 14 }}
         contentContainerStyle={{ paddingVertical: 14, paddingBottom: 40, gap: GRID_GAP }}
@@ -104,7 +104,7 @@ export default function MallDetailScreen() {
             <Text style={styles.sectionTitle}>Products</Text>
           </View>
         }
-        renderItem={({ item }) => <ProductCard p={item} />}
+        renderItem={({ item }: { item: StallProductBrowseItem }) => <ProductCard p={item} />}
         ListEmptyComponent={
           productsQ.isPending ? (
             <ActivityIndicator color={Brand.blue} style={{ marginTop: 30 }} />

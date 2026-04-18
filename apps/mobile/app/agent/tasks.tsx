@@ -97,7 +97,7 @@ export default function AgentTasksScreen() {
       ) : (
         <FlatList
           data={tasksQ.data ?? []}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: { id: string }) => item.id}
           renderItem={renderTask}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} />}

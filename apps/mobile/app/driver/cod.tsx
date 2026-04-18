@@ -65,7 +65,7 @@ export default function DriverCodScreen() {
     <View style={styles.container}>
       <FlatList
         data={pending}
-        keyExtractor={(p) => p.jobId}
+        keyExtractor={(p: { jobId: string }) => p.jobId}
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListHeaderComponent={
@@ -87,7 +87,7 @@ export default function DriverCodScreen() {
             <Text style={styles.sectionTitle}>Pending remits</Text>
           </>
         }
-        renderItem={({ item }) => (
+        renderItem={({ item }: { item: { jobId: string; amount: number | string; createdAt: string; trackingNumber?: string | null } }) => (
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowAmount}>{formatMoney(item.amount)}</Text>

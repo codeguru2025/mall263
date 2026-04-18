@@ -122,7 +122,7 @@ export default function SellerExpensesScreen() {
     <View style={styles.container}>
       <FlatList
         data={expensesQ.data ?? []}
-        keyExtractor={(e) => e.id}
+        keyExtractor={(e: { id: string }) => e.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
@@ -153,7 +153,7 @@ export default function SellerExpensesScreen() {
             </Pressable>
           </>
         }
-        renderItem={({ item }) => {
+        renderItem={({ item }: { item: ExpenseRow }) => {
           const meta = CATEGORIES.find((c) => c.key === item.category);
           return (
             <Pressable style={styles.row} onLongPress={() => confirmDelete(item)}>

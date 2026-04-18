@@ -124,8 +124,8 @@ export default function OnboardScreen() {
 
           <FlatList
             data={candidates}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
+            keyExtractor={(item: { id: string }) => item.id}
+            renderItem={({ item }: { item: OnboardingCandidate }) => (
               <Pressable style={styles.candidateRow} onPress={() => selectCandidate(item)}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.candidateName}>{item.firstName} {item.lastName}</Text>

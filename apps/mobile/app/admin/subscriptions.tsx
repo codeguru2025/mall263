@@ -152,7 +152,7 @@ export default function AdminSubscriptionsScreen() {
       ) : (
         <FlatList
           data={subsQ.data?.data ?? []}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: { id: string }) => item.id}
           renderItem={renderSub}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} />}

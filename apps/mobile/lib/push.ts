@@ -9,11 +9,12 @@ const isExpoGo =
 
 // How foreground notifications appear while the app is open
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async () =>
+    ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }) as Notifications.NotificationBehavior,
 });
 
 export async function registerForPushNotifications(): Promise<string | null> {

@@ -256,7 +256,7 @@ function RoleOption({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
+      style={({ pressed }: { pressed: boolean }) => [
         styles.roleCard,
         active && styles.roleCardActive,
         pressed && styles.roleCardPressed,

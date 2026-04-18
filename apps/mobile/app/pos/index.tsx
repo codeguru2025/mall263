@@ -145,7 +145,7 @@ export default function POSHomeScreen() {
   return (
     <FlatList
       data={recentSales}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item: { id: string }) => item.id}
       renderItem={renderSale}
       ListHeaderComponent={header}
       contentContainerStyle={styles.listContent}

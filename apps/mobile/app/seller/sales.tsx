@@ -107,7 +107,7 @@ export default function SellerSalesScreen() {
     <View style={styles.container}>
       <FlatList
         data={salesQ.data ?? []}
-        keyExtractor={(s) => s.id}
+        keyExtractor={(s: { id: string }) => s.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
@@ -145,7 +145,7 @@ export default function SellerSalesScreen() {
             <Text style={styles.sectionTitle}>Sales</Text>
           </>
         }
-        renderItem={({ item }) => <SaleRow sale={item} />}
+        renderItem={({ item }: { item: POSSaleRow }) => <SaleRow sale={item} />}
         ListEmptyComponent={
           salesQ.isPending ? (
             <ActivityIndicator color={Brand.blue} style={{ marginTop: 20 }} />

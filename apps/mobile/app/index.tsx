@@ -4,13 +4,11 @@ import { useAuth } from '@/contexts/AuthContext';
 export default function Index() {
   const { isReady, isAuthenticated } = useAuth();
 
-  if (!isReady) {
-    return null;
-  }
+  if (!isReady) return null;
 
-  if (isAuthenticated) {
-    return <Redirect href="/(tabs)" />;
-  }
+  // Authenticated users go to their home dashboard
+  if (isAuthenticated) return <Redirect href="/(tabs)" />;
 
-  return <Redirect href="/login" />;
+  // Guests land on the shop so they can browse immediately
+  return <Redirect href="/(tabs)/shop" />;
 }

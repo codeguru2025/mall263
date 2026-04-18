@@ -82,7 +82,7 @@ export default function DriverEarningsScreen() {
   return (
     <FlatList
       data={completedJobs}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item: { id: string }) => item.id}
       renderItem={renderJob}
       contentContainerStyle={styles.list}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} />}

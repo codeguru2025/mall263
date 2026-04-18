@@ -73,7 +73,7 @@ export default function ShopScreen() {
       const img = item.imageUrl;
       return (
         <Pressable
-          style={({ pressed }) => [styles.card, cardShadow, pressed && styles.cardPressed]}
+          style={({ pressed }: { pressed: boolean }) => [styles.card, cardShadow, pressed && styles.cardPressed]}
           onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
           android_ripple={{ color: Brand.border, borderless: false }}
         >
@@ -177,7 +177,7 @@ export default function ShopScreen() {
       <FlatList
         key="shop-grid-2col"
         data={items}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item: { id: string }) => item.id}
         renderItem={renderItem}
         numColumns={2}
         columnWrapperStyle={styles.columnWrapper}

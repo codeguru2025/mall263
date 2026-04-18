@@ -143,7 +143,7 @@ export default function StoreScreen() {
       const img = item.images?.[0]?.url;
       return (
         <Pressable
-          style={({ pressed }) => [styles.card, cardShadow, pressed && styles.cardPressed]}
+          style={({ pressed }: { pressed: boolean }) => [styles.card, cardShadow, pressed && styles.cardPressed]}
           onPress={() =>
             router.push({ pathname: '/product/[id]', params: { id: item.id } })
           }
@@ -218,7 +218,7 @@ export default function StoreScreen() {
       <FlatList
         key="store-grid-2col"
         data={products}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item: { id: string }) => item.id}
         renderItem={renderItem}
         numColumns={2}
         columnWrapperStyle={styles.columnWrapper}

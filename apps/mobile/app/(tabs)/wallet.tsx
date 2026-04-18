@@ -10,7 +10,8 @@ import {
   View,
 } from 'react-native';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { router, Redirect } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
 import { isWalletTxCredit, walletTxTypeLabel } from '@mall263/shared';
 import { Brand } from '@/constants/brand';
 import { fetchWalletBalance, fetchWalletTransactionsPage, type WalletTxRow } from '@/lib/wallet-api';
@@ -35,6 +36,7 @@ function fmtWhen(iso: string): string {
 }
 
 export default function WalletScreen() {
+  const { isAuthenticated } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
   const balanceQ = useQuery({
@@ -153,10 +155,12 @@ export default function WalletScreen() {
     );
   }
 
+  if (!isAuthenticated) return <Redirect href="/login" />;
+
   return (
     <FlatList
       data={rows}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item: { id: string }) => item.id}
       renderItem={renderItem}
       ListHeaderComponent={header}
       contentContainerStyle={styles.listContent}

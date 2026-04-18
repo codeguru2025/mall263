@@ -108,7 +108,7 @@ export default function DriverJobsScreen() {
   return (
     <FlatList
       data={query.data ?? []}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item: { id: string }) => item.id}
       renderItem={renderItem}
       contentContainerStyle={styles.list}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} />}

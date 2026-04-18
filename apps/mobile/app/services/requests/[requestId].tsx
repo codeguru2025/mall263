@@ -230,7 +230,7 @@ export default function ServiceRequestDetailScreen() {
 
         {canSubmitQuote ? (
           <Pressable
-            style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryBtnPressed]}
+            style={({ pressed }: { pressed: boolean }) => [styles.primaryBtn, pressed && styles.primaryBtnPressed]}
             onPress={() => setQuoteModalOpen(true)}
           >
             <FontAwesome name="paper-plane" size={14} color="#fff" />

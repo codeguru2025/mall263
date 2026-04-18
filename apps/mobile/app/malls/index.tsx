@@ -60,11 +60,11 @@ export default function MallsScreen() {
 
       <FlatList
         data={filtered}
-        keyExtractor={(m) => m.id}
+        keyExtractor={(m: { id: string }) => m.id}
         numColumns={1}
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        renderItem={({ item }) => <MallCard mall={item} />}
+        renderItem={({ item }: { item: Mall }) => <MallCard mall={item} />}
         ListEmptyComponent={
           query.isPending ? (
             <ActivityIndicator color={Brand.blue} style={{ marginTop: 30 }} />

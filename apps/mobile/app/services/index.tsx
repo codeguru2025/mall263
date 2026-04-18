@@ -106,9 +106,9 @@ export default function ServicesBrowseScreen() {
       ) : (
         <FlatList
           data={items}
-          keyExtractor={(it) => it.id}
+          keyExtractor={(it: { id: string }) => it.id}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) => <ListingCard item={item} />}
+          renderItem={({ item }: { item: ServiceListing }) => <ListingCard item={item} />}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         />
       )}
@@ -125,7 +125,7 @@ function ListingCard({ item }: { item: ServiceListing }) {
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }: { pressed: boolean }) => [styles.card, pressed && styles.cardPressed]}
       onPress={() => router.push({ pathname: '/services/[id]', params: { id: item.id } })}
     >
       <View style={styles.thumbWrap}>
