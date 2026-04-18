@@ -130,6 +130,9 @@ export default function AgentHomeScreen() {
       <Pressable style={[styles.actionBtn, { backgroundColor: Brand.orange }]} onPress={() => router.push('/agent/capture')}>
         <Text style={styles.actionBtnText}>Capture product</Text>
       </Pressable>
+      <Pressable style={[styles.actionBtn, { backgroundColor: '#f59e0b' }]} onPress={() => router.push('/agent/quality-review' as any)}>
+        <Text style={styles.actionBtnText}>Quality review</Text>
+      </Pressable>
       <Pressable style={[styles.actionBtn, { backgroundColor: '#0f766e' }]} onPress={() => router.push('/agent/stall-verify' as any)}>
         <Text style={styles.actionBtnText}>Verify stall</Text>
       </Pressable>

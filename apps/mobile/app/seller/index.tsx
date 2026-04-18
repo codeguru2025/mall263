@@ -159,6 +159,22 @@ export default function SellerHubScreen() {
           <Text style={styles.opsCardText}>Reports</Text>
         </Pressable>
       </View>
+      <View style={styles.opsRow}>
+        <Pressable style={styles.opsCard} onPress={() => router.push('/seller/attendants' as any)}>
+          <Text style={styles.opsCardIcon}>👥</Text>
+          <Text style={styles.opsCardText}>Attendants</Text>
+        </Pressable>
+        {stall && (
+          <Pressable style={styles.opsCard} onPress={() => router.push({ pathname: '/store/[stallId]', params: { stallId: stall.id } })}>
+            <Text style={styles.opsCardIcon}>🏪</Text>
+            <Text style={styles.opsCardText}>My stall page</Text>
+          </Pressable>
+        )}
+        <Pressable style={styles.opsCard} onPress={() => router.push('/subscriptions' as any)}>
+          <Text style={styles.opsCardIcon}>⭐</Text>
+          <Text style={styles.opsCardText}>Subscription</Text>
+        </Pressable>
+      </View>
 
       {/* Section header */}
       <View style={styles.sectionHeader}>

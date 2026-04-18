@@ -137,6 +137,8 @@ function RootLayoutNav() {
             <Stack.Screen name="agent/tasks" options={{ title: 'My tasks' }} />
             <Stack.Screen name="agent/commissions" options={{ title: 'Commissions & pipeline' }} />
             <Stack.Screen name="agent/stall-verify" options={{ title: 'Verify stall' }} />
+            <Stack.Screen name="agent/quality-review" options={{ title: 'Quality review' }} />
+            <Stack.Screen name="seller/attendants" options={{ title: 'Stall attendants' }} />
             <Stack.Screen name="admin/index" options={{ title: 'Admin' }} />
             <Stack.Screen name="admin/users" options={{ title: 'Users' }} />
             <Stack.Screen name="admin/stalls" options={{ title: 'Stalls' }} />
