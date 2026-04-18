@@ -121,11 +121,20 @@ export default function AgentHomeScreen() {
 
       {/* Quick actions */}
       <Text style={styles.sectionTitle}>Actions</Text>
+      <Pressable style={[styles.actionBtn, { backgroundColor: '#7C3AED' }]} onPress={() => router.push('/agent/recruit' as any)}>
+        <Text style={styles.actionBtnText}>Recruit new contact</Text>
+      </Pressable>
       <Pressable style={[styles.actionBtn, { backgroundColor: Brand.blue }]} onPress={() => router.push('/agent/onboard')}>
-        <Text style={styles.actionBtnText}>Onboard new merchant</Text>
+        <Text style={styles.actionBtnText}>Onboard existing buyer</Text>
       </Pressable>
       <Pressable style={[styles.actionBtn, { backgroundColor: Brand.orange }]} onPress={() => router.push('/agent/capture')}>
         <Text style={styles.actionBtnText}>Capture product</Text>
+      </Pressable>
+      <Pressable style={[styles.actionBtn, { backgroundColor: '#0f766e' }]} onPress={() => router.push('/agent/stall-verify' as any)}>
+        <Text style={styles.actionBtnText}>Verify stall</Text>
+      </Pressable>
+      <Pressable style={[styles.actionBtn, { backgroundColor: Brand.green }]} onPress={() => router.push('/agent/commissions' as any)}>
+        <Text style={styles.actionBtnText}>My commissions & pipeline</Text>
       </Pressable>
       <Pressable style={[styles.actionBtn, { backgroundColor: Brand.card, borderWidth: 1, borderColor: Brand.border }]} onPress={() => router.push('/agent/tasks')}>
         <Text style={[styles.actionBtnText, { color: Brand.navy }]}>View all tasks</Text>

@@ -19,7 +19,7 @@ import { getApiBaseUrl } from '@/lib/config';
 import { Brand } from '@/constants/brand';
 import { Logo } from '@/components/Logo';
 
-type RoleChoice = 'BUYER' | 'STALL_OWNER';
+type RoleChoice = 'BUYER' | 'STALL_OWNER' | 'DELIVERY_DRIVER';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -66,6 +66,8 @@ export default function RegisterScreen() {
       });
       if (role === 'STALL_OWNER') {
         router.replace('/seller/setup');
+      } else if (role === 'DELIVERY_DRIVER') {
+        router.replace('/driver/register');
       } else {
         router.replace('/(tabs)');
       }
@@ -113,7 +115,22 @@ export default function RegisterScreen() {
               label="Seller"
               desc="List products & sell"
             />
+            <RoleOption
+              active={role === 'DELIVERY_DRIVER'}
+              onPress={() => setRole('DELIVERY_DRIVER')}
+              icon="truck"
+              label="Driver"
+              desc="Deliver & earn"
+            />
           </View>
+          {role === 'DELIVERY_DRIVER' && (
+            <View style={styles.roleNote}>
+              <FontAwesome name="info-circle" size={13} color={Brand.blue} />
+              <Text style={styles.roleNoteText}>
+                After creating your account you'll complete your vehicle & KYC details. Buyers and sellers can also become drivers later from their profile.
+              </Text>
+            </View>
+          )}
 
           <View style={styles.row}>
             <View style={styles.half}>
@@ -284,7 +301,19 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 
-  roleRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  roleRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  roleNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#eff6fc',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  roleNoteText: { flex: 1, fontSize: 12, color: Brand.blue, lineHeight: 18 },
   roleCard: {
     flex: 1,
     padding: 14,

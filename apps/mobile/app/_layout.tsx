@@ -131,9 +131,12 @@ function RootLayoutNav() {
             <Stack.Screen name="pos/cart" options={{ title: 'Register' }} />
             <Stack.Screen name="pos/receipt/[saleId]" options={{ title: 'Receipt' }} />
             <Stack.Screen name="agent/index" options={{ title: 'Field Agent' }} />
-            <Stack.Screen name="agent/onboard" options={{ title: 'Onboard merchant' }} />
+            <Stack.Screen name="agent/onboard" options={{ title: 'Onboard existing buyer' }} />
+            <Stack.Screen name="agent/recruit" options={{ title: 'Recruit new contact' }} />
             <Stack.Screen name="agent/capture" options={{ title: 'Capture product' }} />
             <Stack.Screen name="agent/tasks" options={{ title: 'My tasks' }} />
+            <Stack.Screen name="agent/commissions" options={{ title: 'Commissions & pipeline' }} />
+            <Stack.Screen name="agent/stall-verify" options={{ title: 'Verify stall' }} />
             <Stack.Screen name="admin/index" options={{ title: 'Admin' }} />
             <Stack.Screen name="admin/users" options={{ title: 'Users' }} />
             <Stack.Screen name="admin/stalls" options={{ title: 'Stalls' }} />
