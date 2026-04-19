@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useQuery } from '@tanstack/react-query';
@@ -43,8 +43,8 @@ export default function NewProductScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      quality: 0.85,
-      allowsEditing: false,
+      quality: 0.92,
+      allowsEditing: true,
       aspect: [1, 1],
     });
     if (result.canceled || !result.assets[0]) return;
@@ -100,7 +100,7 @@ export default function NewProductScreen() {
           {uploadingImage ? (
             <ActivityIndicator color={Brand.blue} />
           ) : imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.imagePreview} resizeMode="cover" />
+            <Image source={{ uri: imageUri }} style={styles.imagePreview} contentFit="cover" />
           ) : (
             <View style={styles.imagePlaceholder}>
               <Text style={styles.imagePlaceholderIcon}>📷</Text>

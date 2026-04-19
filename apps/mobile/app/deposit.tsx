@@ -27,6 +27,7 @@ type Step = 'form' | 'pending' | 'success' | 'failed';
 const METHODS: { key: MobileMethod; label: string; color: string }[] = [
   { key: 'ecocash', label: 'EcoCash', color: '#28A745' },
   { key: 'onemoney', label: 'OneMoney', color: '#E53935' },
+  { key: 'omari', label: 'Omari', color: '#1565C0' },
   { key: 'telecash', label: 'Telecash', color: '#F7941D' },
 ];
 
@@ -51,13 +52,22 @@ export default function DepositScreen() {
   const [reference, setReference] = useState('');
   const [instructions, setInstructions] = useState('');
   const [failReason, setFailReason] = useState('');
+  const [secondsWaiting, setSecondsWaiting] = useState(0);
 
   const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tickTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const initiatedAt = useRef<number>(0);
+  // Minimum ms before a FAILED status is treated as terminal (90 s)
+  const FAIL_GRACE_MS = 90_000;
 
   const clearPoll = () => {
     if (pollTimer.current) {
       clearInterval(pollTimer.current);
       pollTimer.current = null;
+    }
+    if (tickTimer.current) {
+      clearInterval(tickTimer.current);
+      tickTimer.current = null;
     }
   };
 
@@ -67,6 +77,13 @@ export default function DepositScreen() {
   const startPolling = useCallback(
     (ref: string) => {
       clearPoll();
+      initiatedAt.current = Date.now();
+      setSecondsWaiting(0);
+
+      tickTimer.current = setInterval(() => {
+        setSecondsWaiting((s) => s + 1);
+      }, 1000);
+
       pollTimer.current = setInterval(async () => {
         try {
           const result = await pollPaymentStatus(ref);
@@ -76,9 +93,13 @@ export default function DepositScreen() {
             await qc.invalidateQueries({ queryKey: ['wallet-transactions'] });
             setStep('success');
           } else if (['CANCELLED', 'CANCELED', 'FAILED', 'DISPUTED', 'REFUNDED'].includes(result.status)) {
-            clearPoll();
-            setFailReason(`Payment ${result.status.toLowerCase()}.`);
-            setStep('failed');
+            const elapsed = Date.now() - initiatedAt.current;
+            if (elapsed > FAIL_GRACE_MS) {
+              clearPoll();
+              setFailReason(`Payment ${result.status.toLowerCase()}. Please try again.`);
+              setStep('failed');
+            }
+            // else: intermediate Paynow state during USSD delivery window — keep polling
           }
         } catch {
           // network hiccup — keep polling
@@ -200,6 +221,13 @@ export default function DepositScreen() {
           <Text style={styles.statusSub}>{instructions}</Text>
           {mode === 'mobile' && (
             <Text style={styles.statusHint}>Enter your PIN on the USSD prompt to approve.</Text>
+          )}
+          {secondsWaiting > 0 && (
+            <Text style={styles.statusWait}>
+              {secondsWaiting < FAIL_GRACE_MS / 1000
+                ? `Waiting... ${secondsWaiting}s`
+                : 'Still waiting — tap Cancel if you did not approve.'}
+            </Text>
           )}
           <Text style={styles.statusRef}>Ref: {reference}</Text>
           <Pressable style={[styles.btn, styles.btnGhost, { marginTop: 24 }]} onPress={handleDone}>
@@ -405,4 +433,5 @@ const styles = StyleSheet.create({
   statusSub: { fontSize: 14, color: Brand.muted, textAlign: 'center', marginTop: 6, lineHeight: 20 },
   statusHint: { fontSize: 13, color: Brand.navy, fontWeight: '700', textAlign: 'center', marginTop: 8 },
   statusRef: { fontSize: 11, color: Brand.muted, marginTop: 12, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  statusWait: { fontSize: 12, color: Brand.muted, marginTop: 6, textAlign: 'center' },
 });

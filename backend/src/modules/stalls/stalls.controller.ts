@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { StallsService } from './stalls.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -8,7 +8,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { UserRole } from '@prisma/client';
-import { CreateStallDto, UpdateMallDto, UpdateStallDto } from './dto/stall.dto';
+import { CreateStallDto, UpdateMallDto, UpdatePaymentConfigDto, UpdateStallDto } from './dto/stall.dto';
 
 @ApiTags('Stalls')
 @Controller('stalls')
@@ -82,6 +82,30 @@ export class StallsController {
     return this.stallsService.recordVisit(id);
   }
 
+  @Post(':id/follow')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Follow a stall' })
+  async followStall(@Param('id') stallId: string, @CurrentUser('id') userId: string) {
+    return this.stallsService.followStall(stallId, userId);
+  }
+
+  @Delete(':id/follow')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Unfollow a stall' })
+  async unfollowStall(@Param('id') stallId: string, @CurrentUser('id') userId: string) {
+    return this.stallsService.unfollowStall(stallId, userId);
+  }
+
+  @Get(':id/follow-status')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get follow status for a stall' })
+  async getFollowStatus(@Param('id') stallId: string, @CurrentUser('id') userId: string) {
+    return this.stallsService.getFollowStatus(stallId, userId);
+  }
+
   // ── Stall Boost (must come BEFORE :id routes) ─────────────────────────────
 
   @Get('boost/pricing')
@@ -125,6 +149,42 @@ export class StallsController {
   @ApiOperation({ summary: 'Add attendant to stall' })
   async addAttendant(@Param('id') stallId: string, @Body() data: { userId: string; pin?: string }) {
     return this.stallsService.addAttendant(stallId, data.userId, data.pin);
+  }
+
+  @Delete(':id/attendants/:userId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STALL_OWNER)
+  @ApiOperation({ summary: 'Remove attendant from stall' })
+  async removeAttendant(
+    @Param('id') stallId: string,
+    @Param('userId') targetUserId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    await this.stallsService.removeAttendant(stallId, targetUserId, userId);
+    return { success: true };
+  }
+
+  @Get(':id/payment-config')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT, UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
+  @ApiOperation({ summary: 'Get stall merchant payment codes' })
+  async getPaymentConfig(@Param('id') stallId: string, @CurrentUser('id') userId: string) {
+    return this.stallsService.getPaymentConfig(stallId, userId);
+  }
+
+  @Patch(':id/payment-config')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STALL_OWNER)
+  @ApiOperation({ summary: 'Save stall merchant payment codes (EcoCash / OneMoney)' })
+  async savePaymentConfig(
+    @Param('id') stallId: string,
+    @CurrentUser('id') userId: string,
+    @Body() data: UpdatePaymentConfigDto,
+  ) {
+    return this.stallsService.savePaymentConfig(stallId, userId, data);
   }
 
   @Post(':id/boost')

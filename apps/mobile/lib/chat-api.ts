@@ -42,6 +42,8 @@ export type ChatMessageRow = {
   attachmentWidth?: number | null;
   attachmentHeight?: number | null;
   attachmentSize?: number | null;
+  isEdited?: boolean;
+  editedAt?: string | null;
   createdAt: string;
   sender?: {
     id: string;
@@ -133,6 +135,11 @@ export async function sendChatMessage(
     if (attachment.size != null) body.attachmentSize = attachment.size;
   }
   const { data } = await api.post<ChatMessageRow>(`/api/v1/chat/rooms/${roomId}/messages`, body);
+  return data;
+}
+
+export async function editChatMessage(messageId: string, content: string): Promise<ChatMessageRow> {
+  const { data } = await api.patch<ChatMessageRow>(`/api/v1/chat/messages/${messageId}`, { content });
   return data;
 }
 

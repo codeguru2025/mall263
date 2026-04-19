@@ -26,6 +26,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { io, type Socket } from 'socket.io-client';
 import { Brand } from '@/constants/brand';
 import {
+  editChatMessage,
   fetchChatMessages,
   sendChatMessage,
   uploadChatMedia,
@@ -61,6 +62,8 @@ export default function ChatRoomScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
   const [pollError, setPollError] = useState<string | null>(null);
   const [pollFailures, setPollFailures] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -147,7 +150,12 @@ export default function ChatRoomScreen() {
       socket.on('chat.message', (msg: ChatMessageRow) => {
         if (!msg?.id) return;
         queryClient.setQueryData(['chat-room', resolvedRoomId], (old: ChatMessageRow[] = []) => {
-          if (old.some((m) => m.id === msg.id)) return old;
+          const idx = old.findIndex((m) => m.id === msg.id);
+          if (idx !== -1) {
+            const next = [...old];
+            next[idx] = msg;
+            return next;
+          }
           return [...old, msg];
         });
         queryClient.invalidateQueries({ queryKey: ['chat-rooms'] });
@@ -228,6 +236,33 @@ export default function ChatRoomScreen() {
     },
   });
 
+  const editMut = useMutation({
+    mutationFn: async ({ messageId, content }: { messageId: string; content: string }) =>
+      editChatMessage(messageId, content),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['chat-room', resolvedRoomId], (old: ChatMessageRow[] = []) =>
+        old.map((m) => (m.id === updated.id ? updated : m)),
+      );
+      setEditingMessageId(null);
+      setEditDraft('');
+    },
+    onError: (err) => {
+      setPollError(getApiErrorMessage(err, 'Could not edit message.'));
+    },
+  });
+
+  const startEdit = useCallback((msg: ChatMessageRow) => {
+    setEditingMessageId(msg.id);
+    setEditDraft(msg.content);
+    setDraft('');
+    setPendingAttachment(null);
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingMessageId(null);
+    setEditDraft('');
+  }, []);
+
   const pickImage = useCallback(async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -303,8 +338,16 @@ export default function ChatRoomScreen() {
   }, [pickImage, takePhoto]);
 
   const handleSend = useCallback(async () => {
-    const text = draft.trim();
     if (!resolvedRoomId) return;
+
+    if (editingMessageId) {
+      const text = editDraft.trim();
+      if (!text || editMut.isPending) return;
+      editMut.mutate({ messageId: editingMessageId, content: text });
+      return;
+    }
+
+    const text = draft.trim();
     if (!text && !pendingAttachment) return;
     if (sendMut.isPending || uploadingAttachment) return;
 
@@ -335,8 +378,9 @@ export default function ChatRoomScreen() {
     sendMut.mutate({ content: text, attachment: attachmentPayload });
   }, [draft, pendingAttachment, resolvedRoomId, sendMut, uploadingAttachment]);
 
-  const disabled =
-    (!draft.trim() && !pendingAttachment) || sendMut.isPending || uploadingAttachment;
+  const disabled = editingMessageId
+    ? !editDraft.trim() || editMut.isPending
+    : (!draft.trim() && !pendingAttachment) || sendMut.isPending || uploadingAttachment;
   const reconnecting = !!pollError && pollFailures >= 2;
 
   if (!resolvedRoomId) {
@@ -386,6 +430,7 @@ export default function ChatRoomScreen() {
               grouped={item.grouped}
               showTime={item.showTime}
               onImagePress={(uri) => setViewerUri(uri)}
+              onLongPress={item.mine ? () => startEdit(item.msg) : undefined}
             />
           )
         }
@@ -401,6 +446,16 @@ export default function ChatRoomScreen() {
       {reconnecting ? (
         <View style={styles.banner}>
           <Text style={styles.bannerText}>Reconnecting… {pollError}</Text>
+        </View>
+      ) : null}
+
+      {editingMessageId ? (
+        <View style={styles.editingBanner}>
+          <FontAwesome name="pencil" size={13} color={Brand.blue} style={{ marginRight: 6 }} />
+          <Text style={styles.editingBannerText}>Editing message</Text>
+          <Pressable onPress={cancelEdit} hitSlop={12} style={styles.editingCancelBtn}>
+            <FontAwesome name="times" size={15} color={Brand.muted} />
+          </Pressable>
         </View>
       ) : null}
 
@@ -436,9 +491,9 @@ export default function ChatRoomScreen() {
         </Pressable>
         <TextInput
           style={styles.input}
-          value={draft}
-          onChangeText={setDraft}
-          placeholder="Message"
+          value={editingMessageId ? editDraft : draft}
+          onChangeText={editingMessageId ? setEditDraft : setDraft}
+          placeholder={editingMessageId ? 'Edit message…' : 'Message'}
           placeholderTextColor={Brand.muted}
           multiline
           maxLength={1000}
@@ -452,8 +507,10 @@ export default function ChatRoomScreen() {
           disabled={disabled}
           onPress={handleSend}
         >
-          {sendMut.isPending || uploadingAttachment ? (
+          {sendMut.isPending || uploadingAttachment || editMut.isPending ? (
             <ActivityIndicator size="small" color="#fff" />
+          ) : editingMessageId ? (
+            <FontAwesome name="check" size={16} color="#fff" />
           ) : (
             <FontAwesome name="send" size={16} color="#fff" />
           )}
@@ -505,12 +562,14 @@ function MessageBubble({
   grouped,
   showTime,
   onImagePress,
+  onLongPress,
 }: {
   msg: ChatMessageRow;
   mine: boolean;
   grouped: boolean;
   showTime: boolean;
   onImagePress: (uri: string) => void;
+  onLongPress?: () => void;
 }) {
   const hasImage = !!msg.attachmentUrl && (msg.attachmentType ?? 'image') === 'image';
   const hasText = !!msg.content && msg.content.trim().length > 0;
@@ -539,7 +598,9 @@ function MessageBubble({
         </Text>
       ) : null}
 
-      <View
+      <Pressable
+        onLongPress={onLongPress}
+        delayLongPress={350}
         style={[
           styles.bubble,
           mine ? styles.mineBubble : styles.otherBubble,
@@ -576,14 +637,19 @@ function MessageBubble({
         ) : null}
 
         {showTime ? (
-          <Text style={[styles.time, mine ? styles.mineTime : styles.otherTime]}>
-            {new Date(msg.createdAt).toLocaleTimeString(undefined, {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
+          <View style={styles.timeRow}>
+            {msg.isEdited ? (
+              <Text style={[styles.editedLabel, mine ? styles.mineTime : styles.otherTime]}>edited · </Text>
+            ) : null}
+            <Text style={[styles.time, mine ? styles.mineTime : styles.otherTime]}>
+              {new Date(msg.createdAt).toLocaleTimeString(undefined, {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+          </View>
         ) : null}
-      </View>
+      </Pressable>
     </View>
   );
 }
@@ -671,9 +737,28 @@ const styles = StyleSheet.create({
   msgText: { fontSize: 15, lineHeight: 20 },
   mineText: { color: '#0b1f0b' },
   otherText: { color: Brand.text },
-  time: { marginTop: 4, fontSize: 10, alignSelf: 'flex-end', fontWeight: '600' },
+  timeRow: { flexDirection: 'row', alignSelf: 'flex-end', marginTop: 4, alignItems: 'center' },
+  time: { fontSize: 10, fontWeight: '600' },
+  editedLabel: { fontSize: 10, fontWeight: '600' },
   mineTime: { color: '#34632f' },
   otherTime: { color: Brand.muted },
+
+  editingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eef4ff',
+    borderTopWidth: 1,
+    borderTopColor: '#c7d9f8',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  editingBannerText: { flex: 1, fontSize: 13, fontWeight: '700', color: Brand.blue },
+  editingCancelBtn: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   banner: {
     backgroundColor: '#fff7d6',

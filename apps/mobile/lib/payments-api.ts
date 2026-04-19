@@ -1,6 +1,6 @@
 import { api } from '@/lib/api';
 
-export type MobileMethod = 'ecocash' | 'onemoney' | 'telecash';
+export type MobileMethod = 'ecocash' | 'onemoney' | 'telecash' | 'omari';
 
 export type InitiateMobileResult = {
   reference: string;

@@ -28,10 +28,20 @@ type QuickLink = {
   desc: string;
   tint: string;
   tintBg: string;
-  route: '/(tabs)/shop' | '/(tabs)/demands' | '/(tabs)/wallet' | '/(tabs)/profile';
+  route: string;
+  roles?: string[];
 };
 
 const QUICK_LINKS: QuickLink[] = [
+  {
+    label: 'Seller Hub',
+    icon: 'th-large',
+    desc: 'Products, POS & payments',
+    tint: '#F7941D',
+    tintBg: '#fdefdb',
+    route: '/seller',
+    roles: ['STALL_OWNER', 'ATTENDANT', 'SUPER_ADMIN', 'ADMIN_OPS'],
+  },
   {
     label: 'Shop',
     icon: 'shopping-bag',
@@ -139,7 +149,9 @@ export default function HomeScreen() {
 
       <Text style={styles.sectionTitle}>Quick access</Text>
       <View style={styles.grid}>
-        {QUICK_LINKS.map((item) => (
+        {QUICK_LINKS.filter(
+          (item) => !item.roles || (user?.role && item.roles.includes(user.role)),
+        ).map((item) => (
           <Pressable
             key={item.label}
             style={({ pressed }: { pressed: boolean }) => [

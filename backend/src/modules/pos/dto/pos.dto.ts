@@ -12,6 +12,11 @@ import {
 } from 'class-validator';
 import { PaymentMethod } from '@prisma/client';
 
+enum MerchantPayNetwork {
+  ECOCASH = 'ECOCASH',
+  ONEMONEY = 'ONEMONEY',
+}
+
 export class PosCartItemDto {
   @IsUUID()
   variantId: string;
@@ -57,4 +62,47 @@ export class ProcessSaleDto {
   @IsString()
   @MaxLength(2000)
   notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  deliveryAddress?: string;
+}
+
+export class InitiateMerchantPaymentDto {
+  @IsUUID()
+  stallId: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PosCartItemDto)
+  items: PosCartItemDto[];
+
+  @IsEnum(MerchantPayNetwork)
+  paymentMethod: 'ECOCASH' | 'ONEMONEY';
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  discountAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  discountType?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  customerPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  deliveryAddress?: string;
 }

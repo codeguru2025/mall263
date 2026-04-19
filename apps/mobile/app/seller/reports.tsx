@@ -83,16 +83,16 @@ export default function SellerReportsScreen() {
   }
 
   const r = reportQ.data;
-  const revenue = r?.sales?.totalRevenue ?? 0;
-  const netRevenue = r?.sales?.netRevenue ?? revenue;
-  const salesCount = r?.sales?.salesCount ?? 0;
-  const avgOrder = r?.sales?.avgOrderValue ?? 0;
+  const revenue = r?.summary?.totalRevenue ?? 0;
+  const netRevenue = r?.summary?.netProfit != null
+    ? Number(r.summary.totalRevenue ?? 0) - Number(r.summary.totalCommission ?? 0)
+    : Number(revenue);
+  const salesCount = r?.summary?.totalSales ?? 0;
+  const avgOrder = r?.summary?.avgOrderValue ?? 0;
   const expenses = r?.expenses?.total ?? 0;
-  const profit =
-    r?.profit ??
-    (Number(netRevenue) || 0) - (Number(expenses) || 0);
-  const expensesByCategory = r?.expenses?.byCategory ?? {};
-  const visits = r?.engagement?.visits ?? 0;
+  const profit = r?.summary?.profitAfterExpenses ?? (Number(netRevenue) || 0) - (Number(expenses) || 0);
+  const expensesByCategory = r?.expenses?.byCategory ?? [];
+  const visits = r?.engagement?.storePageViews ?? 0;
   const insights = r?.insights ?? [];
 
   return (
@@ -140,13 +140,13 @@ export default function SellerReportsScreen() {
             <Metric label="Store visits" value={String(visits)} icon="eye" color="#0891b2" />
           </View>
 
-          {Object.keys(expensesByCategory).length > 0 ? (
+          {Array.isArray(expensesByCategory) && expensesByCategory.length > 0 ? (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Expenses by category</Text>
-              {Object.entries(expensesByCategory).map(([cat, amt]) => (
-                <View key={cat} style={styles.catRow}>
-                  <Text style={styles.catLabel}>{cat.replace(/_/g, ' ').toLowerCase()}</Text>
-                  <Text style={styles.catAmount}>{fmt(amt)}</Text>
+              {expensesByCategory.map((item) => (
+                <View key={item.category} style={styles.catRow}>
+                  <Text style={styles.catLabel}>{item.category.replace(/_/g, ' ').toLowerCase()}</Text>
+                  <Text style={styles.catAmount}>{fmt(item.total)}</Text>
                 </View>
               ))}
             </View>
@@ -156,11 +156,13 @@ export default function SellerReportsScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Insights</Text>
               {insights.map((ins, i) => (
-                <View key={i} style={styles.insightRow}>
+                <View key={ins.id ?? i} style={styles.insightRow}>
                   <FontAwesome name="lightbulb-o" size={14} color={Brand.blue} style={{ marginTop: 2 }} />
                   <View style={{ flex: 1 }}>
                     {ins.title ? <Text style={styles.insightTitle}>{ins.title}</Text> : null}
-                    {ins.description ? <Text style={styles.insightText}>{ins.description}</Text> : null}
+                    {(ins.detail ?? ins.description) ? (
+                      <Text style={styles.insightText}>{ins.detail ?? ins.description}</Text>
+                    ) : null}
                   </View>
                 </View>
               ))}

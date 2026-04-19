@@ -11,14 +11,18 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Brand } from '@/constants/brand';
 import {
   fetchProductsByStall,
   updateProduct,
   updateVariant,
   adjustStock,
+  uploadImage,
   type Product,
   type ProductVariant,
 } from '@/lib/seller-api';
@@ -44,6 +48,8 @@ export default function EditProductScreen() {
   const [brand, setBrand] = useState('');
   const [status, setStatus] = useState('ACTIVE');
   const [savingProduct, setSavingProduct] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Stock adjust
   const [adjustVariantId, setAdjustVariantId] = useState<string | null>(null);
@@ -59,6 +65,35 @@ export default function EditProductScreen() {
       setStatus(product.status);
     }
   }, [product]);
+
+  const pickAndUploadImage = async () => {
+    const { status: perm } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm !== 'granted') {
+      Alert.alert('Permission required', 'Allow photo access to change the product image.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.92,
+      allowsEditing: true,
+      aspect: [1, 1],
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    setImageUri(asset.uri);
+    setUploadingImage(true);
+    try {
+      const url = await uploadImage(asset.uri, asset.mimeType ?? 'image/jpeg');
+      await updateProduct(id!, stallId!, { images: [{ url, isPrimary: true }] });
+      await qc.invalidateQueries({ queryKey: ['stall-products', stallId] });
+      Alert.alert('Done', 'Product image updated.');
+    } catch {
+      Alert.alert('Upload failed', 'Could not update image. Try again.');
+      setImageUri(null);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const handleSaveProduct = async () => {
     if (!name.trim()) { Alert.alert('Required', 'Product name is required.'); return; }
@@ -116,6 +151,24 @@ export default function EditProductScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
+        {/* Image */}
+        <Pressable style={styles.imagePicker} onPress={pickAndUploadImage} disabled={uploadingImage}>
+          {uploadingImage ? (
+            <ActivityIndicator color={Brand.blue} />
+          ) : (imageUri ?? product.images?.[0]?.url) ? (
+            <Image
+              source={{ uri: imageUri ?? product.images?.[0]?.url }}
+              style={styles.imagePreview}
+              contentFit="cover"
+            />
+          ) : (
+            <View style={styles.imagePlaceholder}>
+              <FontAwesome name="camera" size={22} color={Brand.muted} />
+              <Text style={styles.imagePlaceholderText}>Tap to change photo</Text>
+            </View>
+          )}
+        </Pressable>
+
         {/* Product edit form */}
         <Text style={styles.sectionTitle}>Product details</Text>
         <View style={styles.card}>
@@ -167,14 +220,31 @@ export default function EditProductScreen() {
             </View>
 
             <View style={styles.stockRow}>
-              <Text style={styles.stockQty}>
-                Stock: <Text style={{ fontWeight: '900', color: Brand.navy }}>{v.inventory?.quantity ?? 0}</Text>
-              </Text>
+              <View style={styles.stockStats}>
+                <View style={styles.stockStat}>
+                  <Text style={styles.stockStatValue}>{v.inventory?.quantity ?? 0}</Text>
+                  <Text style={styles.stockStatLabel}>In stock</Text>
+                </View>
+                <View style={styles.stockStatDivider} />
+                <View style={styles.stockStat}>
+                  <Text style={[styles.stockStatValue, { color: Brand.blue }]}>{v._count?.posSaleItems ?? 0}</Text>
+                  <Text style={styles.stockStatLabel}>Sold (POS)</Text>
+                </View>
+                {(v.inventory?.lowStockThreshold != null) && (v.inventory?.quantity ?? 0) <= v.inventory.lowStockThreshold && (
+                  <>
+                    <View style={styles.stockStatDivider} />
+                    <View style={styles.stockStat}>
+                      <Text style={[styles.stockStatValue, { color: Brand.red ?? '#ef4444' }]}>Low</Text>
+                      <Text style={styles.stockStatLabel}>Stock alert</Text>
+                    </View>
+                  </>
+                )}
+              </View>
               <Pressable
                 style={styles.adjustTrigger}
                 onPress={() => setAdjustVariantId(adjustVariantId === v.id ? null : v.id)}
               >
-                <Text style={styles.adjustTriggerText}>Adjust stock</Text>
+                <Text style={styles.adjustTriggerText}>Adjust</Text>
               </Pressable>
             </View>
 
@@ -224,6 +294,15 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: Brand.pageBg },
   errorText: { fontSize: 15, fontWeight: '700', color: Brand.red },
 
+  imagePicker: {
+    width: '100%', aspectRatio: 1, borderRadius: 16, backgroundColor: Brand.card,
+    borderWidth: 1, borderColor: Brand.border, overflow: 'hidden',
+    justifyContent: 'center', alignItems: 'center', marginBottom: 16,
+  },
+  imagePreview: { width: '100%', height: '100%' },
+  imagePlaceholder: { alignItems: 'center', gap: 8 },
+  imagePlaceholderText: { fontSize: 13, color: Brand.muted, fontWeight: '600' },
+
   sectionTitle: { fontSize: 13, fontWeight: '800', color: Brand.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 4 },
   card: { backgroundColor: Brand.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Brand.border, marginBottom: 14 },
   variantCard: { gap: 8 },
@@ -252,9 +331,13 @@ const styles = StyleSheet.create({
   variantPrice: { fontSize: 15, fontWeight: '900', color: Brand.navy },
   variantCost: { fontSize: 11, color: Brand.muted },
 
-  stockRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  stockQty: { fontSize: 13, color: Brand.muted },
-  adjustTrigger: { backgroundColor: Brand.orange, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  stockRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  stockStats: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  stockStat: { alignItems: 'center' },
+  stockStatValue: { fontSize: 18, fontWeight: '900', color: Brand.navy },
+  stockStatLabel: { fontSize: 10, fontWeight: '700', color: Brand.muted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  stockStatDivider: { width: 1, height: 24, backgroundColor: Brand.border },
+  adjustTrigger: { backgroundColor: Brand.blue, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   adjustTriggerText: { color: '#fff', fontWeight: '800', fontSize: 12 },
   adjustForm: { borderTopWidth: 1, borderTopColor: Brand.border, paddingTop: 10, gap: 2 },
 

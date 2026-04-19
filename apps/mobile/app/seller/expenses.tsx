@@ -3,9 +3,12 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -237,71 +240,80 @@ function AddExpenseModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>New expense</Text>
-            <Pressable onPress={onClose}>
-              <FontAwesome name="close" size={18} color={Brand.muted} />
-            </Pressable>
-          </View>
-
-          <Text style={styles.label}>Category</Text>
-          <View style={styles.catGrid}>
-            {CATEGORIES.map((c) => (
-              <Pressable
-                key={c.key}
-                style={[styles.catChip, category === c.key && styles.catChipActive]}
-                onPress={() => setCategory(c.key)}
-              >
-                <FontAwesome
-                  name={c.icon}
-                  size={12}
-                  color={category === c.key ? '#fff' : Brand.blue}
-                />
-                <Text style={[styles.catChipText, category === c.key && styles.catChipTextActive]}>
-                  {c.label}
-                </Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>New expense</Text>
+              <Pressable onPress={onClose}>
+                <FontAwesome name="close" size={18} color={Brand.muted} />
               </Pressable>
-            ))}
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <Text style={styles.label}>Category</Text>
+              <View style={styles.catGrid}>
+                {CATEGORIES.map((c) => (
+                  <Pressable
+                    key={c.key}
+                    style={[styles.catChip, category === c.key && styles.catChipActive]}
+                    onPress={() => setCategory(c.key)}
+                  >
+                    <FontAwesome
+                      name={c.icon}
+                      size={12}
+                      color={category === c.key ? '#fff' : Brand.blue}
+                    />
+                    <Text style={[styles.catChipText, category === c.key && styles.catChipTextActive]}>
+                      {c.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={styles.label}>Amount (USD)</Text>
+              <TextInput
+                style={styles.input}
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor="#9ca3af"
+                returnKeyType="next"
+                editable={!mut.isPending}
+              />
+
+              <Text style={styles.label}>Notes (optional)</Text>
+              <TextInput
+                style={[styles.input, { minHeight: 70, textAlignVertical: 'top' }]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="e.g. Transport to restock"
+                placeholderTextColor="#9ca3af"
+                multiline
+                returnKeyType="done"
+                editable={!mut.isPending}
+              />
+
+              <Pressable
+                style={[styles.saveBtn, mut.isPending && styles.saveBtnDisabled]}
+                onPress={() => mut.mutate()}
+                disabled={mut.isPending}
+              >
+                {mut.isPending ? <ActivityIndicator color="#fff" /> : (
+                  <>
+                    <FontAwesome name="check" size={14} color="#fff" />
+                    <Text style={styles.saveBtnText}>Save expense</Text>
+                  </>
+                )}
+              </Pressable>
+            </ScrollView>
           </View>
-
-          <Text style={styles.label}>Amount (USD)</Text>
-          <TextInput
-            style={styles.input}
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-            placeholderTextColor="#9ca3af"
-            editable={!mut.isPending}
-          />
-
-          <Text style={styles.label}>Notes (optional)</Text>
-          <TextInput
-            style={[styles.input, { minHeight: 70, textAlignVertical: 'top' }]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="e.g. Transport to restock"
-            placeholderTextColor="#9ca3af"
-            multiline
-            editable={!mut.isPending}
-          />
-
-          <Pressable
-            style={[styles.saveBtn, mut.isPending && styles.saveBtnDisabled]}
-            onPress={() => mut.mutate()}
-            disabled={mut.isPending}
-          >
-            {mut.isPending ? <ActivityIndicator color="#fff" /> : (
-              <>
-                <FontAwesome name="check" size={14} color="#fff" />
-                <Text style={styles.saveBtnText}>Save expense</Text>
-              </>
-            )}
-          </Pressable>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

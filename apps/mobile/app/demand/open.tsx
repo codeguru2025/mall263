@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -31,6 +31,33 @@ function formatWhen(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+const FIVE_MIN_MS = 5 * 60 * 1000;
+const ONE_HOUR_MS = 60 * 60 * 1000;
+
+function DemandExpiryChip({ expiresAt }: { expiresAt?: string }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  if (!expiresAt) return null;
+  const msLeft = Math.max(0, new Date(expiresAt).getTime() - Date.now());
+  if (msLeft > ONE_HOUR_MS) return null;
+  const isCritical = msLeft <= FIVE_MIN_MS;
+  const mins = Math.floor(msLeft / 60000);
+  const secs = Math.floor((msLeft % 60000) / 1000);
+  const label = msLeft <= 0 ? 'Expired' : isCritical ? `${mins}m ${secs}s left` : `${Math.ceil(msLeft / 60000)}m left`;
+  const pct = Math.min(100, (msLeft / ONE_HOUR_MS) * 100);
+  return (
+    <View style={styles.expiryWrap}>
+      <Text style={[styles.expiryLabel, isCritical && { color: Brand.red }]}>{label}</Text>
+      <View style={styles.expiryTrack}>
+        <View style={[styles.expiryFill, { width: `${pct}%`, backgroundColor: isCritical ? Brand.red : Brand.blue }]} />
+      </View>
+    </View>
+  );
 }
 
 export default function OpenDemandsScreen() {
@@ -90,6 +117,7 @@ export default function OpenDemandsScreen() {
             Budget up to {formatMoney(item.maxBudget, cur)}
             {item.minBudget != null ? ` (from ${formatMoney(item.minBudget, cur)})` : ''}
           </Text>
+          <DemandExpiryChip expiresAt={item.expiresAt} />
         </Pressable>
       );
     },
@@ -160,6 +188,10 @@ const styles = StyleSheet.create({
   date: { fontSize: 12, color: Brand.muted },
   title: { fontSize: 17, fontWeight: '800', color: Brand.navy, marginBottom: 6 },
   budget: { fontSize: 14, fontWeight: '600', color: Brand.text },
+  expiryWrap: { marginTop: 8 },
+  expiryLabel: { fontSize: 11, fontWeight: '800', color: Brand.blue, marginBottom: 4 },
+  expiryTrack: { height: 5, borderRadius: 999, backgroundColor: Brand.border, overflow: 'hidden' },
+  expiryFill: { height: '100%', borderRadius: 999 },
   empty: { textAlign: 'center', color: Brand.muted, marginTop: 24 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: Brand.pageBg },
   muted: { marginTop: 10, color: Brand.muted },

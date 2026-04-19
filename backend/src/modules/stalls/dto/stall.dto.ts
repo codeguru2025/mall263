@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
 } from 'class-validator';
 
@@ -119,6 +120,18 @@ export class UpdateStallDto {
   @IsOptional()
   @IsNumber()
   longitude?: number;
+}
+
+export class UpdatePaymentConfigDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4,10}$/, { message: 'EcoCash merchant code must be 4-10 digits' })
+  ecocashMerchantCode?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4,10}$/, { message: 'OneMoney merchant code must be 4-10 digits' })
+  onemoneyMerchantCode?: string | null;
 }
 
 export class UpdateMallDto {

@@ -140,6 +140,7 @@ enum PaymentMethod {
   WALLET
   CASH
   ECOCASH
+  ONEMONEY
   INNBUCKS
   BANK_TRANSFER
   MIXED
@@ -253,6 +254,7 @@ model User {
   serviceQuotes        ServiceQuote[]       @relation("ProviderServiceQuotes")
   serviceChatMessages  ServiceChatMessage[] @relation("ServiceChatSenders")
   recordedStallExpenses StallExpense[]      @relation("ExpenseRecordedBy")
+  stallFollows          StallFollow[]
   supportRequestsSubmitted SupportRequest[] @relation("SupportRequestSubmitter")
   supportRequestsAssigned  SupportRequest[] @relation("SupportRequestAssignee")
   driver               Driver?
@@ -390,6 +392,8 @@ model Stall {
   longitude     Float?
   imageUrl      String?     @map("image_url")
   logoUrl       String?     @map("logo_url")
+  ecocashMerchantCode  String?     @map("ecocash_merchant_code")
+  onemoneyMerchantCode String?     @map("onemoney_merchant_code")
   viewCount     Int         @default(0) @map("view_count")
   isPromoted    Boolean     @default(false) @map("is_promoted")
   promotedUntil DateTime?   @map("promoted_until")
@@ -407,6 +411,7 @@ model Stall {
   serviceListings ServiceListing[]
   expenses          StallExpense[]
   analyticsEvents   StallAnalyticsEvent[]
+  followers         StallFollow[]
 
   @@unique([mallId, stallNumber])
   @@index([merchantId])
@@ -430,6 +435,20 @@ model StallAttendant {
   @@unique([userId, stallId])
   @@index([stallId])
   @@map("stall_attendants")
+}
+
+model StallFollow {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  stallId   String   @map("stall_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stall Stall @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stallId])
+  @@index([stallId])
+  @@map("stall_follows")
 }
 
 // ============================================================
@@ -839,10 +858,11 @@ model BuyerDemand {
   currency    String        @default("USD")
   urgency     DemandUrgency @default(MEDIUM)
   status      DemandStatus  @default(OPEN)
-  mallId      String?       @map("mall_id") @db.Uuid
-  expiresAt   DateTime      @map("expires_at")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  mallId           String?       @map("mall_id") @db.Uuid
+  deliveryLocation String?       @map("delivery_location")
+  expiresAt        DateTime      @map("expires_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
 
   buyer   User          @relation(fields: [buyerId], references: [id], onDelete: Cascade)
   product Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -919,9 +939,10 @@ model POSSale {
   currency       String        @default("USD")
   paymentMethod  PaymentMethod @default(CASH)
   status         POSSaleStatus @default(COMPLETED)
-  notes          String?
-  customerPhone  String?       @map("customer_phone")
-  createdAt      DateTime      @default(now()) @map("created_at")
+  notes           String?
+  customerPhone   String?       @map("customer_phone")
+  deliveryAddress String?       @map("delivery_address")
+  createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
   stall   Stall         @relation(fields: [stallId], references: [id])
@@ -1127,6 +1148,8 @@ model ChatMessage {
   attachmentWidth  Int?    @map("attachment_width")
   attachmentHeight Int?    @map("attachment_height")
   attachmentSize   Int?    @map("attachment_size") // bytes
+  isEdited  Boolean  @default(false) @map("is_edited")
+  editedAt  DateTime? @map("edited_at")
   createdAt DateTime @default(now()) @map("created_at")
 
   room   ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)

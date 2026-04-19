@@ -147,6 +147,9 @@ export default function DemandDetailScreen() {
           {formatMoney(d.maxBudget, currency)}
         </Text>
         <Text style={styles.small}>Urgency: {d.urgency}</Text>
+        {d.deliveryLocation ? (
+          <Text style={styles.deliveryLocation}>📍 {d.deliveryLocation}</Text>
+        ) : null}
       </View>
 
       <Text style={styles.section}>Offers ({offers.length})</Text>
@@ -243,6 +246,7 @@ const styles = StyleSheet.create({
   desc: { fontSize: 15, color: Brand.text, lineHeight: 22, marginBottom: 10 },
   budgetRow: { fontSize: 16, fontWeight: '700', color: Brand.navy },
   small: { fontSize: 13, color: Brand.muted, marginTop: 6 },
+  deliveryLocation: { fontSize: 13, color: Brand.text, marginTop: 8, fontWeight: '600' },
   section: { fontSize: 16, fontWeight: '800', color: Brand.navy, marginBottom: 10 },
   competing: {
     fontSize: 13,

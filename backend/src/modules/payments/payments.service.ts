@@ -5,7 +5,7 @@ import { RedisService } from '../../redis/redis.service';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { Paynow } = require('paynow');
 
-export type PaymentMethod = 'ecocash' | 'onemoney' | 'telecash' | 'web';
+export type PaymentMethod = 'ecocash' | 'onemoney' | 'telecash' | 'omari' | 'web';
 
 interface PendingPayment {
   userId: string;
@@ -81,7 +81,7 @@ export class PaymentsService {
     userId: string,
     amount: number,
     phone: string,
-    method: 'ecocash' | 'onemoney' | 'telecash',
+    method: 'ecocash' | 'onemoney' | 'telecash' | 'omari',
   ) {
     if (amount < 1) throw new BadRequestException('Minimum deposit is $1.00');
 
@@ -193,6 +193,70 @@ export class PaymentsService {
     }
 
     return { paid: false, status: statusOut };
+  }
+
+  /**
+   * Fire a USSD push to a customer's phone for a POS merchant-code payment.
+   * Unlike initiateMobilePayment(), this does NOT credit a Mall263 wallet.
+   * The caller is responsible for storing the pollUrl and finalizing the sale.
+   */
+  async initiateUssdPush(
+    amount: number,
+    customerPhone: string,
+    method: 'ecocash' | 'onemoney',
+    reference: string,
+  ): Promise<{ pollUrl: string; instructions: string }> {
+    const normalised = this.normalisePhone(customerPhone);
+    const payment = this.paynow.createPayment(reference, this.merchantEmail);
+    payment.add('POS Payment — Mall263', amount);
+
+    let response: any;
+    try {
+      response = await this.paynow.sendMobile(payment, normalised, method);
+    } catch (err) {
+      this.logger.error('Paynow USSD push failed', err);
+      throw new BadRequestException('Payment gateway unavailable. Please try again.');
+    }
+
+    if (!response.success) {
+      throw new BadRequestException(
+        `Payment initiation failed: ${response.error || 'unknown error'}`,
+      );
+    }
+
+    return {
+      pollUrl: response.pollUrl,
+      instructions:
+        response.instructions ||
+        `A payment prompt has been sent to ${customerPhone}. The customer should enter their ${method === 'ecocash' ? 'EcoCash' : 'OneMoney'} PIN to approve.`,
+    };
+  }
+
+  /** Poll a Paynow transaction by pollUrl (no wallet side-effects). */
+  async pollUssdStatus(pollUrl: string): Promise<{ paid: boolean; status: string }> {
+    let statusResponse: any;
+    try {
+      statusResponse = await this.paynow.pollTransaction(pollUrl);
+    } catch (err) {
+      this.logger.error('USSD poll failed', err);
+      return { paid: false, status: 'POLL_ERROR' };
+    }
+
+    const st = String(statusResponse?.status ?? '').toLowerCase();
+    const paid =
+      statusResponse?.paid === true ||
+      (typeof statusResponse?.paid === 'function' && statusResponse.paid() === true) ||
+      st === 'paid';
+    const terminalFail = ['cancelled', 'canceled', 'failed', 'disputed', 'refunded'].includes(st);
+
+    return {
+      paid,
+      status: terminalFail
+        ? 'FAILED'
+        : paid
+          ? 'PAID'
+          : String(statusResponse?.status || 'PENDING').toUpperCase(),
+    };
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────

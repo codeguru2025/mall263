@@ -18,7 +18,8 @@
       "bundleIdentifier": "com.mall263.mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "associatedDomains": ["applinks:mall263-r99jz.ondigitalocean.app"]
     },
     "android": {
       "package": "com.mall263.mobile",
@@ -27,7 +28,21 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "mall263-r99jz.ondigitalocean.app",
+              "pathPrefix": "/receipts"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

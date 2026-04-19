@@ -9,8 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@mall263/shared": "file:../packages/shared",
     "@hookform/resolvers": "^3.3.0",
+    "@mall263/shared": "file:../packages/shared",
     "@tanstack/react-query": "^5.28.0",
     "axios": "^1.12.0",
     "clsx": "^2.1.0",
@@ -23,6 +23,7 @@
     "react-easy-crop": "^5.5.7",
     "react-hook-form": "^7.51.0",
     "react-hot-toast": "^2.4.0",
+    "react-qr-code": "^2.0.18",
     "socket.io-client": "^4.7.0",
     "tailwind-merge": "^2.2.0",
     "zod": "^3.22.0",

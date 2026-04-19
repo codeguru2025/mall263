@@ -91,7 +91,7 @@ function RootLayoutNav() {
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack>
+          <Stack screenOptions={{ headerBackTitle: 'Back' }}>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ title: 'Sign in' }} />
             <Stack.Screen name="register" options={{ title: 'Create account' }} />
@@ -130,6 +130,7 @@ function RootLayoutNav() {
             <Stack.Screen name="pos/index" options={{ title: 'POS' }} />
             <Stack.Screen name="pos/cart" options={{ title: 'Register' }} />
             <Stack.Screen name="pos/receipt/[saleId]" options={{ title: 'Receipt' }} />
+            <Stack.Screen name="pos/merchant-pay" options={{ title: 'Request Payment' }} />
             <Stack.Screen name="agent/index" options={{ title: 'Field Agent' }} />
             <Stack.Screen name="agent/onboard" options={{ title: 'Onboard existing buyer' }} />
             <Stack.Screen name="agent/recruit" options={{ title: 'Recruit new contact' }} />
@@ -139,6 +140,7 @@ function RootLayoutNav() {
             <Stack.Screen name="agent/stall-verify" options={{ title: 'Verify stall' }} />
             <Stack.Screen name="agent/quality-review" options={{ title: 'Quality review' }} />
             <Stack.Screen name="seller/attendants" options={{ title: 'Stall attendants' }} />
+            <Stack.Screen name="seller/qr" options={{ title: 'Shop QR Code' }} />
             <Stack.Screen name="admin/index" options={{ title: 'Admin' }} />
             <Stack.Screen name="admin/users" options={{ title: 'Users' }} />
             <Stack.Screen name="admin/stalls" options={{ title: 'Stalls' }} />

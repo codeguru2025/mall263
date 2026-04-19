@@ -13,6 +13,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation } from '@tanstack/react-query';
 import { Brand } from '@/constants/brand';
 import { openDispute } from '@/lib/delivery-api';
+import { getApiErrorMessage } from '@/lib/api-errors';
 
 export default function DisputeScreen() {
   const { jobId } = useLocalSearchParams<{ jobId: string }>();
@@ -38,7 +39,7 @@ export default function DisputeScreen() {
       ]);
     },
     onError: (err: unknown) =>
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to open dispute'),
+      Alert.alert('Could not open dispute', getApiErrorMessage(err, 'Failed to open dispute.')),
   });
 
   const canSubmit = reason.trim().length >= 10 && !mutation.isPending;

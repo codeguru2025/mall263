@@ -16,6 +16,7 @@ export type StallDetail = {
   stallNumber?: string | null;
   viewCount?: number;
   followerCount?: number;
+  isFollowing?: boolean;
   mall?: {
     id: string;
     name: string;
@@ -132,4 +133,14 @@ export async function fetchMyMerchant(): Promise<{ id: string; businessName: str
   } catch {
     return null;
   }
+}
+
+export async function followStall(stallId: string): Promise<{ following: boolean; followerCount: number }> {
+  const { data } = await api.post(`/api/v1/stalls/${stallId}/follow`);
+  return data;
+}
+
+export async function unfollowStall(stallId: string): Promise<{ following: boolean; followerCount: number }> {
+  const { data } = await api.delete(`/api/v1/stalls/${stallId}/follow`);
+  return data;
 }

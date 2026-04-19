@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, Body, UseGuards, Logger } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, NotFoundException, Patch, Post, Param, Query, Body, UseGuards, Logger } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
@@ -200,5 +200,27 @@ export class ChatController {
     );
     this.chatGateway.emitRoomMessage(roomId, message);
     return message;
+  }
+
+  @Patch('messages/:messageId')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Edit own message content' })
+  async editMessage(
+    @Param('messageId') messageId: string,
+    @CurrentUser('id') userId: string,
+    @Body() body: { content: string },
+  ) {
+    if (!body?.content?.trim()) throw new NotFoundException('Content required');
+    const existing = await this.prisma.chatMessage.findUnique({ where: { id: messageId } });
+    if (!existing) throw new NotFoundException('Message not found');
+    if (existing.senderId !== userId) throw new ForbiddenException('Not your message');
+
+    const updated = await this.prisma.chatMessage.update({
+      where: { id: messageId },
+      data: { content: body.content.trim(), isEdited: true, editedAt: new Date() },
+      include: { sender: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } } },
+    });
+    this.chatGateway.emitRoomMessage(existing.roomId, updated);
+    return updated;
   }
 }

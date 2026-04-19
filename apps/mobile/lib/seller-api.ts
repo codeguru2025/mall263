@@ -20,7 +20,8 @@ export type ProductVariant = {
   costPrice: unknown;
   sellingPrice: unknown;
   isActive: boolean;
-  inventory?: { quantity: number } | null;
+  inventory?: { quantity: number; lowStockThreshold?: number | null } | null;
+  _count?: { posSaleItems?: number };
 };
 
 export type Product = {
@@ -98,7 +99,14 @@ export async function createProduct(body: {
 export async function updateProduct(
   id: string,
   stallId: string,
-  body: { name?: string; description?: string; brand?: string; status?: string; categoryId?: string },
+  body: {
+    name?: string;
+    description?: string;
+    brand?: string;
+    status?: string;
+    categoryId?: string;
+    images?: Array<{ url: string; isPrimary?: boolean }>;
+  },
 ): Promise<Product> {
   const { data } = await api.patch<Product>(`/api/v1/products/${id}`, { stallId, ...body });
   return data;

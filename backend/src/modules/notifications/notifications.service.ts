@@ -77,10 +77,18 @@ export class NotificationsService {
   // ─── Internal: call Expo push API ─────────────────────────────────────────
 
   private async sendExpoPush(token: string, title: string, body: string, data?: any) {
+    const isChatMessage = data?.type === 'NEW_MESSAGE' || data?.type === 'chat';
     await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ to: token, title, body, data: data ?? {}, sound: 'default' }),
+      body: JSON.stringify({
+        to: token,
+        title,
+        body,
+        data: data ?? {},
+        sound: isChatMessage ? null : 'default',
+        channelId: isChatMessage ? 'chat' : 'default',
+      }),
     });
   }
 }

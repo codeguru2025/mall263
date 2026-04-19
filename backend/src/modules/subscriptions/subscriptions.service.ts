@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
-import { AgentCommissionStatus, NotificationType, SubscriptionStatus, WalletTransactionStatus, WalletTransactionType, Prisma } from '@prisma/client';
+import { AgentCommissionStatus, NotificationType, SubscriptionStatus, UserRole, WalletTransactionStatus, WalletTransactionType, Prisma } from '@prisma/client';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { Paynow } = require('paynow');
 
@@ -11,6 +11,15 @@ const FALLBACK_TRIAL_DAYS = 7;
 const GRACE_DAYS = 3;
 const RETRY_INTERVAL_MINUTES = 30;
 const AGENT_COMMISSION_RATE = 0.10; // 10% of subscription payment
+
+/** Roles that are permanently exempt from subscription billing and gates. */
+const SUBSCRIPTION_EXEMPT_ROLES: ReadonlySet<UserRole> = new Set([
+  UserRole.SUPER_ADMIN,
+  UserRole.ADMIN_OPS,
+  UserRole.FINANCE_ADMIN,
+  UserRole.SUPPORT_ADMIN,
+  UserRole.MALL_MANAGER,
+]);
 
 @Injectable()
 export class SubscriptionsService {
@@ -110,6 +119,9 @@ export class SubscriptionsService {
    * Trial length is driven by the default plan's trialDays.
    */
   async initTrial(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (user && SUBSCRIPTION_EXEMPT_ROLES.has(user.role)) return;
+
     const plan = await this.getDefaultPlan();
     const trialEndsAt = new Date(Date.now() + plan.trialDays * 24 * 60 * 60 * 1000);
     await this.prisma.subscription.upsert({
@@ -122,6 +134,22 @@ export class SubscriptionsService {
   // ── Status ─────────────────────────────────────────────────────────────────
 
   async getStatus(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (user && SUBSCRIPTION_EXEMPT_ROLES.has(user.role)) {
+      return {
+        status: 'EXEMPT' as const,
+        trialEndsAt: null,
+        trialActive: false,
+        isActive: true,
+        fullyAccess: true,
+        hasEcocash: false,
+        ecocashNumber: null,
+        currentPeriodEnd: null,
+        nextBillingDate: null,
+        plan: null,
+      };
+    }
+
     let sub = await this.prisma.subscription.findUnique({ where: { userId } });
     if (!sub) {
       await this.initTrial(userId);
@@ -356,6 +384,7 @@ export class SubscriptionsService {
         status: { in: [SubscriptionStatus.EXPIRED, SubscriptionStatus.GRACE] },
         ecocashNumber: { not: null },
         nextRetryAt: { lte: now },
+        user: { role: { notIn: [...SUBSCRIPTION_EXEMPT_ROLES] } },
       },
       take: 50,
     });
@@ -375,7 +404,11 @@ export class SubscriptionsService {
     const now = new Date();
 
     const expiredTrials = await this.prisma.subscription.findMany({
-      where: { status: SubscriptionStatus.TRIAL, trialEndsAt: { lte: now } },
+      where: {
+        status: SubscriptionStatus.TRIAL,
+        trialEndsAt: { lte: now },
+        user: { role: { notIn: [...SUBSCRIPTION_EXEMPT_ROLES] } },
+      },
     });
 
     for (const sub of expiredTrials) {
@@ -396,6 +429,7 @@ export class SubscriptionsService {
         status: SubscriptionStatus.ACTIVE,
         nextBillingDate: { lte: now },
         ecocashNumber: { not: null },
+        user: { role: { notIn: [...SUBSCRIPTION_EXEMPT_ROLES] } },
       },
     });
 
@@ -419,6 +453,7 @@ export class SubscriptionsService {
       where: {
         status: SubscriptionStatus.GRACE,
         updatedAt: { lt: new Date(now.getTime() - GRACE_DAYS * 24 * 60 * 60 * 1000) },
+        user: { role: { notIn: [...SUBSCRIPTION_EXEMPT_ROLES] } },
       },
       data: { status: SubscriptionStatus.EXPIRED },
     });

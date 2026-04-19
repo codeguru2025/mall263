@@ -10,6 +10,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/Logo';
 import { fetchNotificationsPage } from '@/lib/notifications-api';
 
+const SELLER_ROLES = new Set(['STALL_OWNER', 'ATTENDANT']);
+const AGENT_ROLES = new Set(['FIELD_AGENT']);
+
 // You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -20,7 +23,7 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const { isReady, isAuthenticated } = useAuth();
+  const { isReady, isAuthenticated, user } = useAuth();
 
   const { data: notifPage } = useQuery({
     queryKey: ['notifications', 'unread-count'],
@@ -32,11 +35,17 @@ export default function TabLayout() {
 
   if (!isReady) return null;
 
+  const role = user?.role ?? '';
+  const isSeller = SELLER_ROLES.has(role);
+  const isAgent = AGENT_ROLES.has(role);
+
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: useClientOnlyValue(false, true),
+        // Tab screens are navigation roots — never show a back button
+        headerBackVisible: false,
       }}>
       <Tabs.Screen
         name="index"
@@ -81,6 +90,22 @@ export default function TabLayout() {
         options={{
           title: 'Wallet',
           tabBarIcon: ({ color }) => <TabBarIcon name="money" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="seller"
+        options={{
+          title: 'Seller',
+          href: isSeller ? undefined : null,
+          tabBarIcon: ({ color }) => <TabBarIcon name="building" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="agent"
+        options={{
+          title: 'Agent',
+          href: isAgent ? undefined : null,
+          tabBarIcon: ({ color }) => <TabBarIcon name="map-marker" color={color} />,
         }}
       />
       <Tabs.Screen

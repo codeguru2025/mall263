@@ -18,6 +18,22 @@ import { fetchMeProfile } from '@/lib/me-profile';
 import { fetchStallsByMerchant } from '@/lib/stalls-api';
 import { api } from '@/lib/api';
 
+type StallAttendant = {
+  id: string;
+  user: { id: string; firstName: string; lastName: string; phone: string };
+  isActive: boolean;
+  createdAt: string;
+};
+
+async function fetchAttendants(stallId: string): Promise<StallAttendant[]> {
+  const { data } = await api.get<StallAttendant[]>(`/api/v1/stalls/${stallId}/attendants`);
+  return Array.isArray(data) ? data : [];
+}
+
+async function removeAttendant(stallId: string, userId: string): Promise<void> {
+  await api.delete(`/api/v1/stalls/${stallId}/attendants/${userId}`);
+}
+
 function generateTempPassword(): string {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
   let p = '';
@@ -53,6 +69,32 @@ export default function AttendantsScreen() {
 
   const stalls = stallsQ.data ?? [];
   const stall = stalls[stallIndex];
+
+  const attendantsQ = useQuery({
+    queryKey: ['stall-attendants', stall?.id],
+    queryFn: () => fetchAttendants(stall!.id),
+    enabled: !!stall?.id,
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: ({ userId }: { userId: string }) => removeAttendant(stall!.id, userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['stall-attendants', stall?.id] }),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || err?.message || 'Could not remove attendant.';
+      Alert.alert('Error', typeof msg === 'string' ? msg : 'Please try again.');
+    },
+  });
+
+  const confirmRemove = (attendant: StallAttendant) => {
+    Alert.alert(
+      'Remove attendant?',
+      `${attendant.user.firstName} ${attendant.user.lastName} will no longer have access to this stall.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => removeMutation.mutate({ userId: attendant.user.id }) },
+      ],
+    );
+  };
 
   const addMutation = useMutation({
     mutationFn: async () => {
@@ -98,7 +140,7 @@ export default function AttendantsScreen() {
       setLastName('');
       setPhone('');
       setPin('');
-      qc.invalidateQueries({ queryKey: ['me-profile'] });
+      qc.invalidateQueries({ queryKey: ['stall-attendants', stall?.id] });
     },
     onError: (err: any) => {
       const msg = err?.response?.data?.message || err?.message || 'Failed to add attendant.';
@@ -191,12 +233,37 @@ export default function AttendantsScreen() {
           </View>
         )}
 
-        {/* Info about listing */}
-        <View style={styles.infoCard}>
-          <FontAwesome name="info-circle" size={14} color={Brand.blue} />
-          <Text style={styles.infoText}>
-            Attendants you've added can access your POS register and process sales. Their accounts are linked to your stall. To see all current attendants, check your POS register — attendants logged in with your stall appear there.
-          </Text>
+        {/* Attendant list */}
+        <View style={styles.card}>
+          <Text style={styles.sectionLabel}>Current attendants</Text>
+          {attendantsQ.isPending ? (
+            <ActivityIndicator color={Brand.blue} style={{ marginVertical: 12 }} />
+          ) : attendantsQ.isError ? (
+            <Text style={styles.listError}>Could not load attendants. Pull to refresh.</Text>
+          ) : attendantsQ.data?.length === 0 ? (
+            <Text style={styles.listEmpty}>No attendants yet. Add one below.</Text>
+          ) : (
+            attendantsQ.data?.map((a) => (
+              <View key={a.id} style={styles.attendantRow}>
+                <View style={styles.attendantIcon}>
+                  <FontAwesome name="user" size={14} color={Brand.blue} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.attendantName}>
+                    {a.user.firstName} {a.user.lastName}
+                  </Text>
+                  <Text style={styles.attendantPhone}>{a.user.phone}</Text>
+                </View>
+                <Pressable
+                  style={styles.removeBtn}
+                  onPress={() => confirmRemove(a)}
+                  disabled={removeMutation.isPending}
+                >
+                  <FontAwesome name="trash" size={14} color={Brand.red ?? '#ef4444'} />
+                </Pressable>
+              </View>
+            ))
+          )}
         </View>
 
         {/* Add attendant */}
@@ -413,4 +480,26 @@ const styles = StyleSheet.create({
 
   tipRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
   tipText: { flex: 1, fontSize: 13, color: '#334155', lineHeight: 19 },
+
+  listEmpty: { fontSize: 13, color: Brand.muted, paddingVertical: 8, textAlign: 'center' },
+  listError: { fontSize: 13, color: Brand.red ?? '#ef4444', paddingVertical: 8 },
+  attendantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Brand.border,
+  },
+  attendantIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#eff6fc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attendantName: { fontSize: 14, fontWeight: '800', color: Brand.navy },
+  attendantPhone: { fontSize: 12, color: Brand.muted, marginTop: 1 },
+  removeBtn: { padding: 8 },
 });

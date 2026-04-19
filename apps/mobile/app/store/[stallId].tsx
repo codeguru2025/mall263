@@ -10,17 +10,20 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Brand } from '@/constants/brand';
 import {
   fetchStallById,
   fetchStallBrowsePage,
+  followStall,
   recordStallVisit,
+  unfollowStall,
   type StallProductBrowseItem,
 } from '@/lib/stalls-api';
 import { formatMoney } from '@/lib/products';
+import { fetchMeProfile } from '@/lib/me-profile';
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -34,10 +37,14 @@ const cardShadow =
 
 export default function StoreScreen() {
   const router = useRouter();
+  const qc = useQueryClient();
   const { stallId } = useLocalSearchParams<{ stallId: string }>();
   const resolved = Array.isArray(stallId) ? stallId[0] : stallId;
   const [refreshing, setRefreshing] = useState(false);
   const visitOnceRef = useRef(false);
+
+  const meQ = useQuery({ queryKey: ['me-profile'], queryFn: fetchMeProfile, retry: false, staleTime: 60_000 });
+  const isLoggedIn = !!meQ.data?.id;
 
   const stallQ = useQuery({
     queryKey: ['stall-detail', resolved],
@@ -83,6 +90,32 @@ export default function StoreScreen() {
       catalogQ.fetchNextPage();
     }
   };
+
+  const [optimisticFollowing, setOptimisticFollowing] = useState<boolean | null>(null);
+  const [optimisticCount, setOptimisticCount] = useState<number | null>(null);
+
+  const followMut = useMutation({
+    mutationFn: async () => {
+      const isFollowing = optimisticFollowing ?? stallQ.data?.isFollowing ?? false;
+      if (isFollowing) return unfollowStall(resolved!);
+      return followStall(resolved!);
+    },
+    onMutate: () => {
+      const current = optimisticFollowing ?? stallQ.data?.isFollowing ?? false;
+      const currentCount = optimisticCount ?? stallQ.data?.followerCount ?? 0;
+      setOptimisticFollowing(!current);
+      setOptimisticCount(current ? Math.max(0, currentCount - 1) : currentCount + 1);
+    },
+    onSuccess: (result) => {
+      setOptimisticFollowing(result.following);
+      setOptimisticCount(result.followerCount);
+      qc.invalidateQueries({ queryKey: ['stall-detail', resolved] });
+    },
+    onError: () => {
+      setOptimisticFollowing(null);
+      setOptimisticCount(null);
+    },
+  });
 
   const stall = stallQ.data;
   const logo = stall?.logoUrl ?? stall?.merchant?.logoUrl ?? null;
@@ -130,8 +163,37 @@ export default function StoreScreen() {
           <View style={styles.statDivider} />
           <Stat label="Visits" value={stall?.viewCount ?? 0} />
           <View style={styles.statDivider} />
-          <Stat label="Followers" value={stall?.followerCount ?? 0} />
+          <Stat
+            label="Followers"
+            value={optimisticCount ?? stall?.followerCount ?? 0}
+          />
         </View>
+
+        {isLoggedIn && (
+          <Pressable
+            style={[
+              styles.followBtn,
+              (optimisticFollowing ?? stall?.isFollowing) && styles.followBtnActive,
+              followMut.isPending && { opacity: 0.6 },
+            ]}
+            onPress={() => followMut.mutate()}
+            disabled={followMut.isPending}
+          >
+            <FontAwesome
+              name={(optimisticFollowing ?? stall?.isFollowing) ? 'heart' : 'heart-o'}
+              size={14}
+              color={(optimisticFollowing ?? stall?.isFollowing) ? '#fff' : Brand.blue}
+            />
+            <Text
+              style={[
+                styles.followBtnText,
+                (optimisticFollowing ?? stall?.isFollowing) && styles.followBtnTextActive,
+              ]}
+            >
+              {(optimisticFollowing ?? stall?.isFollowing) ? 'Following' : 'Follow store'}
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       <Text style={styles.catalogTitle}>Catalogue</Text>
@@ -334,6 +396,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
+
+  followBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Brand.blue,
+    backgroundColor: 'transparent',
+  },
+  followBtnActive: { backgroundColor: Brand.blue, borderColor: Brand.blue },
+  followBtnText: { fontSize: 14, fontWeight: '800', color: Brand.blue },
+  followBtnTextActive: { color: '#fff' },
 
   catalogTitle: {
     marginTop: 18,

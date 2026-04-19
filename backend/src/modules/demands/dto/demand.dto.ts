@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -64,6 +65,12 @@ export class CreateDemandDto {
   @IsOptional()
   @IsUUID()
   mallId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  @Matches(/^[\w\s,.\-/()'&]+$/u, { message: 'Delivery location contains invalid characters' })
+  deliveryLocation?: string;
 
   @IsOptional()
   @IsNumber()

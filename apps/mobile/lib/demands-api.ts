@@ -36,6 +36,7 @@ export type DemandOfferDetail = {
 };
 
 export type DemandDetail = Omit<DemandListItem, 'offers'> & {
+  deliveryLocation?: string | null;
   buyer?: { id: string; firstName?: string; lastName?: string } | null;
   offers?: DemandOfferDetail[];
 };
@@ -58,6 +59,7 @@ export async function createDemand(body: {
   minBudget?: number;
   urgency?: string;
   expiresInHours?: number;
+  deliveryLocation?: string;
 }): Promise<DemandListItem> {
   const { data } = await api.post<DemandListItem>('/api/v1/demands', body);
   return data;

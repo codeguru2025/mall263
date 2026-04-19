@@ -213,7 +213,12 @@ export class ProductsService {
         skip: (page - 1) * limit,
         take: limit,
         include: {
-          variants: { include: { inventory: true } },
+          variants: {
+            include: {
+              inventory: true,
+              _count: { select: { posSaleItems: true } },
+            },
+          },
           images: { where: { isPrimary: true }, take: 1 },
           category: { select: { name: true } },
         },

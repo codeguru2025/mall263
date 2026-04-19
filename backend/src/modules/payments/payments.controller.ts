@@ -28,7 +28,7 @@ export class PaymentsController {
   @ApiOperation({ summary: 'Initiate a mobile money payment (EcoCash / OneMoney / Telecash)' })
   async initiateMobile(
     @CurrentUser('id') userId: string,
-    @Body() data: { amount: number; phone: string; method: 'ecocash' | 'onemoney' | 'telecash' },
+    @Body() data: { amount: number; phone: string; method: 'ecocash' | 'onemoney' | 'telecash' | 'omari' },
   ) {
     return this.paymentsService.initiateMobilePayment(
       userId,

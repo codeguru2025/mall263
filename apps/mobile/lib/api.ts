@@ -2,6 +2,10 @@ import axios from 'axios';
 import { getApiBaseUrl } from './config';
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from './token-storage';
 
+/** Called when the session expires and cannot be silently refreshed. */
+let _onAuthExpired: (() => void) | null = null;
+export function setOnAuthExpired(cb: () => void) { _onAuthExpired = cb; }
+
 /** baseURL is set per request so `getApiBaseUrl()` always matches current env / app.config extra. */
 export const api = axios.create({
   baseURL: '',
@@ -56,6 +60,7 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
       }
+      _onAuthExpired?.();
     }
     return Promise.reject(error);
   },

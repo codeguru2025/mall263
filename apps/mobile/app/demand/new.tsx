@@ -11,6 +11,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as Location from 'expo-location';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Brand } from '@/constants/brand';
@@ -33,6 +35,34 @@ export default function NewDemandScreen() {
   const [maxBudget, setMaxBudget] = useState(params.maxBudget ?? '');
   const [minBudget, setMinBudget] = useState(params.minBudget ?? '');
   const [urgency, setUrgency] = useState<(typeof URGENCIES)[number]>('MEDIUM');
+  const [deliveryLocation, setDeliveryLocation] = useState('');
+  const [detectingLocation, setDetectingLocation] = useState(false);
+
+  const detectGpsLocation = useCallback(async () => {
+    setDetectingLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Allow location access to auto-fill your delivery address.');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const [place] = await Location.reverseGeocodeAsync({
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      });
+      if (place) {
+        const parts = [place.street, place.district ?? place.subregion, place.city, place.region].filter(Boolean);
+        setDeliveryLocation(parts.join(', '));
+      } else {
+        setDeliveryLocation(`${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+      }
+    } catch {
+      Alert.alert('Location error', 'Could not get your location. Please enter it manually.');
+    } finally {
+      setDetectingLocation(false);
+    }
+  }, []);
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -50,6 +80,7 @@ export default function NewDemandScreen() {
         maxBudget: max,
         minBudget: minRaw,
         urgency,
+        deliveryLocation: deliveryLocation.trim() || undefined,
       });
     },
     onSuccess: (created) => {
@@ -136,6 +167,29 @@ export default function NewDemandScreen() {
           ))}
         </View>
 
+        <Text style={styles.label}>Delivery location (optional)</Text>
+        <View style={styles.locationRow}>
+          <TextInput
+            style={[styles.input, styles.locationInput]}
+            value={deliveryLocation}
+            onChangeText={setDeliveryLocation}
+            placeholder="e.g. Bulawayo CBD, Corner 8th Ave"
+            placeholderTextColor={Brand.muted}
+            maxLength={500}
+          />
+          <Pressable
+            style={styles.gpsBtn}
+            onPress={detectGpsLocation}
+            disabled={detectingLocation}
+          >
+            {detectingLocation ? (
+              <ActivityIndicator size="small" color={Brand.blue} />
+            ) : (
+              <FontAwesome name="location-arrow" size={18} color={Brand.blue} />
+            )}
+          </Pressable>
+        </View>
+
         <Pressable
           style={[styles.submit, mutation.isPending && styles.submitDisabled]}
           onPress={onSubmit}
@@ -199,4 +253,16 @@ const styles = StyleSheet.create({
   },
   submitDisabled: { opacity: 0.7 },
   submitText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  locationInput: { flex: 1, marginBottom: 0 },
+  gpsBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Brand.border,
+    backgroundColor: Brand.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

@@ -1,8 +1,10 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException, Logger } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { resolveStoreLogo } from '../../common/utils/store-branding';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { RedisService } from '../../redis/redis.service';
 import { POSSaleStatus, PaymentMethod, Prisma, WalletTransactionType, WalletTransactionStatus, NotificationType } from '@prisma/client';
 
 interface CartItem {
@@ -11,12 +13,28 @@ interface CartItem {
   discount?: number;
 }
 
+interface PendingMerchantPayment {
+  stallId: string;
+  cashierId: string;
+  items: CartItem[];
+  paymentMethod: 'ECOCASH' | 'ONEMONEY';
+  discountAmount?: number;
+  discountType?: string;
+  customerPhone?: string;
+  deliveryAddress?: string;
+  amount: number;
+  notes?: string;
+}
+
 @Injectable()
 export class POSService {
+  private readonly logger = new Logger(POSService.name);
+
   constructor(
     private prisma: PrismaService,
     private walletService: WalletService,
     private inventoryService: InventoryService,
+    private redis: RedisService,
   ) {}
 
   /**
@@ -40,6 +58,7 @@ export class POSService {
     discountType?: string;
     customerPhone?: string;
     notes?: string;
+    deliveryAddress?: string;
   }) {
     if (!data.items || data.items.length === 0) {
       throw new BadRequestException('Cart is empty');
@@ -206,6 +225,7 @@ export class POSService {
             status: POSSaleStatus.COMPLETED,
             customerPhone: data.customerPhone,
             notes: data.notes,
+            deliveryAddress: data.deliveryAddress,
             items: {
               create: saleItems,
             },
@@ -265,6 +285,46 @@ export class POSService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+  }
+
+  /**
+   * Public receipt verification — no auth required.
+   * Returns a safe subset of receipt data plus an authenticity flag.
+   */
+  async verifyReceipt(saleId: string) {
+    const sale = await this.prisma.pOSSale.findUnique({
+      where: { id: saleId },
+      include: {
+        items: { select: { productName: true, variantName: true, quantity: true, unitPrice: true, totalPrice: true } },
+        stall: {
+          select: {
+            id: true,
+            name: true,
+            stallNumber: true,
+            logoUrl: true,
+            merchant: { select: { businessName: true, logoUrl: true } },
+          },
+        },
+      },
+    });
+
+    if (!sale) return { authentic: false, receipt: null };
+
+    return {
+      authentic: true,
+      receipt: {
+        receiptNumber: sale.receiptNumber,
+        createdAt: sale.createdAt,
+        totalAmount: sale.totalAmount,
+        subtotal: sale.subtotal,
+        discountAmount: sale.discountAmount,
+        paymentMethod: sale.paymentMethod,
+        status: sale.status,
+        deliveryAddress: sale.deliveryAddress ?? null,
+        items: sale.items,
+        stall: sale.stall,
+      },
+    };
   }
 
   /**
@@ -464,6 +524,119 @@ export class POSService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
+  }
+
+  /**
+   * Stage 1 of a merchant-code payment: validate the cart and reserve it in Redis.
+   *
+   * The actual USSD dial happens entirely on the seller's device via the mobile app
+   * (Linking.openURL). No Paynow call is made here.
+   *
+   * ACID: inventory is untouched until confirmMerchantPayment() succeeds.
+   */
+  async initiateMerchantPayment(data: {
+    stallId: string;
+    cashierId: string;
+    items: CartItem[];
+    paymentMethod: 'ECOCASH' | 'ONEMONEY';
+    discountAmount?: number;
+    discountType?: string;
+    customerPhone?: string;
+    deliveryAddress?: string;
+    notes?: string;
+  }) {
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: data.stallId },
+      select: { ecocashMerchantCode: true, onemoneyMerchantCode: true },
+    });
+    if (!stall) throw new NotFoundException('Stall not found');
+
+    const merchantCode =
+      data.paymentMethod === 'ECOCASH' ? stall.ecocashMerchantCode : stall.onemoneyMerchantCode;
+    if (!merchantCode) {
+      throw new BadRequestException(
+        `No ${data.paymentMethod === 'ECOCASH' ? 'EcoCash' : 'OneMoney'} merchant code configured for this stall`,
+      );
+    }
+
+    // Read-only cart valuation — no DB writes yet
+    let subtotal = 0;
+    for (const item of data.items) {
+      const variant = await this.prisma.productVariant.findUnique({
+        where: { id: item.variantId },
+        select: { sellingPrice: true, product: { select: { stallId: true } } },
+      });
+      if (!variant) throw new BadRequestException(`Variant ${item.variantId} not found`);
+      if (variant.product.stallId !== data.stallId) {
+        throw new BadRequestException('Product does not belong to this stall');
+      }
+      subtotal += parseFloat(variant.sellingPrice.toString()) * item.quantity - (item.discount ?? 0);
+    }
+    const totalAmount = parseFloat(Math.max(0, subtotal - (data.discountAmount ?? 0)).toFixed(2));
+    if (totalAmount < 0.01) throw new BadRequestException('Total amount is too small');
+
+    const reference = `POS-${data.stallId.slice(0, 6)}-${Date.now()}-${randomBytes(4).toString('hex')}`;
+
+    const pending: PendingMerchantPayment = {
+      stallId: data.stallId,
+      cashierId: data.cashierId,
+      items: data.items,
+      paymentMethod: data.paymentMethod,
+      discountAmount: data.discountAmount,
+      discountType: data.discountType,
+      customerPhone: data.customerPhone ?? undefined,
+      deliveryAddress: data.deliveryAddress,
+      amount: totalAmount,
+      notes: data.notes,
+    };
+    await this.redis
+      .getClient()
+      .set(`pos:merchant-pay:${reference}`, JSON.stringify(pending), 'EX', 600);
+
+    return { reference, totalAmount, merchantCode, network: data.paymentMethod };
+  }
+
+  /**
+   * Stage 2: seller confirms they have received payment from the customer.
+   * Finalizes the POS sale in a single Serializable transaction (inventory +
+   * commission + receipt all atomically).
+   *
+   * IDEMPOTENCY: uses a Redis GETDEL (read-then-delete atomically) so that
+   * double-tapping "Confirm" cannot create two sales.
+   */
+  async confirmMerchantPayment(reference: string, confirmingUserId: string) {
+    const raw = await this.redis.getClient().getdel(`pos:merchant-pay:${reference}`);
+    if (!raw) {
+      throw new BadRequestException('Payment session expired or already confirmed');
+    }
+
+    const pending: PendingMerchantPayment = JSON.parse(raw);
+
+    // Only the cashier who initiated the session (or the stall owner) may confirm it.
+    if (pending.cashierId !== confirmingUserId) {
+      const stall = await this.prisma.stall.findUnique({
+        where: { id: pending.stallId },
+        include: { merchant: { select: { userId: true } } },
+      });
+      const isOwner = stall?.merchant?.userId === confirmingUserId;
+      if (!isOwner) {
+        throw new ForbiddenException('You did not initiate this payment session');
+      }
+    }
+
+    const result = await this.processSale({
+      stallId: pending.stallId,
+      cashierId: pending.cashierId,
+      items: pending.items,
+      paymentMethod: pending.paymentMethod as PaymentMethod,
+      discountAmount: pending.discountAmount,
+      discountType: pending.discountType,
+      customerPhone: pending.customerPhone,
+      deliveryAddress: pending.deliveryAddress,
+      notes: pending.notes ?? `Paid via ${pending.paymentMethod} merchant code`,
+    });
+
+    return { sale: result.sale, profit: result.profit, commission: result.commission };
   }
 
   private getPaymentBreakdown(sales: any[]) {

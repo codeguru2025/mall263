@@ -58,6 +58,7 @@ export class DemandsService {
     maxBudget: number;
     urgency?: DemandUrgency;
     mallId?: string;
+    deliveryLocation?: string;
     expiresInHours?: number;
   }) {
     const buyer = await this.prisma.user.findUnique({
@@ -125,6 +126,7 @@ export class DemandsService {
             urgency: data.urgency || DemandUrgency.MEDIUM,
             status: DemandStatus.OPEN,
             mallId,
+            deliveryLocation: data.deliveryLocation,
             expiresAt,
           },
         });

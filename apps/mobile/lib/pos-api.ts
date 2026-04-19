@@ -1,6 +1,6 @@
 import { api } from '@/lib/api';
 
-export type PaymentMethod = 'CASH' | 'ECOCASH' | 'WALLET' | 'INNBUCKS' | 'BANK_TRANSFER' | 'MIXED';
+export type PaymentMethod = 'CASH' | 'ECOCASH' | 'ONEMONEY' | 'WALLET' | 'INNBUCKS' | 'BANK_TRANSFER' | 'MIXED';
 
 export type POSSaleItem = {
   id: string;
@@ -21,6 +21,7 @@ export type POSSale = {
   status: string;
   customerPhone?: string | null;
   notes?: string | null;
+  deliveryAddress?: string | null;
   createdAt: string;
   items?: POSSaleItem[];
   cashier?: { firstName: string; lastName: string } | null;
@@ -40,6 +41,12 @@ export type DailySummary = {
   date: string;
 };
 
+export type ProcessSaleResult = {
+  sale: POSSale;
+  profit: number;
+  commission: number;
+};
+
 export async function processSale(body: {
   stallId: string;
   items: Array<{ variantId: string; quantity: number; discount?: number }>;
@@ -47,8 +54,9 @@ export async function processSale(body: {
   discountAmount?: number;
   customerPhone?: string;
   notes?: string;
-}): Promise<POSSale> {
-  const { data } = await api.post<POSSale>('/api/v1/pos/sales', body);
+  deliveryAddress?: string;
+}): Promise<ProcessSaleResult> {
+  const { data } = await api.post<ProcessSaleResult>('/api/v1/pos/sales', body);
   return data;
 }
 

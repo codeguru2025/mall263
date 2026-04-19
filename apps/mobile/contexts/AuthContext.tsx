@@ -6,8 +6,10 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { api } from '@/lib/api';
+import { api, setOnAuthExpired } from '@/lib/api';
 import { clearTokens, getAccessToken, setTokens } from '@/lib/token-storage';
+import { router } from 'expo-router';
+import { registerForPushNotifications, savePushTokenToBackend } from '@/lib/push';
 import type { MeProfile } from '@/lib/me-profile';
 
 /** Session user — same payload as `GET /api/v1/users/me` after login. */
@@ -54,6 +56,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    setOnAuthExpired(async () => {
+      await clearTokens();
+      setUser(null);
+      router.replace('/login');
+    });
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       await reloadUser();
@@ -73,6 +83,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await setTokens(data.accessToken, data.refreshToken);
     const { data: me } = await api.get<MeProfile>('/api/v1/users/me');
     setUser(me);
+    // Register push token now that we have a valid session
+    registerForPushNotifications().then((token) => {
+      if (token) savePushTokenToBackend(token);
+    });
   }, []);
 
   const register = useCallback(async (payload: RegisterPayload) => {
@@ -90,6 +104,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await setTokens(data.accessToken, data.refreshToken);
       const { data: me } = await api.get<MeProfile>('/api/v1/users/me');
       setUser(me);
+      registerForPushNotifications().then((token) => {
+        if (token) savePushTokenToBackend(token);
+      });
     } else {
       // Backend didn't return tokens — fall back to a normal login.
       await login(normalized, payload.password);

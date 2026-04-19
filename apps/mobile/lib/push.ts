@@ -7,14 +7,22 @@ import { api } from '@/lib/api';
 const isExpoGo =
   Constants.executionEnvironment === 'storeClient' || Constants.appOwnership === 'expo';
 
-// How foreground notifications appear while the app is open
+// How foreground notifications appear while the app is open.
+// Chat messages are shown silently — the user is likely already reading the thread.
 Notifications.setNotificationHandler({
-  handleNotification: async () =>
-    ({
+  handleNotification: async (notification) => {
+    const type = String(
+      (notification.request.content.data as Record<string, unknown>)?.type ?? '',
+    );
+    const isChatMessage = type === 'NEW_MESSAGE' || type === 'chat';
+    return {
       shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }) as Notifications.NotificationBehavior,
+      shouldPlaySound: !isChatMessage,
+      shouldSetBadge: !isChatMessage,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    };
+  },
 });
 
 export async function registerForPushNotifications(): Promise<string | null> {
@@ -32,6 +40,15 @@ export async function registerForPushNotifications(): Promise<string | null> {
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#3B9AE1',
+        sound: 'default',
+      });
+      // Chat messages get their own silent channel so they don't chime
+      await Notifications.setNotificationChannelAsync('chat', {
+        name: 'Chat messages',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        vibrationPattern: [0, 100],
+        lightColor: '#3B9AE1',
+        sound: null,
       });
     }
 

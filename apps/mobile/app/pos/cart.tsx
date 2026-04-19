@@ -8,15 +8,18 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Brand } from '@/constants/brand';
 import { fetchProductsByStall, type ProductVariant } from '@/lib/seller-api';
 import { processSale, type PaymentMethod } from '@/lib/pos-api';
+import { fetchPaymentConfig, initiateMerchantPayment } from '@/lib/merchant-pay-api';
 import { formatMoney } from '@/lib/products';
 
 type CartLine = {
@@ -30,6 +33,7 @@ type CartLine = {
 const PAYMENT_METHODS: { key: PaymentMethod; label: string }[] = [
   { key: 'CASH', label: 'Cash' },
   { key: 'ECOCASH', label: 'EcoCash' },
+  { key: 'ONEMONEY', label: 'OneMoney' },
   { key: 'INNBUCKS', label: 'InnBucks' },
   { key: 'WALLET', label: 'Wallet' },
   { key: 'BANK_TRANSFER', label: 'Bank' },
@@ -46,6 +50,8 @@ export default function POSCartScreen() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('CASH');
   const [discount, setDiscount] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [isDelivery, setIsDelivery] = useState(false);
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [processing, setProcessing] = useState(false);
 
   const productsQ = useQuery({
@@ -53,6 +59,18 @@ export default function POSCartScreen() {
     queryFn: () => fetchProductsByStall(stallId!, 1, 100),
     enabled: !!stallId,
   });
+
+  const payConfigQ = useQuery({
+    queryKey: ['stall-pay-config', stallId],
+    queryFn: () => fetchPaymentConfig(stallId!),
+    enabled: !!stallId,
+    staleTime: 60_000,
+  });
+
+  const payConfig = payConfigQ.data;
+  const hasMerchantCode =
+    (paymentMethod === 'ECOCASH' && !!payConfig?.ecocashMerchantCode) ||
+    (paymentMethod === 'ONEMONEY' && !!payConfig?.onemoneyMerchantCode);
 
   const products = productsQ.data?.data ?? [];
 
@@ -93,20 +111,51 @@ export default function POSCartScreen() {
     if (!stallId) return;
     setProcessing(true);
     try {
-      const sale = await processSale({
+      const result = await processSale({
         stallId,
         items: cart.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
         paymentMethod,
         discountAmount: discountAmt || undefined,
         customerPhone: customerPhone.trim() || undefined,
+        deliveryAddress: isDelivery && deliveryAddress.trim() ? deliveryAddress.trim() : undefined,
       });
       setCart([]);
       setDiscount('');
       setCustomerPhone('');
-      router.replace({ pathname: '/pos/receipt/[saleId]', params: { saleId: sale.id } });
+      router.replace({ pathname: '/pos/receipt/[saleId]', params: { saleId: result.sale.id } });
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Could not process sale.';
       Alert.alert('Sale failed', Array.isArray(msg) ? msg.join('\n') : msg);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleMerchantUssd = async () => {
+    if (cart.length === 0) { Alert.alert('Empty cart', 'Add at least one item.'); return; }
+    if (!stallId) return;
+    setProcessing(true);
+    try {
+      const result = await initiateMerchantPayment({
+        stallId,
+        items: cart.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
+        paymentMethod: paymentMethod as 'ECOCASH' | 'ONEMONEY',
+        discountAmount: discountAmt || undefined,
+        customerPhone: '', // merchant-pay screen collects this after navigation
+      });
+      // Navigate with the confirmed reference + merchant code
+      router.push({
+        pathname: '/pos/merchant-pay',
+        params: {
+          reference: result.reference,
+          totalAmount: String(result.totalAmount),
+          merchantCode: result.merchantCode,
+          network: result.network,
+        },
+      } as any);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || 'Could not start payment.';
+      Alert.alert('Error', Array.isArray(msg) ? msg.join('\n') : msg);
     } finally {
       setProcessing(false);
     }
@@ -269,18 +318,74 @@ export default function POSCartScreen() {
           placeholderTextColor={Brand.muted}
         />
 
-        {/* Process button */}
-        <Pressable
-          style={[styles.processBtn, (processing || cart.length === 0) && styles.btnDisabled]}
-          onPress={handleProcess}
-          disabled={processing || cart.length === 0}
-        >
-          {processing ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.processBtnText}>Charge {formatMoney(total, 'USD')}</Text>
-          )}
-        </Pressable>
+        {/* Delivery toggle */}
+        <View style={styles.deliveryRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionLabel}>Delivery</Text>
+            <Text style={styles.deliverySub}>Customer wants item delivered</Text>
+          </View>
+          <Switch
+            value={isDelivery}
+            onValueChange={setIsDelivery}
+            trackColor={{ false: Brand.border, true: Brand.blue }}
+            thumbColor="#fff"
+          />
+        </View>
+        {isDelivery && (
+          <TextInput
+            style={[styles.input, { marginTop: 6 }]}
+            value={deliveryAddress}
+            onChangeText={setDeliveryAddress}
+            placeholder="Delivery address or instructions"
+            placeholderTextColor={Brand.muted}
+            multiline
+            numberOfLines={2}
+          />
+        )}
+
+        {/* USSD merchant payment — shown when merchant code is configured */}
+        {hasMerchantCode && (
+          <Pressable
+            style={[styles.ussdBtn, cart.length === 0 && styles.btnDisabled]}
+            onPress={handleMerchantUssd}
+            disabled={cart.length === 0}
+          >
+            <FontAwesome name="mobile" size={16} color="#fff" />
+            <Text style={styles.ussdBtnText}>
+              Request via {paymentMethod === 'ECOCASH' ? 'EcoCash' : 'OneMoney'} USSD push
+            </Text>
+          </Pressable>
+        )}
+
+        {/* Standard charge (cash / wallet / bank / innbucks, or mobile without merchant code) */}
+        {!hasMerchantCode && (
+          <Pressable
+            style={[styles.processBtn, (processing || cart.length === 0) && styles.btnDisabled]}
+            onPress={handleProcess}
+            disabled={processing || cart.length === 0}
+          >
+            {processing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.processBtnText}>Charge {formatMoney(total, 'USD')}</Text>
+            )}
+          </Pressable>
+        )}
+
+        {/* Manual record button when USSD path is available (e.g. customer already paid via code) */}
+        {hasMerchantCode && (
+          <Pressable
+            style={[styles.processBtn, { marginTop: 8 }, (processing || cart.length === 0) && styles.btnDisabled]}
+            onPress={handleProcess}
+            disabled={processing || cart.length === 0}
+          >
+            {processing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.processBtnText}>Record as already paid</Text>
+            )}
+          </Pressable>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -356,7 +461,9 @@ const styles = StyleSheet.create({
     backgroundColor: Brand.pageBg, width: 90, textAlign: 'right',
   },
 
-  sectionLabel: { fontSize: 12, fontWeight: '800', color: Brand.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 4 },
+  sectionLabel: { fontSize: 12, fontWeight: '800', color: Brand.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, marginTop: 14 },
+  deliveryRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14, gap: 8 },
+  deliverySub: { fontSize: 11, color: Brand.muted, marginTop: 1 },
   methodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   methodBtn: {
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
@@ -374,6 +481,17 @@ const styles = StyleSheet.create({
 
   processBtn: { backgroundColor: Brand.green, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 6 },
   processBtnText: { color: '#fff', fontWeight: '900', fontSize: 17 },
+  ussdBtn: {
+    backgroundColor: Brand.navy,
+    borderRadius: 14,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 6,
+  },
+  ussdBtnText: { color: '#fff', fontWeight: '900', fontSize: 16 },
   btnDisabled: { opacity: 0.6 },
 
   empty: { textAlign: 'center', color: Brand.muted, marginTop: 24, fontSize: 14 },

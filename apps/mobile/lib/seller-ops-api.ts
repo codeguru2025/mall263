@@ -145,28 +145,35 @@ export async function deleteExpense(id: string): Promise<void> {
 // ── Reports ─────────────────────────────────────────────────────────────────
 
 export type StallReport = {
-  stall?: { id: string; name: string };
-  period?: { startDate: string; endDate: string };
-  sales?: {
+  period?: { start: string; end: string };
+  summary?: {
+    totalSales?: number;
     totalRevenue?: number | string;
+    totalCost?: number | string;
+    grossProfit?: number | string;
+    netProfit?: number | string;
     totalCommission?: number | string;
-    salesCount?: number;
-    netRevenue?: number | string;
+    totalExpenses?: number | string;
+    profitAfterExpenses?: number | string;
+    expenseEntryCount?: number;
     avgOrderValue?: number | string;
     [key: string]: unknown;
   };
   expenses?: {
     total?: number | string;
-    byCategory?: Record<string, number | string>;
+    count?: number;
+    byCategory?: Array<{ category: string; total: number | string; count: number }>;
     [key: string]: unknown;
   };
   engagement?: {
-    visits?: number;
-    uniqueVisitors?: number;
+    storePageViews?: number;
+    productDetailViews?: number;
+    topProductsByViews?: Array<{ productId: string | null; productName: string | null; views: number }>;
     [key: string]: unknown;
   };
-  insights?: Array<{ type?: string; title?: string; description?: string }>;
-  profit?: number | string;
+  topProducts?: Array<{ productName: string; _sum: { quantity: number | null; totalPrice: unknown } }>;
+  dailyBreakdown?: Array<{ date: string; revenue: number; cost: number; sales: number }>;
+  insights?: Array<{ id?: string; severity?: string; title?: string; detail?: string; description?: string }>;
   [key: string]: unknown;
 };
 

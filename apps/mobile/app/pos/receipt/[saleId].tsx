@@ -102,6 +102,12 @@ export default function ReceiptScreen() {
               <Text style={styles.metaValue}>{sale.customerPhone}</Text>
             </View>
           )}
+          {sale.deliveryAddress && (
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Delivery</Text>
+              <Text style={styles.metaValue}>{sale.deliveryAddress}</Text>
+            </View>
+          )}
           {sale.cashier && (
             <View style={styles.metaItem}>
               <Text style={styles.metaLabel}>Cashier</Text>

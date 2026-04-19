@@ -84,7 +84,7 @@ export class StallsService {
             user: { select: { firstName: true, lastName: true, phone: true } },
           },
         },
-        _count: { select: { products: true, posSales: true } },
+        _count: { select: { products: true, posSales: true, followers: true } },
       },
     });
     if (!stall) throw new NotFoundException('Stall not found');
@@ -125,9 +125,18 @@ export class StallsService {
       }
     }
 
+    const isFollowing = userId
+      ? !!(await this.prisma.stallFollow.findUnique({
+          where: { userId_stallId: { userId, stallId: id } },
+          select: { id: true },
+        }))
+      : false;
+
+    const base = { ...stall, followerCount: stall._count.followers, isFollowing };
+
     if (!showDetails) {
       return {
-        ...stall,
+        ...base,
         stallNumber: '***',
         address: null,
         description: stall.description ? '🔒 Fund wallet to see full details' : null,
@@ -142,7 +151,7 @@ export class StallsService {
       };
     }
 
-    return stall;
+    return base;
   }
 
   async recordVisit(stallId: string) {
@@ -159,6 +168,41 @@ export class StallsService {
       })
       .catch(() => {});
     return { ok: true as const, viewCount: updated.viewCount };
+  }
+
+  async followStall(stallId: string, userId: string) {
+    const stall = await this.prisma.stall.findUnique({ where: { id: stallId }, select: { id: true } });
+    if (!stall) throw new NotFoundException('Stall not found');
+    return this.prisma.$transaction(async (tx) => {
+      await tx.stallFollow.upsert({
+        where: { userId_stallId: { userId, stallId } },
+        create: { userId, stallId },
+        update: {},
+      });
+      const followerCount = await tx.stallFollow.count({ where: { stallId } });
+      return { following: true, followerCount };
+    });
+  }
+
+  async unfollowStall(stallId: string, userId: string) {
+    const stall = await this.prisma.stall.findUnique({ where: { id: stallId }, select: { id: true } });
+    if (!stall) throw new NotFoundException('Stall not found');
+    return this.prisma.$transaction(async (tx) => {
+      await tx.stallFollow.deleteMany({ where: { stallId, userId } });
+      const followerCount = await tx.stallFollow.count({ where: { stallId } });
+      return { following: false, followerCount };
+    });
+  }
+
+  async getFollowStatus(stallId: string, userId: string) {
+    const [follow, followerCount] = await this.prisma.$transaction([
+      this.prisma.stallFollow.findUnique({
+        where: { userId_stallId: { userId, stallId } },
+        select: { id: true },
+      }),
+      this.prisma.stallFollow.count({ where: { stallId } }),
+    ]);
+    return { following: !!follow, followerCount };
   }
 
   async findByMerchant(merchantId: string) {
@@ -188,10 +232,61 @@ export class StallsService {
     return this.prisma.stall.update({ where: { id: stallId }, data });
   }
 
+  async getPaymentConfig(stallId: string, userId: string) {
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: stallId },
+      include: { merchant: { select: { userId: true } } },
+    });
+    if (!stall) throw new NotFoundException('Stall not found');
+    const isOwner = stall.merchant.userId === userId;
+    if (!isOwner) {
+      const isAttendant = await this.prisma.stallAttendant.findFirst({
+        where: { stallId, userId, isActive: true },
+      });
+      if (!isAttendant) throw new ForbiddenException('Access denied');
+    }
+    return {
+      ecocashMerchantCode: stall.ecocashMerchantCode ?? null,
+      onemoneyMerchantCode: stall.onemoneyMerchantCode ?? null,
+    };
+  }
+
+  async savePaymentConfig(
+    stallId: string,
+    userId: string,
+    data: { ecocashMerchantCode?: string | null; onemoneyMerchantCode?: string | null },
+  ) {
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: stallId },
+      include: { merchant: { select: { userId: true } } },
+    });
+    if (!stall) throw new NotFoundException('Stall not found');
+    if (stall.merchant.userId !== userId) throw new ForbiddenException('Not your stall');
+    return this.prisma.stall.update({
+      where: { id: stallId },
+      data: {
+        ecocashMerchantCode: data.ecocashMerchantCode ?? null,
+        onemoneyMerchantCode: data.onemoneyMerchantCode ?? null,
+      },
+      select: { id: true, ecocashMerchantCode: true, onemoneyMerchantCode: true },
+    });
+  }
+
   async addAttendant(stallId: string, userId: string, pin?: string) {
     return this.prisma.stallAttendant.create({
       data: { stallId, userId, pin },
     });
+  }
+
+  async removeAttendant(stallId: string, targetUserId: string, requestingUserId: string) {
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: stallId },
+      include: { merchant: { select: { userId: true } } },
+    });
+    if (!stall) throw new NotFoundException('Stall not found');
+    if (stall.merchant.userId !== requestingUserId) throw new ForbiddenException('Not your stall');
+
+    await this.prisma.stallAttendant.deleteMany({ where: { stallId, userId: targetUserId } });
   }
 
   async listAttendants(stallId: string, requestingUserId: string) {
