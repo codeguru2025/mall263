@@ -292,6 +292,9 @@ export class POSService {
    * Returns a safe subset of receipt data plus an authenticity flag.
    */
   async verifyReceipt(saleId: string) {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(saleId)) return { authentic: false, receipt: null };
+
     const sale = await this.prisma.pOSSale.findUnique({
       where: { id: saleId },
       include: {
