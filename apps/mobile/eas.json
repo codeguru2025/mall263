@@ -7,6 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://mall263-r99jz.ondigitalocean.app",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
@@ -15,12 +16,14 @@
     "staging": {
       "distribution": "internal",
       "channel": "staging",
+      "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://mall263-r99jz.ondigitalocean.app",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "production": {
+      "autoIncrement": true,
       "distribution": "store",
       "channel": "production",
       "env": {
@@ -30,6 +33,15 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "C:\\Users\\ausiz\\Downloads\\mall263-9231fd7a26c2.json",
+        "track": "internal",
+        "releaseStatus": "draft"
+      },
+      "ios": {
+        "ascAppId": "6762513699"
+      }
+    }
   }
 }

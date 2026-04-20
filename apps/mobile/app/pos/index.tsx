@@ -159,12 +159,12 @@ const styles = StyleSheet.create({
   listContent: { padding: 16, paddingBottom: 40, backgroundColor: Brand.pageBg },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: Brand.pageBg },
 
-  stallHeader: { backgroundColor: Brand.navy, borderRadius: 16, padding: 18, marginBottom: 14 },
+  stallHeader: { backgroundColor: Brand.blue, borderRadius: 16, padding: 18, marginBottom: 14 },
   stallName: { color: '#fff', fontSize: 20, fontWeight: '900' },
   stallPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  stallBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
-  stallBtnActive: { backgroundColor: Brand.blue, borderColor: Brand.blue },
-  stallBtnText: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontWeight: '700' },
+  stallBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)' },
+  stallBtnActive: { backgroundColor: 'rgba(255,255,255,0.25)', borderColor: '#fff' },
+  stallBtnText: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '700' },
   stallBtnTextActive: { color: '#fff' },
 
   summaryRow: { flexDirection: 'row', gap: 12, marginBottom: 14 },

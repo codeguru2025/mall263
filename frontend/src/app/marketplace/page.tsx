@@ -13,6 +13,7 @@ import { Logo } from '@/components/Logo';
 import { useAuthStore } from '@/lib/store';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { AdBanner } from '@/components/AdBanner';
+import { BLUR_DATA_URL } from '@/lib/image-placeholder';
 
 // Resolve image URL — handles Meilisearch flat shape, DB nested, and cdnUrl vs url
 function resolveImageUrl(product: any): string {
@@ -60,6 +61,8 @@ function ProductCard({ product }: { product: any }) {
           sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
           className="object-cover group-hover:scale-[1.06] transition-transform duration-500 ease-out"
           priority={product.trustScore >= 70}
+          placeholder="blur"
+          blurDataURL={BLUR_DATA_URL}
           onError={() => setImgError(true)}
         />
       ) : (

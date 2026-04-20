@@ -1,20 +1,19 @@
-/** Mall263 brand blue — matches web `brand.blue` */
-const tintColorLight = '#3B9AE1';
-const tintColorDark = '#3B9AE1';
+/** Mall263 brand — Zimbabwe green as primary tint. */
+const tintColor = '#006400';
 
 export default {
   light: {
-    text: '#000',
-    background: '#fff',
-    tint: tintColorLight,
-    tabIconDefault: '#ccc',
-    tabIconSelected: tintColorLight,
+    text: '#1a1a1a',
+    background: '#f5f5f0',
+    tint: tintColor,
+    tabIconDefault: '#a0a0a0',
+    tabIconSelected: tintColor,
   },
   dark: {
     text: '#fff',
-    background: '#000',
-    tint: tintColorDark,
-    tabIconDefault: '#ccc',
-    tabIconSelected: tintColorDark,
+    background: '#111',
+    tint: tintColor,
+    tabIconDefault: '#666',
+    tabIconSelected: tintColor,
   },
 };

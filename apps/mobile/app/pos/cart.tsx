@@ -102,8 +102,8 @@ export default function POSCartScreen() {
   }, []);
 
   const subtotal = cart.reduce((sum, l) => sum + l.sellingPrice * l.quantity, 0);
-  const discountAmt = parseFloat(discount) || 0;
-  const total = Math.max(0, subtotal - discountAmt);
+  const discountAmt = Math.max(0, Math.min(parseFloat(discount) || 0, subtotal));
+  const total = subtotal - discountAmt;
   const cartCount = cart.reduce((sum, l) => sum + l.quantity, 0);
 
   const handleProcess = async () => {
@@ -134,6 +134,8 @@ export default function POSCartScreen() {
   const handleMerchantUssd = async () => {
     if (cart.length === 0) { Alert.alert('Empty cart', 'Add at least one item.'); return; }
     if (!stallId) return;
+    const phone = customerPhone.trim();
+    if (!phone) { Alert.alert('Phone required', 'Enter the customer\'s mobile number to send the payment request.'); return; }
     setProcessing(true);
     try {
       const result = await initiateMerchantPayment({
@@ -141,25 +143,33 @@ export default function POSCartScreen() {
         items: cart.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
         paymentMethod: paymentMethod as 'ECOCASH' | 'ONEMONEY',
         discountAmount: discountAmt || undefined,
-        customerPhone: '', // merchant-pay screen collects this after navigation
+        customerPhone: phone,
       });
-      // Navigate with the confirmed reference + merchant code
       router.push({
         pathname: '/pos/merchant-pay',
         params: {
           reference: result.reference,
           totalAmount: String(result.totalAmount),
-          merchantCode: result.merchantCode,
           network: result.network,
         },
       } as any);
     } catch (err: any) {
-      const msg = err?.response?.data?.message || 'Could not start payment.';
-      Alert.alert('Error', Array.isArray(msg) ? msg.join('\n') : msg);
+      const msg = err?.response?.data?.message || 'Could not send payment request.';
+      Alert.alert('Failed', Array.isArray(msg) ? msg.join('\n') : msg);
     } finally {
       setProcessing(false);
     }
   };
+
+  // ── Guards ───────────────────────────────────────────────────────────────────
+
+  if (!stallId) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32, backgroundColor: Brand.pageBg }}>
+        <Text style={{ fontSize: 16, color: Brand.muted, textAlign: 'center' }}>No stall selected. Please go back and try again.</Text>
+      </View>
+    );
+  }
 
   // ── Product browser ─────────────────────────────────────────────────────────
 
@@ -307,10 +317,12 @@ export default function POSCartScreen() {
           ))}
         </View>
 
-        {/* Optional customer phone */}
-        <Text style={styles.sectionLabel}>Customer phone (optional)</Text>
+        {/* Customer phone — required for merchant payment, optional otherwise */}
+        <Text style={[styles.sectionLabel, hasMerchantCode && styles.sectionLabelRequired]}>
+          Customer phone{hasMerchantCode ? ' *' : ' (optional)'}
+        </Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, hasMerchantCode && !customerPhone.trim() && styles.inputHighlight]}
           value={customerPhone}
           onChangeText={setCustomerPhone}
           placeholder="+263771234567"
@@ -318,47 +330,55 @@ export default function POSCartScreen() {
           placeholderTextColor={Brand.muted}
         />
 
-        {/* Delivery toggle */}
-        <View style={styles.deliveryRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sectionLabel}>Delivery</Text>
-            <Text style={styles.deliverySub}>Customer wants item delivered</Text>
-          </View>
-          <Switch
-            value={isDelivery}
-            onValueChange={setIsDelivery}
-            trackColor={{ false: Brand.border, true: Brand.blue }}
-            thumbColor="#fff"
-          />
-        </View>
-        {isDelivery && (
-          <TextInput
-            style={[styles.input, { marginTop: 6 }]}
-            value={deliveryAddress}
-            onChangeText={setDeliveryAddress}
-            placeholder="Delivery address or instructions"
-            placeholderTextColor={Brand.muted}
-            multiline
-            numberOfLines={2}
-          />
-        )}
-
-        {/* USSD merchant payment — shown when merchant code is configured */}
-        {hasMerchantCode && (
-          <Pressable
-            style={[styles.ussdBtn, cart.length === 0 && styles.btnDisabled]}
-            onPress={handleMerchantUssd}
-            disabled={cart.length === 0}
-          >
-            <FontAwesome name="mobile" size={16} color="#fff" />
-            <Text style={styles.ussdBtnText}>
-              Request via {paymentMethod === 'ECOCASH' ? 'EcoCash' : 'OneMoney'} USSD push
-            </Text>
-          </Pressable>
-        )}
-
-        {/* Standard charge (cash / wallet / bank / innbucks, or mobile without merchant code) */}
+        {/* Delivery toggle — not shown for merchant push payments */}
         {!hasMerchantCode && (
+          <>
+            <View style={styles.deliveryRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionLabel}>Delivery</Text>
+                <Text style={styles.deliverySub}>Customer wants item delivered</Text>
+              </View>
+              <Switch
+                value={isDelivery}
+                onValueChange={setIsDelivery}
+                trackColor={{ false: Brand.border, true: Brand.blue }}
+                thumbColor="#fff"
+              />
+            </View>
+            {isDelivery && (
+              <TextInput
+                style={[styles.input, { marginTop: 6 }]}
+                value={deliveryAddress}
+                onChangeText={setDeliveryAddress}
+                placeholder="Delivery address or instructions"
+                placeholderTextColor={Brand.muted}
+                multiline
+                numberOfLines={2}
+              />
+            )}
+          </>
+        )}
+
+        {/* Merchant payment path — EcoCash or OneMoney with merchant code */}
+        {hasMerchantCode ? (
+          <Pressable
+            style={[styles.merchantBtn, (processing || cart.length === 0 || !customerPhone.trim()) && styles.btnDisabled]}
+            onPress={handleMerchantUssd}
+            disabled={processing || cart.length === 0 || !customerPhone.trim()}
+          >
+            {processing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <FontAwesome name="mobile" size={17} color="#fff" />
+                <Text style={styles.merchantBtnText}>
+                  Send Payment Request · {formatMoney(total, 'USD')}
+                </Text>
+              </>
+            )}
+          </Pressable>
+        ) : (
+          /* Standard direct charge for cash / wallet / bank / InnBucks */
           <Pressable
             style={[styles.processBtn, (processing || cart.length === 0) && styles.btnDisabled]}
             onPress={handleProcess}
@@ -368,21 +388,6 @@ export default function POSCartScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.processBtnText}>Charge {formatMoney(total, 'USD')}</Text>
-            )}
-          </Pressable>
-        )}
-
-        {/* Manual record button when USSD path is available (e.g. customer already paid via code) */}
-        {hasMerchantCode && (
-          <Pressable
-            style={[styles.processBtn, { marginTop: 8 }, (processing || cart.length === 0) && styles.btnDisabled]}
-            onPress={handleProcess}
-            disabled={processing || cart.length === 0}
-          >
-            {processing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.processBtnText}>Record as already paid</Text>
             )}
           </Pressable>
         )}
@@ -423,7 +428,7 @@ const styles = StyleSheet.create({
 
   cartFab: {
     position: 'absolute', bottom: 20, left: 20, right: 20,
-    backgroundColor: Brand.navy, borderRadius: 14, paddingVertical: 16, alignItems: 'center',
+    backgroundColor: Brand.blue, borderRadius: 14, paddingVertical: 16, alignItems: 'center',
     ...Platform.select({ ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10 }, android: { elevation: 6 } }),
   },
   cartFabText: { color: '#fff', fontWeight: '900', fontSize: 16 },
@@ -469,7 +474,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
     borderWidth: 2, borderColor: Brand.border, backgroundColor: Brand.card,
   },
-  methodBtnActive: { backgroundColor: Brand.navy, borderColor: Brand.navy },
+  methodBtnActive: { backgroundColor: Brand.blue, borderColor: Brand.blue },
   methodBtnText: { fontSize: 13, fontWeight: '800', color: Brand.navy },
   methodBtnTextActive: { color: '#fff' },
 
@@ -478,21 +483,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 10, fontSize: 15,
     color: Brand.text, backgroundColor: Brand.card, marginBottom: 14,
   },
+  inputHighlight: { borderColor: Brand.orange, borderWidth: 1.5 },
+  sectionLabelRequired: { color: Brand.navy },
 
   processBtn: { backgroundColor: Brand.green, borderRadius: 14, paddingVertical: 16, alignItems: 'center', marginTop: 6 },
   processBtnText: { color: '#fff', fontWeight: '900', fontSize: 17 },
-  ussdBtn: {
-    backgroundColor: Brand.navy,
-    borderRadius: 14,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    marginTop: 6,
+
+  merchantBtn: {
+    backgroundColor: Brand.blue, borderRadius: 14, paddingVertical: 17,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 10, marginTop: 6,
   },
-  ussdBtnText: { color: '#fff', fontWeight: '900', fontSize: 16 },
-  btnDisabled: { opacity: 0.6 },
+  merchantBtnText: { color: '#fff', fontWeight: '900', fontSize: 16 },
+  btnDisabled: { opacity: 0.5 },
 
   empty: { textAlign: 'center', color: Brand.muted, marginTop: 24, fontSize: 14 },
 });

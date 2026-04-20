@@ -1,297 +1,238 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Linking,
+  ActivityIndicator,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
-  ActivityIndicator,
 } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Brand } from '@/constants/brand';
 import { formatMoney } from '@/lib/products';
-import { api } from '@/lib/api';
+import { pollMerchantPayment } from '@/lib/merchant-pay-api';
 
-type Stage = 'enter-phone' | 'waiting' | 'confirming' | 'done';
+const MAX_POLLS = 40;    // 40 × 3 s = 120 s timeout
+const POLL_INTERVAL = 3000;
 
-const cardShadow =
-  Platform.OS === 'ios'
-    ? { shadowColor: '#1B2A4A', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.1, shadowRadius: 12 }
-    : { elevation: 3 };
-
-function buildUssdUrl(network: 'ECOCASH' | 'ONEMONEY', customerPhone: string, merchantCode: string, amount: number) {
-  const clean = customerPhone.replace(/\D/g, '').replace(/^263/, '0').replace(/^0/, '0');
-  const amt = amount.toFixed(2);
-  // EcoCash merchant push: *151*2*<customerNumber>*<amount>*<merchantCode>#
-  // OneMoney merchant push: *111*2*<customerNumber>*<amount>*<merchantCode>#
-  const ussd = network === 'ECOCASH'
-    ? `*151*2*${clean}*${amt}*${merchantCode}#`
-    : `*111*2*${clean}*${amt}*${merchantCode}#`;
-  return `tel:${encodeURIComponent(ussd)}`;
-}
+type Stage = 'polling' | 'success' | 'failed';
 
 export default function MerchantPayScreen() {
   const params = useLocalSearchParams<{
     reference: string;
     totalAmount: string;
-    merchantCode: string;
     network: string;
   }>();
 
   const reference = params.reference ?? '';
   const totalAmount = parseFloat(params.totalAmount ?? '0');
-  const merchantCode = params.merchantCode ?? '';
   const network = (params.network ?? 'ECOCASH') as 'ECOCASH' | 'ONEMONEY';
   const networkLabel = network === 'ECOCASH' ? 'EcoCash' : 'OneMoney';
 
-  const [stage, setStage] = useState<Stage>('enter-phone');
-  const [phone, setPhone] = useState('');
-  const [confirming, setConfirming] = useState(false);
+  const [stage, setStage] = useState<Stage>('polling');
+  const [failMessage, setFailMessage] = useState('');
   const [saleId, setSaleId] = useState<string | null>(null);
 
-  const networkColor = network === 'ECOCASH' ? '#28A745' : '#E53935';
+  const attempts = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopped = useRef(false);
+  const isMounted = useRef(true);
 
-  function handleDial() {
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length < 9) {
-      Alert.alert('Invalid number', `Enter a valid ${networkLabel} number`);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
+  useEffect(() => {
+    // Validate reference before starting poll cycle
+    if (!reference || reference.length < 6) {
+      setFailMessage('Invalid payment reference.');
+      setStage('failed');
       return;
     }
-    const url = buildUssdUrl(network, cleaned, merchantCode, totalAmount);
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Could not dial', 'Please ensure your device supports USSD calls.');
-    });
-    setStage('waiting');
-  }
 
-  async function handleConfirm() {
-    setConfirming(true);
-    try {
-      const res = await api.post(`/api/v1/pos/merchant-payment/confirm/${reference}`);
-      setSaleId(res.data?.sale?.id ?? null);
-      setStage('done');
-    } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.message ?? 'Could not confirm. Try again.');
-    } finally {
-      setConfirming(false);
+    async function poll() {
+      if (stopped.current || !isMounted.current) return;
+
+      try {
+        const result = await pollMerchantPayment(reference);
+
+        if (!isMounted.current) return;
+
+        if (result.paid) {
+          stopped.current = true;
+          setSaleId(result.sale?.id ?? null);
+          setStage('success');
+          return;
+        }
+
+        // Terminal status from the payment network
+        if (
+          result.status === 'FAILED' ||
+          result.status === 'CANCELLED' ||
+          result.status === 'DECLINED'
+        ) {
+          stopped.current = true;
+          setFailMessage('Transaction failed. Payment was declined.');
+          setStage('failed');
+          return;
+        }
+      } catch (e: any) {
+        if (!isMounted.current) return;
+
+        const status: number = e?.response?.status ?? 0;
+        const msg: string = (e?.response?.data?.message ?? '').toLowerCase();
+
+        // 403 / 404 — terminal, do not retry
+        if (status === 403 || status === 404) {
+          stopped.current = true;
+          setFailMessage('Payment request not found.');
+          setStage('failed');
+          return;
+        }
+
+        // 400 or explicit failure keywords — terminal
+        if (status === 400 || msg.includes('insufficient') || msg.includes('failed') || msg.includes('declined')) {
+          stopped.current = true;
+          setFailMessage('Transaction failed. Insufficient funds or payment declined.');
+          setStage('failed');
+          return;
+        }
+        // 5xx / network error — keep retrying
+      }
+
+      if (!isMounted.current) return;
+
+      attempts.current += 1;
+      if (attempts.current >= MAX_POLLS) {
+        stopped.current = true;
+        setFailMessage('Payment timed out. Please try again.');
+        setStage('failed');
+        return;
+      }
+
+      timer.current = setTimeout(poll, POLL_INTERVAL);
     }
-  }
 
-  // ── Done ──────────────────────────────────────────────────────────────────
-  if (stage === 'done') {
+    // Short initial delay so the network push has time to reach the customer
+    timer.current = setTimeout(poll, 2000);
+
+    return () => {
+      stopped.current = true;
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [reference]);
+
+  // ── Success ─────────────────────────────────────────────────────────────────
+  if (stage === 'success') {
     return (
-      <View style={styles.centered}>
-        <FontAwesome name="check-circle" size={64} color="#43A047" style={{ marginBottom: 12 }} />
-        <Text style={styles.doneTitle}>Payment confirmed</Text>
-        <Text style={styles.doneAmount}>{formatMoney(totalAmount, 'USD')}</Text>
-        <Text style={styles.doneSub}>via {networkLabel}</Text>
+      <View style={styles.page}>
+        <FontAwesome name="check-circle" size={64} color={Brand.green} />
+        <Text style={styles.successAmount}>{formatMoney(totalAmount, 'USD')}</Text>
+        <Text style={styles.successLabel}>Payment received</Text>
         <Pressable
-          style={[styles.primaryBtn, { marginTop: 36 }]}
+          style={[styles.primaryBtn, { marginTop: 40 }]}
           onPress={() =>
             saleId
-              ? router.replace(`/pos/receipt/${saleId}` as any)
-              : router.replace('/pos/cart' as any)
+              ? router.replace({ pathname: '/pos/receipt/[saleId]', params: { saleId } })
+              : router.replace('/pos' as any)
           }
         >
-          <FontAwesome name="file-text-o" size={15} color="#fff" />
-          <Text style={styles.primaryBtnText}>{saleId ? 'View receipt' : 'Back to POS'}</Text>
+          <Text style={styles.primaryBtnText}>{saleId ? 'View Receipt' : 'Back to POS'}</Text>
         </Pressable>
         <Pressable style={styles.ghostBtn} onPress={() => router.replace('/pos/cart' as any)}>
-          <Text style={styles.ghostBtnText}>New sale</Text>
+          <Text style={styles.ghostBtnText}>New Sale</Text>
         </Pressable>
       </View>
     );
   }
 
-  // ── Waiting for PIN ───────────────────────────────────────────────────────
-  if (stage === 'waiting') {
+  // ── Failed ───────────────────────────────────────────────────────────────────
+  if (stage === 'failed') {
     return (
-      <View style={styles.centered}>
-        <View style={[styles.networkPill, { backgroundColor: `${networkColor}18`, borderColor: networkColor }]}>
-          <FontAwesome name="mobile" size={16} color={networkColor} />
-          <Text style={[styles.networkPillText, { color: networkColor }]}>{networkLabel}</Text>
+      <View style={styles.page}>
+        <View style={styles.failIcon}>
+          <FontAwesome name="times-circle" size={56} color={Brand.red} />
         </View>
-
-        <Text style={styles.waitAmount}>{formatMoney(totalAmount, 'USD')}</Text>
-        <Text style={styles.waitTitle}>Waiting for customer</Text>
-        <Text style={styles.waitSub}>
-          A payment request has been sent to the customer's phone.{'\n'}
-          Ask them to approve it with their PIN.
-        </Text>
-
-        <Pressable
-          style={[styles.primaryBtn, { marginTop: 40 }, confirming && styles.disabled]}
-          onPress={handleConfirm}
-          disabled={confirming}
-        >
-          {confirming ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <FontAwesome name="check" size={15} color="#fff" />
-              <Text style={styles.primaryBtnText}>Payment received — confirm</Text>
-            </>
-          )}
-        </Pressable>
-
-        <Pressable style={styles.ghostBtn} onPress={() => router.back()}>
-          <Text style={styles.ghostBtnText}>Cancel</Text>
-        </Pressable>
-
-        <Pressable style={styles.redialBtn} onPress={handleDial}>
-          <FontAwesome name="refresh" size={13} color={Brand.blue} />
-          <Text style={styles.redialText}>Resend request</Text>
+        <Text style={styles.failTitle}>Transaction Failed</Text>
+        <Text style={styles.failSub}>{failMessage}</Text>
+        <Pressable style={[styles.primaryBtn, { marginTop: 36 }]} onPress={() => router.back()}>
+          <Text style={styles.primaryBtnText}>Try Again</Text>
         </Pressable>
       </View>
     );
   }
 
-  // ── Enter phone ───────────────────────────────────────────────────────────
+  // ── Polling ──────────────────────────────────────────────────────────────────
+  const networkColor = network === 'ECOCASH' ? '#28A745' : '#E53935';
+
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView style={styles.page} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <View style={styles.page}>
+      <View style={[styles.networkBadge, { borderColor: networkColor, backgroundColor: `${networkColor}18` }]}>
+        <FontAwesome name="mobile" size={14} color={networkColor} />
+        <Text style={[styles.networkText, { color: networkColor }]}>{networkLabel}</Text>
+      </View>
 
-        {/* Amount card */}
-        <View style={[styles.amountCard, cardShadow]}>
-          <View style={[styles.networkPill, { backgroundColor: `${networkColor}18`, borderColor: networkColor, alignSelf: 'flex-start' }]}>
-            <FontAwesome name="mobile" size={14} color={networkColor} />
-            <Text style={[styles.networkPillText, { color: networkColor }]}>{networkLabel} Merchant</Text>
-          </View>
-          <Text style={styles.amountLabel}>Amount to collect</Text>
-          <Text style={styles.amount}>{formatMoney(totalAmount, 'USD')}</Text>
-        </View>
+      <Text style={styles.pollAmount}>{formatMoney(totalAmount, 'USD')}</Text>
 
-        {/* Phone input */}
-        <View style={[styles.inputCard, cardShadow]}>
-          <Text style={styles.inputLabel}>Customer's {networkLabel} number</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. 0771234567"
-            placeholderTextColor={Brand.muted}
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-            maxLength={13}
-            returnKeyType="done"
-            autoFocus
-          />
-        </View>
+      <ActivityIndicator
+        size={Platform.OS === 'ios' ? 'large' : 48}
+        color={Brand.blue}
+        style={{ marginTop: 24, marginBottom: 24 }}
+      />
 
-        <Pressable
-          style={[styles.primaryBtn, !phone.trim() && styles.disabled]}
-          onPress={handleDial}
-          disabled={!phone.trim()}
-        >
-          <FontAwesome name="paper-plane" size={15} color="#fff" />
-          <Text style={styles.primaryBtnText}>Request {formatMoney(totalAmount, 'USD')}</Text>
-        </Pressable>
+      <Text style={styles.pollLabel}>Waiting for payment</Text>
+      <Text style={styles.pollSub}>The customer will be prompted to enter their PIN.</Text>
 
-        <Pressable style={styles.ghostBtn} onPress={() => router.back()}>
-          <Text style={styles.ghostBtnText}>Cancel</Text>
-        </Pressable>
-
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Pressable style={[styles.ghostBtn, { marginTop: 48 }]} onPress={() => router.back()}>
+        <Text style={styles.ghostBtnText}>Cancel</Text>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: Brand.pageBg },
-  content: { padding: 20, paddingBottom: 48, gap: 16 },
-
-  amountCard: {
-    backgroundColor: Brand.card,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: Brand.border,
-    gap: 8,
-  },
-  networkPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  networkPillText: { fontSize: 12, fontWeight: '800' },
-  amountLabel: { fontSize: 11, fontWeight: '700', color: Brand.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 },
-  amount: { fontSize: 40, fontWeight: '900', color: Brand.orange, letterSpacing: -1 },
-
-  inputCard: {
-    backgroundColor: Brand.card,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: Brand.border,
-    gap: 10,
-  },
-  inputLabel: { fontSize: 13, fontWeight: '700', color: Brand.navy },
-  input: {
-    backgroundColor: Brand.pageBg,
-    borderWidth: 1.5,
-    borderColor: Brand.border,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 22,
-    fontWeight: '700',
-    color: Brand.navy,
-    letterSpacing: 2,
-  },
-
-  primaryBtn: {
-    backgroundColor: Brand.navy,
-    borderRadius: 16,
-    paddingVertical: 17,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  primaryBtnText: { color: '#fff', fontWeight: '900', fontSize: 16 },
-  disabled: { opacity: 0.5 },
-
-  ghostBtn: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: Brand.border,
-  },
-  ghostBtnText: { color: Brand.navy, fontWeight: '700', fontSize: 15 },
-
-  centered: {
+  page: {
     flex: 1,
+    backgroundColor: Brand.pageBg,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 32,
-    backgroundColor: Brand.pageBg,
-    gap: 10,
+    gap: 8,
   },
-  waitAmount: { fontSize: 44, fontWeight: '900', color: Brand.orange, letterSpacing: -1 },
-  waitTitle: { fontSize: 22, fontWeight: '900', color: Brand.navy, marginTop: 4 },
-  waitSub: { fontSize: 14, color: Brand.muted, textAlign: 'center', lineHeight: 22, maxWidth: 280 },
 
-  doneTitle: { fontSize: 24, fontWeight: '900', color: Brand.navy },
-  doneAmount: { fontSize: 44, fontWeight: '900', color: Brand.orange, letterSpacing: -1 },
-  doneSub: { fontSize: 14, color: Brand.muted },
+  networkBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderRadius: 20, borderWidth: 1.5,
+    paddingHorizontal: 12, paddingVertical: 6,
+    marginBottom: 8,
+  },
+  networkText: { fontSize: 13, fontWeight: '800' },
 
-  redialBtn: {
-    flexDirection: 'row',
+  pollAmount: { fontSize: 44, fontWeight: '900', color: Brand.orange, letterSpacing: -1 },
+  pollLabel: { fontSize: 20, fontWeight: '900', color: Brand.navy },
+  pollSub: { fontSize: 13, color: Brand.muted, textAlign: 'center', lineHeight: 20, maxWidth: 260 },
+
+  successAmount: { fontSize: 48, fontWeight: '900', color: Brand.orange, letterSpacing: -1, marginTop: 12 },
+  successLabel: { fontSize: 18, fontWeight: '700', color: Brand.navy },
+
+  failIcon: { marginBottom: 4 },
+  failTitle: { fontSize: 22, fontWeight: '900', color: Brand.navy, marginTop: 8 },
+  failSub: { fontSize: 13, color: Brand.muted, textAlign: 'center', lineHeight: 20, maxWidth: 260, marginTop: 4 },
+
+  primaryBtn: {
+    backgroundColor: Brand.blue,
+    borderRadius: 16, paddingVertical: 17,
+    paddingHorizontal: 40,
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginTop: 4,
   },
-  redialText: { fontSize: 13, color: Brand.blue, fontWeight: '700' },
+  primaryBtnText: { color: '#fff', fontWeight: '900', fontSize: 16 },
+
+  ghostBtn: {
+    paddingVertical: 14, paddingHorizontal: 40,
+    borderRadius: 14, borderWidth: 1.5, borderColor: Brand.border,
+    alignItems: 'center',
+  },
+  ghostBtnText: { color: Brand.navy, fontWeight: '700', fontSize: 15 },
 });

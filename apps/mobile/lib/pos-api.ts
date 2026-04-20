@@ -7,16 +7,16 @@ export type POSSaleItem = {
   productName: string;
   variantName: string;
   quantity: number;
-  unitPrice: unknown;
-  discount: unknown;
-  totalPrice: unknown;
+  unitPrice: string | number;
+  discount: string | number;
+  totalPrice: string | number;
 };
 
 export type POSSale = {
   id: string;
   receiptNumber?: string | null;
-  totalAmount: unknown;
-  discountAmount?: unknown;
+  totalAmount: string | number;
+  discountAmount?: string | number | null;
   paymentMethod: PaymentMethod;
   status: string;
   customerPhone?: string | null;
@@ -25,6 +25,12 @@ export type POSSale = {
   createdAt: string;
   items?: POSSaleItem[];
   cashier?: { firstName: string; lastName: string } | null;
+  stall?: {
+    id: string;
+    name: string;
+    stallNumber?: string | null;
+    merchant?: { businessName?: string | null } | null;
+  } | null;
 };
 
 export type POSSalesPage = {
@@ -36,7 +42,7 @@ export type POSSalesPage = {
 
 export type DailySummary = {
   totalSales: number;
-  totalRevenue: unknown;
+  totalRevenue: string | number;
   totalTransactions: number;
   date: string;
 };

@@ -8,6 +8,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import api from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { resolveStoreLogo } from '@/lib/storeBranding';
+import { BLUR_DATA_URL } from '@/lib/image-placeholder';
 import { Logo } from '@/components/Logo';
 import { ArrowLeft, MapPin, ShoppingBag, Eye, Zap } from 'lucide-react';
 
@@ -171,6 +172,8 @@ export default function PublicStorePage() {
                               fill
                               className="object-contain p-2 group-hover:scale-[1.02] transition-transform"
                               sizes="(max-width: 640px) 50vw, 25vw"
+                              placeholder="blur"
+                              blurDataURL={BLUR_DATA_URL}
                             />
                           ) : (
                             <div className="absolute inset-0 flex items-center justify-center bg-gray-50">

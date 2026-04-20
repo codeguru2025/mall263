@@ -7,6 +7,8 @@ const nextConfig = {
   transpilePackages: ['@mall263/shared'],
   reactStrictMode: true,
   images: {
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 2592000, // 30 days — mobile uploads rarely change
     remotePatterns: [
       {
         protocol: 'https',

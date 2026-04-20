@@ -71,9 +71,10 @@ export default function ShopScreen() {
   const renderItem = useCallback(
     ({ item }: { item: ShopListItem }) => {
       const img = item.imageUrl;
+      const hasRange = String(item.minPrice) !== String(item.maxPrice);
       return (
         <Pressable
-          style={({ pressed }: { pressed: boolean }) => [styles.card, cardShadow, pressed && styles.cardPressed]}
+          style={({ pressed }: { pressed: boolean }) => [styles.card, pressed && styles.cardPressed]}
           onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
           android_ripple={{ color: Brand.border, borderless: false }}
         >
@@ -84,7 +85,7 @@ export default function ShopScreen() {
                 style={styles.thumb}
                 contentFit="cover"
                 cachePolicy="memory-disk"
-                transition={200}
+                transition={150}
                 recyclingKey={item.id}
               />
             ) : (
@@ -94,6 +95,10 @@ export default function ShopScreen() {
             )}
           </View>
           <View style={styles.cardBody}>
+            <Text style={styles.price} numberOfLines={1}>
+              {formatMoney(item.minPrice, item.currency || 'USD')}
+              {hasRange ? `+` : ''}
+            </Text>
             <Text style={styles.name} numberOfLines={2}>
               {item.name}
             </Text>
@@ -102,12 +107,6 @@ export default function ShopScreen() {
                 {item.subtitle}
               </Text>
             ) : null}
-            <Text style={styles.price} numberOfLines={1}>
-              {formatMoney(item.minPrice, item.currency || 'USD')}
-              {String(item.minPrice) !== String(item.maxPrice)
-                ? ` – ${formatMoney(item.maxPrice, item.currency || 'USD')}`
-                : ''}
-            </Text>
           </View>
         </Pressable>
       );
@@ -175,11 +174,11 @@ export default function ShopScreen() {
   return (
     <View style={styles.page}>
       <FlatList
-        key="shop-grid-2col"
+        key="shop-grid-3col"
         data={items}
         keyExtractor={(item: { id: string }) => item.id}
         renderItem={renderItem}
-        numColumns={2}
+        numColumns={3}
         columnWrapperStyle={styles.columnWrapper}
         ListHeaderComponent={header}
         refreshControl={
@@ -212,15 +211,15 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: Brand.pageBg },
   headerBlock: { paddingBottom: 8 },
   heroBar: {
-    backgroundColor: Brand.navy,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 22,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
+    backgroundColor: Brand.blue,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
   },
-  heroTitle: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: -0.6 },
-  heroTag: { color: 'rgba(255,255,255,0.75)', fontSize: 13, marginTop: 4, fontWeight: '500' },
+  heroTitle: { color: '#fff', fontSize: 24, fontWeight: '900', letterSpacing: -0.5 },
+  heroTag: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 3, fontWeight: '500' },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -252,31 +251,29 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
-  listContent: { paddingHorizontal: 10, paddingTop: 14, paddingBottom: 24 },
-  columnWrapper: { gap: 10, marginBottom: 10 },
+  listContent: { paddingHorizontal: 6, paddingTop: 10, paddingBottom: 24 },
+  columnWrapper: { gap: 5, marginBottom: 5 },
   card: {
     flex: 1,
-    flexBasis: '48%',
-    maxWidth: '50%',
     backgroundColor: Brand.card,
-    borderRadius: 18,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: Brand.border,
     overflow: 'hidden',
   },
-  cardPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
-  thumbWrap: { width: '100%', aspectRatio: 1, backgroundColor: '#f8fafc' },
+  cardPressed: { opacity: 0.88 },
+  thumbWrap: { width: '100%', aspectRatio: 1, backgroundColor: '#f1f5f9' },
   thumb: { width: '100%', height: '100%' },
   thumbPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#e8edf5',
   },
-  thumbLetter: { fontSize: 42, fontWeight: '900', color: Brand.blue },
-  cardBody: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12, gap: 4 },
-  name: { fontSize: 13, fontWeight: '800', color: Brand.navy, lineHeight: 18, letterSpacing: -0.1 },
-  meta: { fontSize: 11, color: Brand.muted, fontWeight: '500' },
-  price: { fontSize: 14, fontWeight: '900', color: Brand.blue, marginTop: 4, letterSpacing: -0.1 },
+  thumbLetter: { fontSize: 28, fontWeight: '900', color: Brand.blue },
+  cardBody: { paddingHorizontal: 6, paddingTop: 6, paddingBottom: 8, gap: 2 },
+  price: { fontSize: 13, fontWeight: '900', color: Brand.orange, letterSpacing: -0.2 },
+  name: { fontSize: 11, fontWeight: '600', color: Brand.navy, lineHeight: 15 },
+  meta: { fontSize: 10, color: Brand.muted, fontWeight: '500' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   muted: { marginTop: 10, color: Brand.muted, textAlign: 'center', fontSize: 15 },
   errorTitle: { fontSize: 18, fontWeight: '800', color: Brand.red },

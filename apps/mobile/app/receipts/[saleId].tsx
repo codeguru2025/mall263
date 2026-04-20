@@ -97,7 +97,7 @@ export default function PublicReceiptScreen() {
 
         {/* Store header */}
         <LG
-          colors={['#1B2A4A', '#121d33']}
+          colors={['#3B9AE1', '#1E6BAE']}
           style={styles.storeHeader}
         >
           <View style={styles.logoRing}>
@@ -196,7 +196,7 @@ export default function PublicReceiptScreen() {
         </View>
 
         {/* Footer */}
-        <LG colors={['#1B2A4A', '#121d33']} style={styles.footer}>
+        <LG colors={['#3B9AE1', '#1E6BAE']} style={styles.footer}>
           <FontAwesome name="check-circle" size={32} color={Brand.green} style={{ marginBottom: 8 }} />
           <Text style={styles.footerThanks}>Thank you for your purchase!</Text>
           <Text style={styles.footerPowered}>Powered by Mall263</Text>
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
   footerPowered: { color: 'rgba(255,255,255,0.45)', fontSize: 11, fontWeight: '700' },
 
   stallBtn: {
-    backgroundColor: Brand.navy, borderRadius: 14, paddingVertical: 15,
+    backgroundColor: Brand.blue, borderRadius: 14, paddingVertical: 15,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, marginBottom: 10,
   },

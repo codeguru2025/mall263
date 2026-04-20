@@ -14,10 +14,12 @@ import { useDebounce } from '@/lib/hooks/useDebounce';
 import { generateIdempotencyKey } from '@/lib/idempotency';
 
 const PAYMENT_METHODS = [
-  { value: 'CASH',     label: 'Cash' },
-  { value: 'ECOCASH',  label: 'EcoCash' },
-  { value: 'ONEMONEY', label: 'OneMoney' },
-  { value: 'CARD',     label: 'Card' },
+  { value: 'CASH',          label: 'Cash' },
+  { value: 'ECOCASH',       label: 'EcoCash' },
+  { value: 'ONEMONEY',      label: 'OneMoney' },
+  { value: 'INNBUCKS',      label: 'InnBucks' },
+  { value: 'WALLET',        label: 'Wallet' },
+  { value: 'BANK_TRANSFER', label: 'Bank' },
 ];
 
 export default function POSPage() {
@@ -25,6 +27,10 @@ export default function POSPage() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 200);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [discount, setDiscount] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [isDelivery, setIsDelivery] = useState(false);
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
   const cart = useCartStore();
   const user = useAuthStore((s) => s.user);
@@ -86,6 +92,9 @@ export default function POSPage() {
     cart.setStall(id);
   };
 
+  const discountAmt = Math.max(0, Math.min(parseFloat(discount) || 0, cart.getTotal()));
+  const finalTotal = cart.getTotal() - discountAmt;
+
   const handleCheckout = () => {
     if (cart.items.length === 0) { toast.error('Cart is empty'); return; }
     const key = generateIdempotencyKey();
@@ -93,6 +102,9 @@ export default function POSPage() {
       stallId,
       cashierId: user?.id,
       paymentMethod,
+      discountAmount: discountAmt > 0 ? discountAmt : undefined,
+      customerPhone: customerPhone.trim() || undefined,
+      deliveryAddress: isDelivery && deliveryAddress.trim() ? deliveryAddress.trim() : undefined,
       items: cart.items.map((i) => ({
         variantId: i.variantId,
         quantity: i.quantity,
@@ -220,34 +232,90 @@ export default function POSPage() {
                 </div>
               )}
 
-              <div className="border-t border-gray-100 mt-4 pt-4 pb-20 lg:pb-0">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="font-bold text-gray-500">Total</span>
-                  <span className="text-2xl font-black text-navy-700">{formatCurrency(cart.getTotal())}</span>
+              <div className="border-t border-gray-100 mt-4 pt-4 pb-20 lg:pb-0 space-y-3">
+                {/* Discount */}
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-gray-500">Subtotal</span>
+                  <span className="text-sm font-bold text-navy-700">{formatCurrency(cart.getTotal())}</span>
                 </div>
-                <div className="mb-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-bold text-gray-500 whitespace-nowrap">Discount ($)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={discount}
+                    onChange={(e) => setDiscount(e.target.value)}
+                    placeholder="0.00"
+                    className="flex-1 text-right text-sm font-bold border border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-brand-green"
+                  />
+                </div>
+                <div className="flex justify-between items-center border-t border-gray-100 pt-2">
+                  <span className="font-bold text-gray-700">Total</span>
+                  <span className="text-2xl font-black text-navy-700">{formatCurrency(finalTotal)}</span>
+                </div>
+
+                {/* Payment Method */}
+                <div>
                   <label className="text-xs font-bold text-gray-500 mb-1.5 block">Payment Method</label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-3 gap-1.5">
                     {PAYMENT_METHODS.map((m) => (
                       <button
                         key={m.value}
                         type="button"
                         onClick={() => setPaymentMethod(m.value)}
-                        className={`py-2 px-3 rounded-xl border-2 text-xs font-bold transition-all ${paymentMethod === m.value ? 'border-brand-green bg-green-50 text-brand-green' : 'border-gray-100 text-gray-500 hover:border-gray-200'}`}
+                        className={`py-2 px-2 rounded-xl border-2 text-xs font-bold transition-all ${paymentMethod === m.value ? 'border-brand-green bg-green-50 text-brand-green' : 'border-gray-100 text-gray-500 hover:border-gray-200'}`}
                       >
                         {m.label}
                       </button>
                     ))}
                   </div>
                 </div>
+
+                {/* Customer phone */}
+                <div>
+                  <label className="text-xs font-bold text-gray-500 mb-1 block">Customer Phone (optional)</label>
+                  <input
+                    type="tel"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="+263771234567"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-brand-green"
+                  />
+                </div>
+
+                {/* Delivery toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-gray-700">Delivery</p>
+                    <p className="text-[11px] text-gray-400">Customer wants item delivered</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsDelivery((v) => !v)}
+                    className={`relative w-10 h-5 rounded-full transition-colors ${isDelivery ? 'bg-brand-green' : 'bg-gray-200'}`}
+                  >
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isDelivery ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                </div>
+                {isDelivery && (
+                  <textarea
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    placeholder="Delivery address or instructions"
+                    rows={2}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-brand-green resize-none"
+                  />
+                )}
+
                 {lastSaleId && (
-                  <Link href={`/receipts/${lastSaleId}`} className="flex items-center justify-center gap-2 w-full py-2.5 mb-2 rounded-xl border-2 border-brand-green text-brand-green text-sm font-bold hover:bg-green-50 transition-colors">
+                  <Link href={`/receipts/${lastSaleId}`} className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border-2 border-brand-green text-brand-green text-sm font-bold hover:bg-green-50 transition-colors">
                     <Receipt className="w-4 h-4" /> View Last Receipt
                   </Link>
                 )}
                 <button onClick={handleCheckout} disabled={cart.items.length === 0 || saleMutation.isPending} className="btn-bid w-full text-center flex items-center justify-center gap-2 py-4 text-base">
                   <Receipt className="w-5 h-5" />
-                  {saleMutation.isPending ? 'Processing...' : 'Complete Sale'}
+                  {saleMutation.isPending ? 'Processing...' : `Charge ${formatCurrency(finalTotal)}`}
                 </button>
               </div>
             </div>

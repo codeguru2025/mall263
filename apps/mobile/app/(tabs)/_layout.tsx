@@ -1,9 +1,10 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Redirect, Tabs } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 
 import Colors from '@/constants/Colors';
+import { Brand } from '@/constants/brand';
 import { useColorScheme } from '@/components/useColorScheme';
 import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,12 +14,22 @@ import { fetchNotificationsPage } from '@/lib/notifications-api';
 const SELLER_ROLES = new Set(['STALL_OWNER', 'ATTENDANT']);
 const AGENT_ROLES = new Set(['FIELD_AGENT']);
 
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
+const SHARED_HEADER = {
+  headerStyle: {
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: Brand.border,
+  },
+  headerShadowVisible: false,
+  headerTintColor: Brand.blue,
+  headerTitleStyle: { fontWeight: '800' as const, color: Brand.navy, fontSize: 17 },
+};
+
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
   color: string;
 }) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
+  return <FontAwesome size={26} style={{ marginBottom: -3 }} {...props} />;
 }
 
 export default function TabLayout() {
@@ -30,6 +41,7 @@ export default function TabLayout() {
     queryFn: () => fetchNotificationsPage(1, 1, 'unread'),
     enabled: isAuthenticated,
     refetchInterval: 30_000,
+    retry: 2,
   });
   const unreadCount = notifPage?.unreadCount ?? 0;
 
@@ -44,9 +56,9 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: useClientOnlyValue(false, true),
-        // Tab screens are navigation roots — never show a back button
-        headerBackVisible: false,
-      }}>
+        ...SHARED_HEADER,
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
@@ -54,19 +66,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
           headerTitle: () => <Logo size={32} />,
           headerTitleAlign: 'center',
-          headerStyle: {
-            backgroundColor: '#ffffff',
-            borderBottomWidth: 1,
-            borderBottomColor: '#e2e8f0',
-          },
-          headerShadowVisible: false,
-          headerTintColor: '#1B2A4A',
         }}
       />
       <Tabs.Screen
         name="shop"
         options={{
           title: 'Shop',
+          headerShown: false,
           tabBarIcon: ({ color }) => <TabBarIcon name="shopping-cart" color={color} />,
         }}
       />
@@ -95,7 +101,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="seller"
         options={{
-          title: 'Seller',
+          title: 'Seller Hub',
+          headerShown: false,
           href: isSeller ? undefined : null,
           tabBarIcon: ({ color }) => <TabBarIcon name="building" color={color} />,
         }}

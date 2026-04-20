@@ -11,5 +11,10 @@ export function getApiBaseUrl(): string {
     .trim()
     .replace(/\/$/, '')
     .replace(/\/api\/v1\/?$/, '');
+  try {
+    new URL(raw);
+  } catch {
+    return 'http://localhost:4000';
+  }
   return raw;
 }

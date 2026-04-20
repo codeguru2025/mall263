@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { MapPin, ShoppingBag } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { resolveStoreLogo } from '@/lib/storeBranding';
+import { BLUR_DATA_URL } from '@/lib/image-placeholder';
 
 interface Product {
   id: string;
@@ -45,6 +46,8 @@ export default function ProductCard({ product, priority = false }: Props) {
               className="object-contain p-2 group-hover:scale-105 transition-transform duration-300"
               sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
               priority={priority}
+              placeholder="blur"
+              blurDataURL={BLUR_DATA_URL}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gray-50">

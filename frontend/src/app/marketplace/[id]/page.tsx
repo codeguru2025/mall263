@@ -13,6 +13,7 @@ import { ArrowLeft, MapPin, Star, Package, Gavel, ShoppingBag, AlertCircle, Chev
 import { useState, useEffect } from 'react';
 import { recordProductEngagement } from '@/lib/forYouSignals';
 import { useAuthStore } from '@/lib/store';
+import { BLUR_DATA_URL } from '@/lib/image-placeholder';
 
 // Resolve the best available URL from a product image object
 function resolveImageSrc(img: any): string {
@@ -123,6 +124,8 @@ export default function ProductDetailPage() {
               sizes="(max-width: 640px) 100vw, 672px"
               className="object-cover"
               priority
+              placeholder="blur"
+              blurDataURL={BLUR_DATA_URL}
               onError={() => setHeroError(true)}
             />
           ) : (
@@ -207,7 +210,7 @@ export default function ProductDetailPage() {
                     i === imgIndex ? 'border-brand-blue' : 'border-transparent opacity-60'
                   }`}
                 >
-                  <Image src={src} alt="" fill className="object-cover" />
+                  <Image src={src} alt="" fill className="object-cover" placeholder="blur" blurDataURL={BLUR_DATA_URL} />
                 </button>
               );
             })}

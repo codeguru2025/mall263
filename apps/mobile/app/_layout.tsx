@@ -1,5 +1,6 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Brand } from '@/constants/brand';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
@@ -91,7 +92,19 @@ function RootLayoutNav() {
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack screenOptions={{ headerBackTitle: 'Back' }}>
+          <Stack
+            screenOptions={{
+              headerBackTitle: 'Back',
+              headerStyle: {
+                backgroundColor: '#ffffff',
+                borderBottomWidth: 1,
+                borderBottomColor: Brand.border,
+              } as any,
+              headerShadowVisible: false,
+              headerTintColor: Brand.blue,
+              headerTitleStyle: { fontWeight: '800', color: Brand.navy, fontSize: 17 },
+            }}
+          >
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ title: 'Sign in' }} />
             <Stack.Screen name="register" options={{ title: 'Create account' }} />
