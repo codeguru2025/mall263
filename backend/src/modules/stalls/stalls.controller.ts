@@ -133,6 +133,28 @@ export class StallsController {
     return this.stallsService.update(id, userId, data);
   }
 
+  @Get(':id/settings/marketplace')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STALL_OWNER)
+  @ApiOperation({ summary: 'Get marketplace visibility setting' })
+  async getMarketplaceVisibility(@Param('id') stallId: string, @CurrentUser('id') userId: string) {
+    return this.stallsService.getMarketplaceVisibility(stallId, userId);
+  }
+
+  @Patch(':id/settings/marketplace')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.STALL_OWNER)
+  @ApiOperation({ summary: 'Toggle marketplace visibility for stall products' })
+  async updateMarketplaceVisibility(
+    @Param('id') stallId: string,
+    @CurrentUser('id') userId: string,
+    @Body() data: { showOnMarketplace: boolean },
+  ) {
+    return this.stallsService.updateMarketplaceVisibility(stallId, userId, data.showOnMarketplace);
+  }
+
   @Get(':id/attendants')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)

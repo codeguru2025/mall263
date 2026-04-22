@@ -181,7 +181,10 @@ export class ReportsService {
   }
 
   async getMallReport(mallId: string, startDate: Date, endDate: Date) {
-    const mall = await this.prisma.mall.findUnique({ where: { id: mallId } });
+    const mall = await this.prisma.mall.findUnique({
+      where: { id: mallId },
+      include: { city: { select: { name: true } } },
+    });
     if (!mall) throw new NotFoundException('Mall not found');
 
     const stalls = await this.prisma.stall.findMany({
@@ -191,7 +194,7 @@ export class ReportsService {
     const stallIds = stalls.map((s) => s.id);
     if (stallIds.length === 0) {
       return {
-        mall: { id: mall.id, name: mall.name, city: mall.city },
+        mall: { id: mall.id, name: mall.name, city: mall.city?.name ?? null },
         period: { start: startDate, end: endDate },
         summary: {
           stallCount: 0,
@@ -310,7 +313,7 @@ export class ReportsService {
     }
 
     return {
-      mall: { id: mall.id, name: mall.name, city: mall.city },
+      mall: { id: mall.id, name: mall.name, city: mall.city?.name ?? null },
       period: { start: startDate, end: endDate },
       summary: {
         stallCount: stalls.length,

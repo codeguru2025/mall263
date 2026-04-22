@@ -153,6 +153,25 @@ enum RefundStatus {
   REJECTED
 }
 
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  BOGO // Buy One Get One
+  BOGO_PERCENTAGE // Buy One Get X% Off Second
+}
+
+enum DiscountReason {
+  PROMOTION
+  LOYALTY
+  BULK_PURCHASE
+  SEASONAL
+  CLEARANCE
+  EMPLOYEE
+  CUSTOMER_REQUEST
+  DAMAGED_GOODS
+  COMPETITOR_MATCH
+}
+
 enum NotificationType {
   DEMAND_MATCH
   OFFER_RECEIVED
@@ -266,6 +285,7 @@ model User {
   agentCommissions     AgentCommission[]    @relation("AgentCommissions")
   productReviews       ProductReview[]
   addresses            UserAddress[]
+  createdDiscounts     Discount[]           @relation("DiscountCreator")
 
   @@index([phone])
   @@index([role])
@@ -357,7 +377,7 @@ model Merchant {
 model Mall {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
-  city      String
+  cityId    String   @map("city_id") @db.Uuid
   address   String
   latitude  Float?
   longitude Float?
@@ -366,11 +386,15 @@ model Mall {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  stalls          Stall[]
+  city    City             @relation(fields: [cityId], references: [id])
+  stalls Stall[]
   serviceListings ServiceListing[]
-  buyerDemands    BuyerDemand[]
+  buyerDemands BuyerDemand[]
+  creationLogs MallCreationLog[]
 
-  @@index([city])
+  @@unique([cityId, name])
+  @@index([cityId])
+  @@index([isActive])
   @@map("malls")
 }
 
@@ -401,17 +425,20 @@ model Stall {
   createdAt     DateTime    @default(now()) @map("created_at")
   updatedAt     DateTime    @updatedAt @map("updated_at")
 
-  merchant      Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  mall          Mall?            @relation(fields: [mallId], references: [id])
+  merchant      Merchant              @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  mall          Mall?                 @relation(fields: [mallId], references: [id])
+  shopSettings  ShopSettings?
   products      Product[]
   attendants    StallAttendant[]
   posSales      POSSale[]
-  sellerOffers  SellerOffer[]    @relation("OfferStall")
-  buyerDemands  BuyerDemand[]    @relation("DemandStall")
+  sellerOffers  SellerOffer[]         @relation("OfferStall")
+  buyerDemands  BuyerDemand[]         @relation("DemandStall")
   serviceListings ServiceListing[]
   expenses          StallExpense[]
   analyticsEvents   StallAnalyticsEvent[]
   followers         StallFollow[]
+  virtualWalkVideos ShopVirtualWalkVideo[]
+  discounts         Discount[]
 
   @@unique([mallId, stallNumber])
   @@index([merchantId])
@@ -643,6 +670,7 @@ model Product {
   analyticsEvents StallAnalyticsEvent[]
   demands  BuyerDemand[]
   reviews  ProductReview[]
+  videoHotspots VideoHotspot[]
 
   @@index([stallId])
   @@index([categoryId])
@@ -921,6 +949,40 @@ model SellerOfferItem {
 }
 
 // ============================================================
+// DISCOUNT MANAGEMENT
+// ============================================================
+
+model Discount {
+  id          String         @id @default(uuid()) @db.Uuid
+  stallId     String         @map("stall_id") @db.Uuid
+  code        String?        @unique
+  name        String
+  type        DiscountType
+  value       Decimal        @db.Decimal(10, 2) // percentage or amount
+  minAmount   Decimal?       @map("min_amount") @db.Decimal(14, 2)
+  maxDiscount Decimal?       @map("max_discount") @db.Decimal(14, 2)
+  usageLimit  Int?           @map("usage_limit")
+  usageCount  Int            @default(0) @map("usage_count")
+  reason      DiscountReason
+  isActive    Boolean        @default(true) @map("is_active")
+  startsAt    DateTime?      @map("starts_at")
+  endsAt      DateTime?      @map("ends_at")
+  createdById String         @map("created_by_id") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  stall     Stall     @relation(fields: [stallId], references: [id])
+  createdBy User      @relation("DiscountCreator", fields: [createdById], references: [id])
+  sales     POSSale[]
+
+  @@index([stallId])
+  @@index([code])
+  @@index([isActive])
+  @@index([startsAt, endsAt])
+  @@map("discounts")
+}
+
+// ============================================================
 // POS & SALES
 // ============================================================
 
@@ -931,7 +993,10 @@ model POSSale {
   receiptNumber  String        @unique @map("receipt_number")
   subtotal       Decimal       @db.Decimal(14, 2)
   discountAmount Decimal       @default(0) @map("discount_amount") @db.Decimal(14, 2)
-  discountType   String?       @map("discount_type")
+  discountType   DiscountType? @map("discount_type")
+  discountReason DiscountReason? @map("discount_reason")
+  discountCode   String?       @map("discount_code")
+  discountId     String?       @map("discount_id") @db.Uuid
   taxAmount      Decimal       @default(0) @map("tax_amount") @db.Decimal(14, 2)
   totalAmount    Decimal       @map("total_amount") @db.Decimal(14, 2)
   commissionAmount Decimal     @map("commission_amount") @db.Decimal(14, 2)
@@ -945,14 +1010,16 @@ model POSSale {
   createdAt       DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
-  stall   Stall         @relation(fields: [stallId], references: [id])
-  items   POSSaleItem[]
-  receipt Receipt?
-  refunds Refund[]
+  stall     Stall     @relation(fields: [stallId], references: [id])
+  discount  Discount? @relation(fields: [discountId], references: [id])
+  items     POSSaleItem[]
+  receipt   Receipt?
+  refunds   Refund[]
 
   @@index([stallId])
   @@index([cashierId])
   @@index([receiptNumber])
+  @@index([discountId])
   @@index([createdAt])
   @@index([status])
   @@map("pos_sales")
@@ -1670,4 +1737,108 @@ model UserAddress {
 
   @@index([userId])
   @@map("user_addresses")
+}
+
+// ============================================================
+// CITIES & MALLS HIERARCHY
+// ============================================================
+
+model City {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  country   String   @default("ZW")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  malls Mall[]
+
+  @@index([country])
+  @@map("cities")
+}
+
+// ============================================================
+// SHOP SETTINGS
+// ============================================================
+
+model ShopSettings {
+  id                String   @id @default(uuid()) @db.Uuid
+  stallId           String   @unique @map("stall_id") @db.Uuid
+  showOnMarketplace Boolean  @default(true) @map("show_on_marketplace")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  stall Stall @relation(fields: [stallId], references: [id], onDelete: Cascade)
+
+  @@map("shop_settings")
+}
+
+// ============================================================
+// VIRTUAL STORE WALK
+// ============================================================
+
+enum ShelfLayer {
+  MIDDLE
+  TOP
+  BOTTOM
+}
+
+model ShopVirtualWalkVideo {
+  id           String       @id @default(uuid()) @db.Uuid
+  shopId       String       @map("shop_id") @db.Uuid
+  aisleName    String       @map("aisle_name")
+  shelfLayer   ShelfLayer   @map("shelf_layer")
+  videoUrl     String       @map("video_url")
+  thumbnailUrl String?      @map("thumbnail_url")
+  duration     Int?         // in seconds
+  fileSize     Int?         @map("file_size") // in bytes
+  isActive     Boolean      @default(true) @map("is_active")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  shop     Stall        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  hotspots VideoHotspot[]
+
+  @@index([shopId])
+  @@index([isActive])
+  @@map("shop_virtual_walk_videos")
+}
+
+model VideoHotspot {
+  id         String   @id @default(uuid()) @db.Uuid
+  videoId    String   @map("video_id") @db.Uuid
+  timestamp  Float    // in seconds from video start
+  xCoord     Float    @map("x_coord") // normalized 0-1
+  yCoord     Float    @map("y_coord") // normalized 0-1
+  productId  String   @map("product_id") @db.Uuid
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  video   ShopVirtualWalkVideo @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  product Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([videoId])
+  @@index([productId])
+  @@index([isActive])
+  @@map("video_hotspots")
+}
+
+// ============================================================
+// MALL CREATION DIAGNOSTICS
+// ============================================================
+
+model MallCreationLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  mallId      String?  @map("mall_id") @db.Uuid
+  payload     Json
+  errorMessage String? @map("error_message")
+  success     Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  mall Mall? @relation(fields: [mallId], references: [id], onDelete: SetNull)
+
+  @@index([mallId])
+  @@index([success])
+  @@index([createdAt])
+  @@map("mall_creation_logs")
 }

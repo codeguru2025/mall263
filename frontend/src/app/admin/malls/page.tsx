@@ -96,7 +96,7 @@ export default function AdminMallsPage() {
     setEditingMall(mall);
     setForm({
       name: mall.name,
-      city: mall.city,
+      city: mall.city?.name ?? mall.city ?? '',
       address: mall.address,
       latitude: mall.latitude?.toString() || '',
       longitude: mall.longitude?.toString() || '',
@@ -229,7 +229,7 @@ export default function AdminMallsPage() {
                     </div>
                     <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
                       <MapPin className="w-3.5 h-3.5 text-brand-orange flex-shrink-0" />
-                      <span className="truncate">{mall.city} · {mall.address}</span>
+                      <span className="truncate">{mall.city?.name ?? mall.city} · {mall.address}</span>
                     </div>
                     <div className="flex items-center gap-1 mt-2">
                       <Store className="w-3.5 h-3.5 text-gray-400" />

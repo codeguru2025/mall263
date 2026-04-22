@@ -20,7 +20,17 @@
       "Bash(curl -s -X POST https://mall263-r99jz.ondigitalocean.app/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"ausiziba@gmail.com\",\"password\":\"*Amell.Max1#\"}')",
       "Bash(npx ts-node -e ':*)",
       "Bash(node:*)",
-      "Bash(curl -s -X POST https://mall263-r99jz.ondigitalocean.app/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"phone\":\"+263773665350\",\"password\":\"*Amell.Max1\"}')"
+      "Bash(curl -s -X POST https://mall263-r99jz.ondigitalocean.app/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"phone\":\"+263773665350\",\"password\":\"*Amell.Max1\"}')",
+      "Bash(xargs grep:*)",
+      "Bash(grep -n \"object-cover\\\\|aspect-square\\\\|product.*image\\\\|image.*product\" /c/Users/ausiz/CascadeProjects/mall263/frontend/src/app/marketplace/\\\\\\\\[id\\\\\\\\]/page.tsx)",
+      "Bash(npm install:*)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(xargs ls:*)",
+      "Bash(echo \"DONE:$?\")",
+      "Bash(grep -n \"next.config\\\\|images.*domain\\\\|remotePattern\" /c/Users/ausiz/CascadeProjects/mall263/frontend/next.config.*)",
+      "Bash(ls /c/Users/ausiz/CascadeProjects/mall263/frontend/next.config*)",
+      "Bash(npm run *)",
+      "Bash(npx dotenv *)"
     ]
   }
 }

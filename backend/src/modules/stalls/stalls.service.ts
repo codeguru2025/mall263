@@ -67,7 +67,7 @@ export class StallsService {
         longitude: data.longitude,
         status: StallStatus.ACTIVE,
       },
-      include: { mall: true },
+      include: { mall: { include: { city: true } } },
     });
   }
 
@@ -75,7 +75,7 @@ export class StallsService {
     const stall = await this.prisma.stall.findUnique({
       where: { id },
       include: {
-        mall: true,
+        mall: { include: { city: true } },
         merchant: {
           select: {
             id: true,
@@ -141,7 +141,7 @@ export class StallsService {
         address: null,
         description: stall.description ? '🔒 Fund wallet to see full details' : null,
         phone: null,
-        mall: stall.mall ? { id: stall.mall.id, name: '🔒 Fund wallet to see seller', city: stall.mall.city } : null,
+        mall: stall.mall ? { id: stall.mall.id, name: '🔒 Fund wallet to see seller', city: stall.mall.city?.name ?? null } : null,
         merchant: {
           id: stall.merchant.id,
           businessName: '***',
@@ -209,7 +209,7 @@ export class StallsService {
     return this.prisma.stall.findMany({
       where: { merchantId },
       include: {
-        mall: { select: { name: true, city: true } },
+        mall: { select: { name: true, city: { select: { name: true } } } },
         _count: { select: { products: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -308,8 +308,12 @@ export class StallsService {
 
   async listMalls(city?: string) {
     const where: any = { isActive: true };
-    if (city) where.city = city;
-    return this.prisma.mall.findMany({ where, orderBy: { name: 'asc' } });
+    if (city) where.city = { name: { equals: city, mode: 'insensitive' } };
+    return this.prisma.mall.findMany({
+      where,
+      include: { city: { select: { name: true } } },
+      orderBy: { name: 'asc' },
+    });
   }
 
   // ── Admin mall management ──────────────────────────────────────────────────
@@ -317,10 +321,11 @@ export class StallsService {
   async listAllMalls() {
     return this.prisma.mall.findMany({
       orderBy: { name: 'asc' },
-      include: { _count: { select: { stalls: true } } },
+      include: { city: { select: { name: true } }, _count: { select: { stalls: true } } },
     });
   }
 
+  /** Legacy admin endpoint: accepts city as a name string for backward compat. */
   async createMall(data: {
     name: string;
     city: string;
@@ -329,17 +334,25 @@ export class StallsService {
     longitude?: number;
     imageUrl?: string;
   }) {
+    const cityName = data.city.trim();
+    // Upsert city by name so the API stays backward compatible
+    const cityRecord = await this.prisma.city.upsert({
+      where: { name: cityName },
+      create: { name: cityName },
+      update: {},
+    });
+
     return this.prisma.mall.create({
       data: {
         name: data.name.trim(),
-        city: data.city.trim(),
+        cityId: cityRecord.id,
         address: data.address.trim(),
         latitude: data.latitude,
         longitude: data.longitude,
         imageUrl: data.imageUrl,
         isActive: true,
       },
-      include: { _count: { select: { stalls: true } } },
+      include: { city: { select: { name: true } }, _count: { select: { stalls: true } } },
     });
   }
 
@@ -360,7 +373,15 @@ export class StallsService {
 
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name.trim();
-    if (data.city !== undefined) updateData.city = data.city.trim();
+    if (data.city !== undefined) {
+      // Upsert city by name so the API stays backward compatible
+      const cityRecord = await this.prisma.city.upsert({
+        where: { name: data.city.trim() },
+        create: { name: data.city.trim() },
+        update: {},
+      });
+      updateData.cityId = cityRecord.id;
+    }
     if (data.address !== undefined) updateData.address = data.address.trim();
     if (data.latitude !== undefined) updateData.latitude = data.latitude;
     if (data.longitude !== undefined) updateData.longitude = data.longitude;
@@ -370,8 +391,43 @@ export class StallsService {
     return this.prisma.mall.update({
       where: { id: mallId },
       data: updateData,
-      include: { _count: { select: { stalls: true } } },
+      include: { city: { select: { name: true } }, _count: { select: { stalls: true } } },
     });
+  }
+
+  // ── Marketplace visibility ────────────────────────────────────────────────
+
+  async updateMarketplaceVisibility(stallId: string, userId: string, showOnMarketplace: boolean) {
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: stallId },
+      include: { merchant: { select: { userId: true } } },
+    });
+    if (!stall) throw new NotFoundException('Stall not found');
+    if (stall.merchant.userId !== userId) throw new ForbiddenException('Not your stall');
+
+    return this.prisma.shopSettings.upsert({
+      where: { stallId },
+      create: { stallId, showOnMarketplace },
+      update: { showOnMarketplace },
+      select: { stallId: true, showOnMarketplace: true, updatedAt: true },
+    });
+  }
+
+  async getMarketplaceVisibility(stallId: string, userId: string) {
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: stallId },
+      include: {
+        merchant: { select: { userId: true } },
+        shopSettings: { select: { showOnMarketplace: true } },
+      },
+    });
+    if (!stall) throw new NotFoundException('Stall not found');
+    if (stall.merchant.userId !== userId) throw new ForbiddenException('Not your stall');
+
+    return {
+      stallId,
+      showOnMarketplace: stall.shopSettings?.showOnMarketplace ?? true,
+    };
   }
 
   // ── Stall Boost ───────────────────────────────────────────────────────────

@@ -11,12 +11,22 @@ const nextConfig = {
     minimumCacheTTL: 2592000, // 30 days — mobile uploads rarely change
     remotePatterns: [
       {
+        // CDN edge URL — preferred, used by web uploads and mobile after the fix.
+        protocol: 'https',
+        hostname: 'mall263-uploads.lon1.cdn.digitaloceanspaces.com',
+      },
+      {
+        // Subdomain-style S3 origin — kept for legacy compatibility.
         protocol: 'https',
         hostname: 'mall263-uploads.lon1.digitaloceanspaces.com',
       },
       {
+        // Path-style S3 origin (lon1.digitaloceanspaces.com/bucket/key).
+        // Mobile uploaded images were stored with this URL before the
+        // seller-api.ts fix that switched to cdnUrl. Required so those
+        // already-persisted images still render in the web app.
         protocol: 'https',
-        hostname: 'mall263-uploads.lon1.cdn.digitaloceanspaces.com',
+        hostname: 'lon1.digitaloceanspaces.com',
       },
     ],
   },

@@ -10,7 +10,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { PaymentMethod } from '@prisma/client';
+import { PaymentMethod, DiscountType } from '@prisma/client';
 
 enum MerchantPayNetwork {
   ECOCASH = 'ECOCASH',
@@ -49,9 +49,8 @@ export class ProcessSaleDto {
   discountAmount?: number;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(64)
-  discountType?: string;
+  @IsEnum(DiscountType)
+  discountType?: DiscountType;
 
   @IsOptional()
   @IsString()

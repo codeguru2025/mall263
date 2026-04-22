@@ -87,7 +87,7 @@ export default function ServiceDetailPage() {
                 <p className="font-semibold text-navy-700">{s.stall.name}</p>
                 {s.mall && (
                   <p className="text-gray-500">
-                    {s.mall.name}, {s.mall.city}
+                    {s.mall.name}, {s.mall.city?.name ?? s.mall.city}
                   </p>
                 )}
               </div>

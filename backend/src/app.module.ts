@@ -35,6 +35,10 @@ import { CodModule } from './modules/cod/cod.module';
 import { DisputesModule } from './modules/disputes/disputes.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
+import { CitiesModule } from './modules/cities/cities.module';
+import { MallsModule } from './modules/malls/malls.module';
+import { VirtualWalkModule } from './modules/virtual-walk/virtual-walk.module';
+import { DiscountsModule } from './modules/discounts/discounts.module';
 
 @Module({
   imports: [
@@ -75,6 +79,10 @@ import { AddressesModule } from './modules/addresses/addresses.module';
     DisputesModule,
     ReviewsModule,
     AddressesModule,
+    CitiesModule,
+    MallsModule,
+    VirtualWalkModule,
+    DiscountsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
