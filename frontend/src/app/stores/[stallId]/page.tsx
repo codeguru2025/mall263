@@ -115,8 +115,8 @@ export default function PublicStorePage() {
                       <MapPin className="w-4 h-4 text-brand-orange flex-shrink-0" />
                       <span>
                         {stall.mall.name !== '🔒 Fund wallet to see seller'
-                          ? `${stall.mall.name}, ${stall.mall.city}`
-                          : stall.mall.city}
+                          ? `${stall.mall.name}, ${stall.mall.city?.name ?? stall.mall.city}`
+                          : stall.mall.city?.name ?? stall.mall.city}
                       </span>
                     </p>
                   ) : stall.address ? (

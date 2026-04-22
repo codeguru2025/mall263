@@ -301,7 +301,7 @@ export default function ProductDetailPage() {
                     </p>
                   )}
                   {product.stall.mall ? (
-                    <p className="text-sm text-gray-500">{product.stall.mall.name}, {product.stall.mall.city}</p>
+                    <p className="text-sm text-gray-500">{product.stall.mall.name}, {product.stall.mall.city?.name ?? product.stall.mall.city}</p>
                   ) : product.stall.address ? (
                     <p className="text-sm text-gray-500">{product.stall.address}</p>
                   ) : null}

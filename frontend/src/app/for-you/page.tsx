@@ -32,7 +32,7 @@ function ForYouProductCard({ product, priority }: { product: any; priority?: boo
   const hasImage = !!src && !imgError;
   const stallName = product.stall?.name || 'Market stall';
   const mallLine = product.stall?.mall
-    ? [product.stall.mall.name, product.stall.mall.city].filter(Boolean).join(' · ')
+    ? [product.stall.mall.name, product.stall.mall.city?.name ?? product.stall.mall.city].filter(Boolean).join(' · ')
     : (product.stall?.address ?? '');
   const categoryName = product.category?.name;
   const storeLogo = resolveStoreLogo(product.stall, product.stall?.merchant);

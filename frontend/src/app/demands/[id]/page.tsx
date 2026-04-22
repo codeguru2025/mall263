@@ -299,7 +299,7 @@ export default function DemandDetailPage() {
                   <MapPin className="w-3 h-3" />
                   Stall {acceptedOffer.stall?.stallNumber}
                   {acceptedOffer.stall?.mall?.name ? ` · ${acceptedOffer.stall.mall.name}` : ''}
-                  {acceptedOffer.stall?.mall?.city ? `, ${acceptedOffer.stall.mall.city}` : ''}
+                  {acceptedOffer.stall?.mall?.city ? `, ${acceptedOffer.stall.mall.city?.name ?? acceptedOffer.stall.mall.city}` : ''}
                 </div>
               </div>
             </div>
@@ -493,7 +493,7 @@ export default function DemandDetailPage() {
                         {offer.stall?.mall?.name && (
                           <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
                             <MapPin className="w-3 h-3" />
-                            {offer.stall.mall.name}{offer.stall.mall.city ? `, ${offer.stall.mall.city}` : ''}
+                            {offer.stall.mall.name}{offer.stall.mall.city ? `, ${offer.stall.mall.city?.name ?? offer.stall.mall.city}` : ''}
                           </div>
                         )}
                         {offer.message && (

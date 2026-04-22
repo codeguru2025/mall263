@@ -5,7 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { RedisService } from '../../redis/redis.service';
-import { POSSaleStatus, PaymentMethod, Prisma, WalletTransactionType, WalletTransactionStatus, NotificationType } from '@prisma/client';
+import { POSSaleStatus, PaymentMethod, Prisma, WalletTransactionType, WalletTransactionStatus, NotificationType, DiscountType, DiscountReason } from '@prisma/client';
 
 interface CartItem {
   variantId: string;
@@ -55,7 +55,10 @@ export class POSService {
     items: CartItem[];
     paymentMethod: PaymentMethod;
     discountAmount?: number;
-    discountType?: string;
+    discountType?: DiscountType;
+    discountReason?: DiscountReason;
+    discountCode?: string;
+    discountId?: string;
     customerPhone?: string;
     notes?: string;
     deliveryAddress?: string;
@@ -207,7 +210,7 @@ export class POSService {
         });
         const receiptNumber = `M263-${today}-${(todayCount + 1).toString().padStart(4, '0')}`;
 
-        // 7. Create the sale record
+        // 7. Create the sale record with enhanced discount tracking
         const sale = await tx.pOSSale.create({
           data: {
             stallId: data.stallId,
@@ -216,6 +219,9 @@ export class POSService {
             subtotal,
             discountAmount: saleDiscount,
             discountType: data.discountType,
+            discountReason: data.discountReason,
+            discountCode: data.discountCode,
+            discountId: data.discountId,
             taxAmount: 0,
             totalAmount,
             commissionAmount,
@@ -244,6 +250,8 @@ export class POSService {
                   })),
                   subtotal: subtotal.toString(),
                   discount: saleDiscount.toString(),
+                  discountCode: data.discountCode,
+                  discountReason: data.discountReason,
                   total: totalAmount.toString(),
                   paymentMethod: data.paymentMethod,
                   cashier: data.cashierId,
@@ -633,13 +641,128 @@ export class POSService {
       items: pending.items,
       paymentMethod: pending.paymentMethod as PaymentMethod,
       discountAmount: pending.discountAmount,
-      discountType: pending.discountType,
+      discountType: pending.discountType as DiscountType,
       customerPhone: pending.customerPhone,
       deliveryAddress: pending.deliveryAddress,
       notes: pending.notes ?? `Paid via ${pending.paymentMethod} merchant code`,
     });
 
     return { sale: result.sale, profit: result.profit, commission: result.commission };
+  }
+
+  /**
+   * Validate and calculate discount for a sale
+   */
+  async validateDiscount(stallId: string, discountData: {
+    code?: string;
+    discountId?: string;
+    subtotalAmount: number;
+  }) {
+    // This would integrate with the DiscountsService
+    // For now, implement basic validation logic
+    
+    if (!discountData.code && !discountData.discountId) {
+      return { discountAmount: 0, finalAmount: discountData.subtotalAmount };
+    }
+
+    try {
+      // Find discount by code or ID
+      const discount = await this.prisma.discount.findFirst({
+        where: {
+          stallId,
+          isActive: true,
+          OR: [
+            discountData.code ? { code: discountData.code.toUpperCase() } : {},
+            discountData.discountId ? { id: discountData.discountId } : {}
+          ].filter(condition => Object.keys(condition).length > 0)
+        }
+      });
+
+      if (!discount) {
+        throw new BadRequestException('Invalid or inactive discount code');
+      }
+
+      // Check date validity
+      const now = new Date();
+      if (discount.startsAt && now < discount.startsAt) {
+        throw new BadRequestException('Discount has not started yet');
+      }
+      if (discount.endsAt && now > discount.endsAt) {
+        throw new BadRequestException('Discount has expired');
+      }
+
+      // Check usage limit
+      if (discount.usageLimit && discount.usageCount >= discount.usageLimit) {
+        throw new BadRequestException('Discount usage limit has been reached');
+      }
+
+      // Check minimum amount
+      if (discount.minAmount && discountData.subtotalAmount < parseFloat(discount.minAmount.toString())) {
+        throw new BadRequestException(`Minimum amount of $${discount.minAmount} required for this discount`);
+      }
+
+      // Calculate discount amount
+      let discountAmount = 0;
+      const subtotal = new Prisma.Decimal(discountData.subtotalAmount);
+
+      switch (discount.type) {
+        case 'PERCENTAGE':
+          discountAmount = parseFloat(subtotal.mul(discount.value.div(100)).toString());
+          break;
+        case 'FIXED_AMOUNT':
+          discountAmount = parseFloat(discount.value.toString());
+          break;
+        case 'BOGO':
+          // Simplified BOGO - 50% off
+          discountAmount = parseFloat(subtotal.div(2).toString());
+          break;
+        case 'BOGO_PERCENTAGE':
+          // BOGO with percentage off second item
+          discountAmount = parseFloat(subtotal.div(2).mul(discount.value.div(100)).toString());
+          break;
+        default:
+          throw new BadRequestException('Invalid discount type');
+      }
+
+      // Apply maximum discount limit
+      if (discount.maxDiscount && discountAmount > parseFloat(discount.maxDiscount.toString())) {
+        discountAmount = parseFloat(discount.maxDiscount.toString());
+      }
+
+      // Ensure discount doesn't exceed subtotal
+      if (discountAmount > discountData.subtotalAmount) {
+        discountAmount = discountData.subtotalAmount;
+      }
+
+      const finalAmount = discountData.subtotalAmount - discountAmount;
+
+      return {
+        discount,
+        discountAmount,
+        finalAmount,
+        discountType: discount.type,
+        discountReason: discount.reason,
+        discountCode: discount.code
+      };
+    } catch (error) {
+      throw new BadRequestException(`Discount validation failed: ${error.message}`);
+    }
+  }
+
+  /**
+   * Apply discount and increment usage count
+   */
+  async applyDiscountToSale(discountId: string) {
+    if (!discountId) return;
+
+    return this.prisma.discount.update({
+      where: { id: discountId },
+      data: {
+        usageCount: {
+          increment: 1
+        }
+      }
+    });
   }
 
   private getPaymentBreakdown(sales: any[]) {

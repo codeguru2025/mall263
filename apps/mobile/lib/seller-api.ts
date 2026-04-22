@@ -144,6 +144,11 @@ export async function uploadImage(fileUri: string, mimeType = 'image/jpeg'): Pro
     body: formData,
   });
   if (!res.ok) throw new Error('Image upload failed');
-  const json = await res.json();
-  return json.url as string;
+  const json = await res.json() as { url?: string; cdnUrl?: string };
+  // Prefer the CDN URL — it is whitelisted in Next.js remotePatterns and
+  // served via DigitalOcean's CDN edge nodes. The raw `url` points to the
+  // origin S3 endpoint (lon1.digitaloceanspaces.com) which is NOT whitelisted,
+  // so web-app images would appear blank when only that URL is stored.
+  // (chat-api.ts already uses this same cdnUrl || url pattern correctly.)
+  return (json.cdnUrl || json.url) as string;
 }

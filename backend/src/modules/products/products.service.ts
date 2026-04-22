@@ -285,8 +285,19 @@ export class ProductsService {
     const where: any = { status: ProductStatus.ACTIVE };
 
     if (categoryId) where.categoryId = categoryId;
-    if (stallId) where.stallId = stallId;
-    else if (mallId) where.stall = { mallId };
+    if (stallId) {
+      where.stallId = stallId;
+    } else {
+      // Marketplace browse: respect the merchant's showOnMarketplace toggle.
+      // Shops with no settings row default to visible (showOnMarketplace DEFAULT TRUE).
+      where.stall = {
+        ...(mallId ? { mallId } : {}),
+        OR: [
+          { shopSettings: null },
+          { shopSettings: { showOnMarketplace: true } },
+        ],
+      };
+    }
     if (Number.isFinite(params.minPrice)) where.minPrice = { gte: params.minPrice };
     if (Number.isFinite(params.maxPrice)) where.maxPrice = { lte: params.maxPrice };
 
@@ -311,7 +322,7 @@ export class ProductsService {
           id: true,
           name: true,
           logoUrl: true,
-          mall: { select: { name: true, city: true } },
+          mall: { select: { name: true, city: { select: { name: true } } } },
           merchant: { select: { logoUrl: true } },
         },
       },
@@ -348,7 +359,7 @@ export class ProductsService {
           name: true,
           mallId: true,
           logoUrl: true,
-          mall: { select: { name: true, city: true } },
+          mall: { select: { name: true, city: { select: { name: true } } } },
           merchant: { include: { user: { include: { trustScore: true } } } },
         },
       },

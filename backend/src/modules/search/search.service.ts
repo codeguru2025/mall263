@@ -145,7 +145,7 @@ export class SearchService implements OnModuleInit {
         category: true,
         stall: {
           include: {
-            mall: true,
+            mall: { include: { city: true } },
             merchant: { include: { user: { include: { trustScore: true } } } },
           },
         },
@@ -170,7 +170,7 @@ export class SearchService implements OnModuleInit {
       stallName: product.stall.name,
       mallId: product.stall.mallId || '',
       mallName: product.stall.mall?.name || '',
-      city: product.stall.mall?.city || '',
+      city: product.stall.mall?.city?.name || '',
       inStock: product.variants.some(v => v.inventory && v.inventory.quantity > 0),
       trustScore: parseFloat(product.stall.merchant.user.trustScore?.overallScore?.toString() || '50'),
       viewCount: product.viewCount,
@@ -247,11 +247,17 @@ export class SearchService implements OnModuleInit {
     }
 
     if (categoryId) where.categoryId = categoryId;
+    // Marketplace search: respect the merchant's showOnMarketplace toggle.
+    where.stall = {
+      OR: [
+        { shopSettings: null },
+        { shopSettings: { showOnMarketplace: true } },
+      ],
+    };
     if (mallId || city) {
-      where.stall = {};
       if (mallId) where.stall.mallId = mallId;
       if (city && typeof city === 'string' && city.trim()) {
-        where.stall.mall = { city: { equals: city.trim(), mode: 'insensitive' } };
+        where.stall.mall = { city: { name: { equals: city.trim(), mode: 'insensitive' } } };
       }
     }
     if (minPrice !== undefined) where.minPrice = { gte: minPrice };
@@ -284,7 +290,7 @@ export class SearchService implements OnModuleInit {
               name: true,
               mallId: true,
               logoUrl: true,
-              mall: { select: { id: true, name: true, city: true } },
+              mall: { select: { id: true, name: true, city: { select: { name: true } } } },
               merchant: {
                 select: {
                   logoUrl: true,
@@ -316,7 +322,7 @@ export class SearchService implements OnModuleInit {
       stallName: p.stall.name,
       mallId: p.stall.mallId || '',
       mallName: p.stall.mall?.name || '',
-      city: p.stall.mall?.city || '',
+      city: p.stall.mall?.city?.name || '',
       imageUrl: p.images[0]?.url || '',
       inStock: p.variants.length > 0,
       trustScore: parseFloat(p.stall.merchant?.user?.trustScore?.overallScore?.toString() ?? '50'),
