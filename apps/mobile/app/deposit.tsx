@@ -14,6 +14,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Brand } from '@/constants/brand';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   initiateMobilePayment,
   initiateWebPayment,
@@ -38,6 +39,11 @@ const cardShadow =
 
 export default function DepositScreen() {
   const qc = useQueryClient();
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (!isAuthenticated) router.replace('/login');
+  }, [isAuthenticated]);
 
   const [mode, setMode] = useState<Mode>('mobile');
   const [step, setStep] = useState<Step>('form');

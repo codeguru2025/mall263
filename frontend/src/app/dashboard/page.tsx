@@ -149,6 +149,13 @@ export default function DashboardPage() {
     enabled: isAuthenticated,
   });
 
+  const { data: trustScore } = useQuery({
+    queryKey: ['trust-me'],
+    queryFn: () => api.get('/api/v1/trust/me').then((r) => r.data),
+    enabled: isAuthenticated,
+    staleTime: 300_000,
+  });
+
   const { data: notifications } = useQuery({
     queryKey: ['notifications'],
     queryFn: () => api.get('/api/v1/notifications', { params: { limit: 5 } }).then((r) => r.data),
@@ -156,6 +163,14 @@ export default function DashboardPage() {
   });
 
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
+
+  const { data: sellerSubStatus } = useQuery({
+    queryKey: ['subscription-status'],
+    queryFn: () => api.get('/api/v1/subscriptions/status').then((r) => r.data),
+    enabled: isAuthenticated && isSeller,
+    staleTime: 60_000,
+  });
+  const sellerHasAccess = !isSeller || (sellerSubStatus?.fullyAccess ?? true);
 
   // Sellers with no merchant profile must complete setup first
   const { data: merchant, isLoading: merchantLoading, isError: merchantError } = useQuery({
@@ -377,6 +392,31 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Trust Score */}
+        {trustScore && (
+          <div className="bg-white rounded-2xl border-2 border-gray-100 p-5 mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Trust Score</p>
+              <p className="text-3xl font-black text-navy-700 mt-0.5">
+                {Math.round(Number(trustScore.overallScore))}<span className="text-base font-semibold text-gray-400">/100</span>
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Visible to buyers and sellers on the platform</p>
+            </div>
+            <div className="relative w-16 h-16">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                <circle
+                  cx="18" cy="18" r="15.9" fill="none"
+                  stroke={Number(trustScore.overallScore) >= 70 ? '#22c55e' : Number(trustScore.overallScore) >= 40 ? '#F7941D' : '#ef4444'}
+                  strokeWidth="3"
+                  strokeDasharray={`${Number(trustScore.overallScore)} 100`}
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+          </div>
+        )}
+
         {/* Seller Today's Stats */}
         {isSeller && todaySummary && (
           <div className="mb-6">
@@ -444,18 +484,30 @@ export default function DashboardPage() {
           {/* Seller actions */}
           {isSeller && (
             <>
-              <Link href="/pos" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-green hover:shadow-md transition-all group">
-                <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-green group-hover:text-white transition-colors">
-                  <Store className="w-6 h-6 text-brand-green group-hover:text-white transition-colors" />
-                </div>
-                <span className="text-sm font-bold text-navy-700">POS</span>
-              </Link>
+              {sellerHasAccess ? (
+                <Link href="/pos" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-green hover:shadow-md transition-all group">
+                  <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-green group-hover:text-white transition-colors">
+                    <Store className="w-6 h-6 text-brand-green group-hover:text-white transition-colors" />
+                  </div>
+                  <span className="text-sm font-bold text-navy-700">POS</span>
+                </Link>
+              ) : (
+                <Link href="/subscriptions" className="bg-gray-50 rounded-2xl p-5 border-2 border-dashed border-gray-300 transition-all opacity-70">
+                  <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mb-3">
+                    <Lock className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <span className="text-sm font-bold text-gray-400">POS</span>
+                  <span className="block text-[10px] text-brand-orange font-semibold mt-1">Subscribe →</span>
+                </Link>
+              )}
               <Link href="/demands" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-orange hover:shadow-md transition-all group">
                 <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-orange group-hover:text-white transition-colors">
                   <Gavel className="w-6 h-6 text-brand-orange group-hover:text-white transition-colors" />
                 </div>
                 <span className="text-sm font-bold text-navy-700">Buyer demands</span>
-                <span className="block text-[10px] text-gray-400 font-semibold mt-1">Bid &amp; win sales</span>
+                <span className="block text-[10px] text-gray-400 font-semibold mt-1">
+                  {sellerHasAccess ? 'Bid & win sales' : 'View only'}
+                </span>
               </Link>
               <Link href="/inventory" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-yellow hover:shadow-md transition-all group">
                 <div className="w-12 h-12 bg-yellow-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-yellow transition-colors">
@@ -463,18 +515,40 @@ export default function DashboardPage() {
                 </div>
                 <span className="text-sm font-bold text-navy-700">Stock</span>
               </Link>
-              <Link href="/seller/reports" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-blue hover:shadow-md transition-all group">
-                <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-blue group-hover:text-white transition-colors">
-                  <TrendingUp className="w-6 h-6 text-brand-blue group-hover:text-white transition-colors" />
+              {sellerHasAccess ? (
+                <Link href="/seller/reports" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-blue hover:shadow-md transition-all group">
+                  <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-blue group-hover:text-white transition-colors">
+                    <TrendingUp className="w-6 h-6 text-brand-blue group-hover:text-white transition-colors" />
+                  </div>
+                  <span className="text-sm font-bold text-navy-700">Reports</span>
+                </Link>
+              ) : (
+                <Link href="/subscriptions" className="bg-gray-50 rounded-2xl p-5 border-2 border-dashed border-gray-300 transition-all opacity-70">
+                  <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mb-3">
+                    <Lock className="w-6 h-6 text-gray-400" />
+                  </div>
+                  <span className="text-sm font-bold text-gray-400">Reports</span>
+                  <span className="block text-[10px] text-brand-orange font-semibold mt-1">Subscribe →</span>
+                </Link>
+              )}
+              {sellerHasAccess && (
+                <Link href="/sales" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-orange hover:shadow-md transition-all group">
+                  <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-orange group-hover:text-white transition-colors">
+                    <Receipt className="w-6 h-6 text-brand-orange group-hover:text-white transition-colors" />
+                  </div>
+                  <span className="text-sm font-bold text-navy-700">Sales</span>
+                </Link>
+              )}
+              {!sellerHasAccess && (
+                <div className="col-span-2 bg-orange-50 border-2 border-brand-orange rounded-2xl p-4 flex items-center gap-3">
+                  <Lock className="w-6 h-6 text-brand-orange flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm text-navy-700">Trial ended — Subscribe for $5/month</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Unlock POS, reports, demand bidding, and more.</p>
+                  </div>
+                  <Link href="/subscriptions" className="text-xs font-black text-brand-orange hover:underline whitespace-nowrap">Subscribe →</Link>
                 </div>
-                <span className="text-sm font-bold text-navy-700">Reports</span>
-              </Link>
-              <Link href="/sales" className="bg-white rounded-2xl p-5 border-2 border-gray-100 hover:border-brand-orange hover:shadow-md transition-all group">
-                <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mb-3 group-hover:bg-brand-orange group-hover:text-white transition-colors">
-                  <Receipt className="w-6 h-6 text-brand-orange group-hover:text-white transition-colors" />
-                </div>
-                <span className="text-sm font-bold text-navy-700">Sales</span>
-              </Link>
+              )}
             </>
           )}
 

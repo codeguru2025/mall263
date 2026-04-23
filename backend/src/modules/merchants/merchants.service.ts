@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { MerchantStatus, Prisma, UserRole, StallStatus } from '@prisma/client';
 import { containsContactInfo } from '../../common/contact-info.util';
 
@@ -16,7 +17,10 @@ function assertNoContactInfoInStallFields(fields: Record<string, string | undefi
 
 @Injectable()
 export class MerchantsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private subscriptions: SubscriptionsService,
+  ) {}
 
   async onboardMerchant(data: {
     userId: string;
@@ -33,7 +37,7 @@ export class MerchantsService {
 
       await tx.user.update({ where: { id: data.userId }, data: { role: UserRole.STALL_OWNER } });
 
-      return tx.merchant.create({
+      const merchant = await tx.merchant.create({
         data: {
           userId: data.userId,
           businessName: data.businessName,
@@ -44,6 +48,12 @@ export class MerchantsService {
         },
         include: { user: { select: { id: true, phone: true, firstName: true, lastName: true } } },
       });
+
+      // Promotion to STALL_OWNER changes the subscription plan tier used by
+      // getStatus — bust the cache so the next read reflects the seller plan.
+      this.subscriptions.invalidateStatusCache(data.userId).catch(() => {});
+
+      return merchant;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 

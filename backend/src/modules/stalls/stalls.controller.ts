@@ -20,8 +20,8 @@ export class StallsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.FIELD_AGENT, UserRole.SUPER_ADMIN)
   @ApiOperation({ summary: 'Create a stall' })
-  async create(@Body() data: CreateStallDto) {
-    return this.stallsService.create(data);
+  async create(@Body() data: CreateStallDto, @CurrentUser('id') userId: string) {
+    return this.stallsService.create(data, userId);
   }
 
   @Get('malls')

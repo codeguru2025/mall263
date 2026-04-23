@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Brand } from '@/constants/brand';
 import {
@@ -19,6 +20,9 @@ import {
   activateUser,
   type AdminUser,
 } from '@/lib/admin-api';
+import { useAuth } from '@/contexts/AuthContext';
+
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN', 'SUPPORT_ADMIN'];
 
 const STATUS_COLOR: Record<string, string> = {
   ACTIVE: Brand.green,
@@ -39,14 +43,21 @@ function fmtDate(iso: string) {
 
 export default function AdminUsersScreen() {
   const qc = useQueryClient();
+  const { isAuthenticated, user } = useAuth();
   const [search, setSearch] = useState('');
   const [committed, setCommitted] = useState('');
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const [actioning, setActioning] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!isAuthenticated) { router.replace('/login'); return; }
+    if (user && !ADMIN_ROLES.includes(user.role)) router.replace('/(tabs)');
+  }, [isAuthenticated, user]);
+
   const usersQ = useQuery({
     queryKey: ['admin-users', committed, page],
+    enabled: isAuthenticated,
     queryFn: () => fetchAdminUsers(committed, page),
   });
 

@@ -20,13 +20,13 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.FIELD_AGENT, UserRole.ATTENDANT)
   @ApiOperation({ summary: 'Create a product with variants' })
-  async create(@Body() data: CreateProductDto) {
-    return this.productsService.create(data.stallId, data);
+  async create(@Body() data: CreateProductDto, @CurrentUser('id') userId: string) {
+    return this.productsService.create(data.stallId, data, userId);
   }
 
   @Get('browse')
   @Public()
-  @ApiOperation({ summary: 'Browse products (public)' })
+  @ApiOperation({ summary: 'Browse products (public). Supports nearLat/nearLng/radiusKm for geo-proximity filtering.' })
   async browse(
     @Query('categoryId') categoryId?: string,
     @Query('mallId') mallId?: string,
@@ -36,8 +36,11 @@ export class ProductsController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('sortBy') sortBy?: string,
+    @Query('nearLat') nearLat?: number,
+    @Query('nearLng') nearLng?: number,
+    @Query('radiusKm') radiusKm?: number,
   ) {
-    return this.productsService.browse({ categoryId, mallId, stallId, minPrice, maxPrice, page, limit, sortBy });
+    return this.productsService.browse({ categoryId, mallId, stallId, minPrice, maxPrice, page, limit, sortBy, nearLat, nearLng, radiusKm });
   }
 
   @Get('for-you')

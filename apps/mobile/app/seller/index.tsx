@@ -23,6 +23,7 @@ import { fetchStallsByMerchant, fetchProductsByStall, type Product } from '@/lib
 import { fetchPaymentConfig, savePaymentConfig } from '@/lib/merchant-pay-api';
 import { formatMoney } from '@/lib/products';
 import { getApiBaseUrl } from '@/lib/config';
+import { api } from '@/lib/api';
 
 // react-native-qrcode-svg ships a class component incompatible with React 19 strict JSX
 const QR = QRCode as unknown as React.FC<{
@@ -48,6 +49,18 @@ export default function SellerHubScreen() {
   const [productSearch, setProductSearch] = useState('');
 
   const meQ = useQuery({ queryKey: ['me-profile'], queryFn: fetchMeProfile });
+
+  const subStatusQ = useQuery({
+    queryKey: ['subscription-status'],
+    queryFn: async () => {
+      const { data } = await api.get('/api/v1/subscriptions/status');
+      return data as { fullyAccess: boolean; status: string };
+    },
+    staleTime: 60_000,
+  });
+  // Fail closed on load or error to avoid briefly unlocking POS/Reports for an
+  // unsubscribed account while the request is in flight.
+  const sellerHasAccess = subStatusQ.isSuccess ? (subStatusQ.data?.fullyAccess ?? false) : false;
 
   const merchantId = meQ.data?.merchant?.id;
   const stallsQ = useQuery({
@@ -151,7 +164,7 @@ export default function SellerHubScreen() {
     if (!productSearch.trim()) return allProducts;
     const q = productSearch.toLowerCase();
     return allProducts.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.brand?.toLowerCase().includes(q),
+      (p) => (p.name ?? '').toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q),
     );
   }, [allProducts, productSearch]);
 
@@ -222,14 +235,42 @@ export default function SellerHubScreen() {
         )}
       </View>
 
+      {/* Subscription gate banner */}
+      {!sellerHasAccess && (
+        <View style={styles.subGateBanner}>
+          <FontAwesome name="lock" size={16} color={Brand.orange} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.subGateTitle}>Trial ended — Subscribe for $5/month</Text>
+            <Text style={styles.subGateBody}>POS, reports, and demand bidding require an active subscription.</Text>
+          </View>
+          <Pressable
+            style={styles.subGateBtn}
+            onPress={() => router.push('/subscriptions' as never)}
+          >
+            <Text style={styles.subGateBtnText}>Subscribe →</Text>
+          </Pressable>
+        </View>
+      )}
+
       {/* Sell Now — primary CTA */}
       {stall && (
         <Pressable
-          style={styles.sellNowBtn}
-          onPress={() => router.push({ pathname: '/pos/cart', params: { stallId: stall.id, stallName: stall.name } })}
+          style={[styles.sellNowBtn, !sellerHasAccess && styles.sellNowBtnLocked]}
+          onPress={() => {
+            if (!sellerHasAccess) {
+              Alert.alert('Subscription required', 'Subscribe for $5/month to access the POS register.', [
+                { text: 'Not now', style: 'cancel' },
+                { text: 'Subscribe', onPress: () => router.push('/subscriptions' as never) },
+              ]);
+              return;
+            }
+            router.push({ pathname: '/pos/cart', params: { stallId: stall.id, stallName: stall.name } });
+          }}
         >
-          <FontAwesome name="shopping-cart" size={18} color="#fff" />
-          <Text style={styles.sellNowText}>Sell Now — Open POS Register</Text>
+          <FontAwesome name={sellerHasAccess ? 'shopping-cart' : 'lock'} size={18} color="#fff" />
+          <Text style={styles.sellNowText}>
+            {sellerHasAccess ? 'Sell Now — Open POS Register' : 'POS (Subscription Required)'}
+          </Text>
         </Pressable>
       )}
 
@@ -243,9 +284,18 @@ export default function SellerHubScreen() {
           <Text style={styles.opsCardIcon}>🧾</Text>
           <Text style={styles.opsCardText}>Expenses</Text>
         </Pressable>
-        <Pressable style={styles.opsCard} onPress={() => router.push('/seller/reports')}>
-          <Text style={styles.opsCardIcon}>📊</Text>
-          <Text style={styles.opsCardText}>Reports</Text>
+        <Pressable
+          style={[styles.opsCard, !sellerHasAccess && styles.opsCardLocked]}
+          onPress={() => {
+            if (!sellerHasAccess) {
+              Alert.alert('Subscription required', 'Subscribe for $5/month to access reports.');
+              return;
+            }
+            router.push('/seller/reports');
+          }}
+        >
+          <Text style={styles.opsCardIcon}>{sellerHasAccess ? '📊' : '🔒'}</Text>
+          <Text style={[styles.opsCardText, !sellerHasAccess && { color: Brand.muted }]}>Reports</Text>
         </Pressable>
       </View>
       <View style={styles.opsRow}>
@@ -264,6 +314,55 @@ export default function SellerHubScreen() {
           <Text style={styles.opsCardText}>Subscription</Text>
         </Pressable>
       </View>
+
+      {/* Boost actions */}
+      {stall && (
+        <View style={[styles.boostCard, cardShadow]}>
+          <Text style={styles.boostTitle}>
+            <FontAwesome name="bolt" size={14} color={Brand.orange} /> Boost
+          </Text>
+          <Text style={styles.boostHint}>Increase visibility of your stall or products in search results.</Text>
+          <View style={styles.boostRow}>
+            <Pressable
+              style={styles.boostBtn}
+              onPress={() => {
+                Alert.alert(
+                  'Boost Stall',
+                  `Boost "${stall.name}" to appear at the top of search results?`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Boost',
+                      onPress: async () => {
+                        try {
+                          const { api } = await import('@/lib/api');
+                          await api.post(`/api/v1/stalls/${stall.id}/boost`);
+                          Alert.alert('Boosted!', 'Your stall is now boosted in search results.');
+                        } catch (e: any) {
+                          Alert.alert('Error', e?.response?.data?.message ?? 'Could not boost stall.');
+                        }
+                      },
+                    },
+                  ],
+                );
+              }}
+            >
+              <FontAwesome name="rocket" size={13} color="#fff" />
+              <Text style={styles.boostBtnText}>Boost Stall</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.boostBtn, styles.boostBtnOutline]}
+              onPress={() => Alert.alert(
+                'Boost a Product',
+                'Select a product from the list below to boost it.',
+              )}
+            >
+              <FontAwesome name="star" size={13} color={Brand.orange} />
+              <Text style={[styles.boostBtnText, { color: Brand.orange }]}>Boost Product</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       {/* Shop QR — embedded inline */}
       {shopUrl ? (
@@ -446,11 +545,21 @@ const styles = StyleSheet.create({
   stallPickerText: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '700' },
   stallPickerTextActive: { color: '#fff' },
 
+  subGateBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#fff7ed', borderRadius: 14, padding: 14, marginBottom: 14,
+    borderWidth: 1.5, borderColor: Brand.orange + '88',
+  },
+  subGateTitle: { fontSize: 12, fontWeight: '900', color: Brand.navy },
+  subGateBody: { fontSize: 11, color: Brand.muted, lineHeight: 16, marginTop: 2 },
+  subGateBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: Brand.orange, borderRadius: 10 },
+  subGateBtnText: { color: '#fff', fontWeight: '800', fontSize: 12 },
   sellNowBtn: {
     backgroundColor: Brand.green, borderRadius: 14, paddingVertical: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 10, marginBottom: 14,
   },
+  sellNowBtnLocked: { backgroundColor: Brand.muted },
   sellNowText: { color: '#fff', fontSize: 16, fontWeight: '900' },
 
   opsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
@@ -458,6 +567,7 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: Brand.card, borderRadius: 14,
     borderWidth: 1, borderColor: Brand.border, alignItems: 'center', paddingVertical: 14, gap: 5,
   },
+  opsCardLocked: { backgroundColor: '#f8f8f8', borderStyle: 'dashed', opacity: 0.7 },
   opsCardIcon: { fontSize: 22 },
   opsCardText: { fontSize: 11, fontWeight: '800', color: Brand.navy, textAlign: 'center' },
 
@@ -532,4 +642,20 @@ const styles = StyleSheet.create({
   saveCodesBtn: { backgroundColor: Brand.blue, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 4 },
   saveCodesBtnText: { color: '#fff', fontWeight: '900', fontSize: 14 },
   btnDisabled: { opacity: 0.6 },
+
+  boostCard: {
+    backgroundColor: '#fff7ed', borderRadius: 16, padding: 16,
+    borderWidth: 1.5, borderColor: Brand.orange + '55', marginBottom: 16,
+  },
+  boostTitle: { fontSize: 14, fontWeight: '900', color: Brand.navy, marginBottom: 4 },
+  boostHint: { fontSize: 12, color: Brand.muted, lineHeight: 17, marginBottom: 12 },
+  boostRow: { flexDirection: 'row', gap: 10 },
+  boostBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, backgroundColor: Brand.orange, borderRadius: 12, paddingVertical: 12,
+  },
+  boostBtnOutline: {
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: Brand.orange,
+  },
+  boostBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
 });

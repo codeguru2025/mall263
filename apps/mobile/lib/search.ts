@@ -20,9 +20,26 @@ export type SearchResponse = {
   processingTimeMs?: number;
 };
 
-export async function fetchSearchPage(q: string, page: number, limit = 20): Promise<SearchResponse> {
-  const { data } = await api.get<SearchResponse>('/api/v1/search', {
-    params: { q, page, limit },
-  });
+export async function fetchSearchPage(
+  q: string,
+  page: number,
+  limit = 20,
+  filters?: {
+    categoryId?: string;
+    mallId?: string;
+    city?: string;
+    nearLat?: number;
+    nearLng?: number;
+    radiusKm?: number;
+  },
+): Promise<SearchResponse> {
+  const params: Record<string, unknown> = { q, page, limit };
+  if (filters?.categoryId) params.categoryId = filters.categoryId;
+  if (filters?.mallId) params.mallId = filters.mallId;
+  if (filters?.city) params.city = filters.city;
+  if (filters?.nearLat != null) params.nearLat = filters.nearLat;
+  if (filters?.nearLng != null) params.nearLng = filters.nearLng;
+  if (filters?.radiusKm != null) params.radiusKm = filters.radiusKm;
+  const { data } = await api.get<SearchResponse>('/api/v1/search', { params });
   return data;
 }

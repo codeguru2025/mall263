@@ -7,6 +7,8 @@ import { InventoryService } from '../inventory/inventory.service';
 import { RedisService } from '../../redis/redis.service';
 import { POSSaleStatus, PaymentMethod, Prisma, WalletTransactionType, WalletTransactionStatus, NotificationType, DiscountType, DiscountReason } from '@prisma/client';
 
+type SaleWithItems = Prisma.POSSaleGetPayload<{ include: { items: true } }>;
+
 interface CartItem {
   variantId: string;
   quantity: number;
@@ -67,6 +69,26 @@ export class POSService {
       throw new BadRequestException('Cart is empty');
     }
 
+    // Aggregate duplicate variantIds so stock checks and inventory decrements
+    // see the *total* quantity per variant in a single pass. Without this, a
+    // client that passes the same variantId on two separate lines could bypass
+    // the stock check (each line individually fits, but combined exceeds stock).
+    const aggregated = new Map<string, CartItem>();
+    for (const line of data.items) {
+      if (!line.variantId) throw new BadRequestException('Cart line missing variantId');
+      if (!Number.isFinite(line.quantity) || line.quantity <= 0) {
+        throw new BadRequestException('Cart line quantity must be > 0');
+      }
+      const existing = aggregated.get(line.variantId);
+      if (existing) {
+        existing.quantity += line.quantity;
+        existing.discount = (existing.discount ?? 0) + (line.discount ?? 0);
+      } else {
+        aggregated.set(line.variantId, { ...line });
+      }
+    }
+    const items = Array.from(aggregated.values());
+
     return this.prisma.$retryTransaction(
       async (tx) => {
         // 1. Get stall and merchant info
@@ -76,7 +98,7 @@ export class POSService {
         });
         if (!stall) throw new NotFoundException('Stall not found');
 
-        // 2. Validate and calculate cart items
+        // 2. Validate and calculate cart items — fetch all variants in ONE query (no N+1)
         let subtotal = new Prisma.Decimal(0);
         let totalCost = new Prisma.Decimal(0);
         const saleItems: Array<{
@@ -90,11 +112,15 @@ export class POSService {
           totalPrice: Prisma.Decimal;
         }> = [];
 
-        for (const item of data.items) {
-          const variant = await tx.productVariant.findUnique({
-            where: { id: item.variantId },
-            include: { inventory: true, product: { select: { name: true, stallId: true } } },
-          });
+        const variantIds = items.map((i) => i.variantId);
+        const fetchedVariants = await tx.productVariant.findMany({
+          where: { id: { in: variantIds } },
+          include: { inventory: true, product: { select: { name: true, stallId: true } } },
+        });
+        const variantMap = new Map(fetchedVariants.map((v) => [v.id, v]));
+
+        for (const item of items) {
+          const variant = variantMap.get(item.variantId);
 
           if (!variant) throw new BadRequestException(`Variant ${item.variantId} not found`);
           if (variant.product.stallId !== data.stallId) {
@@ -340,8 +366,9 @@ export class POSService {
 
   /**
    * Get sale by ID with all details.
+   * Caller must be an attendant or owner of the stall that made the sale.
    */
-  async getSaleById(saleId: string) {
+  async getSaleById(saleId: string, requesterId: string) {
     const sale = await this.prisma.pOSSale.findUnique({
       where: { id: saleId },
       include: {
@@ -352,32 +379,53 @@ export class POSService {
             name: true,
             stallNumber: true,
             logoUrl: true,
-            merchant: { select: { businessName: true, logoUrl: true } },
+            merchant: { select: { businessName: true, logoUrl: true, userId: true } },
+            attendants: { where: { userId: requesterId }, select: { userId: true } },
           },
         },
       },
     });
     if (!sale) throw new NotFoundException('Sale not found');
+
+    const isOwner = sale.stall.merchant.userId === requesterId;
+    const isAttendant = sale.stall.attendants.length > 0;
+    if (!isOwner && !isAttendant) throw new ForbiddenException('You do not have access to this sale');
+
     return sale;
   }
 
   /**
    * Get sales for a stall with date filtering.
+   * Caller must own or be an attendant of the stall.
    */
-  async getSalesByStall(stallId: string, params: {
+  async getSalesByStall(stallId: string, requesterId: string, params: {
     startDate?: Date;
     endDate?: Date;
     status?: POSSaleStatus;
     page?: number;
     limit?: number;
   }) {
+    // Verify caller is owner or attendant of this stall
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: stallId },
+      select: {
+        merchant: { select: { userId: true } },
+        attendants: { where: { userId: requesterId }, select: { userId: true } },
+      },
+    });
+    if (!stall) throw new NotFoundException('Stall not found');
+    const isOwner = stall.merchant.userId === requesterId;
+    const isAttendant = stall.attendants.length > 0;
+    if (!isOwner && !isAttendant) throw new ForbiddenException('You do not have access to this stall');
+
     const { startDate, endDate, status, page = 1, limit = 20 } = params;
-    const where: any = { stallId };
+    const where: Prisma.POSSaleWhereInput = { stallId };
     if (status) where.status = status;
     if (startDate || endDate) {
-      where.createdAt = {};
-      if (startDate) where.createdAt.gte = startDate;
-      if (endDate) where.createdAt.lte = endDate;
+      where.createdAt = {
+        ...(startDate ? { gte: startDate } : {}),
+        ...(endDate ? { lte: endDate } : {}),
+      };
     }
 
     const [data, total] = await Promise.all([
@@ -396,8 +444,20 @@ export class POSService {
 
   /**
    * Daily sales summary for a stall.
+   * Caller must own or be an attendant of the stall.
    */
-  async getDailySummary(stallId: string, date?: Date) {
+  async getDailySummary(stallId: string, requesterId: string, date?: Date) {
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: stallId },
+      select: {
+        merchant: { select: { userId: true } },
+        attendants: { where: { userId: requesterId }, select: { userId: true } },
+      },
+    });
+    if (!stall) throw new NotFoundException('Stall not found');
+    if (stall.merchant.userId !== requesterId && stall.attendants.length === 0) {
+      throw new ForbiddenException('You do not have access to this stall');
+    }
     const targetDate = date || new Date();
     const startOfDay = new Date(targetDate);
     startOfDay.setHours(0, 0, 0, 0);
@@ -413,13 +473,13 @@ export class POSService {
       include: { items: true },
     });
 
-    const totalRevenue = sales.reduce((sum: number, s: any) => sum + parseFloat(s.totalAmount.toString()), 0);
+    const totalRevenue = sales.reduce((sum, s) => sum + parseFloat(s.totalAmount.toString()), 0);
     const totalCost = sales.reduce(
-      (sum: number, s: any) => sum + s.items.reduce((iSum: number, i: any) => iSum + parseFloat(i.costPrice.toString()) * i.quantity, 0),
+      (sum, s) => sum + s.items.reduce((iSum, i) => iSum + parseFloat(i.costPrice.toString()) * i.quantity, 0),
       0,
     );
-    const totalCommission = sales.reduce((sum: number, s: any) => sum + parseFloat(s.commissionAmount.toString()), 0);
-    const totalDiscount = sales.reduce((sum: number, s: any) => sum + parseFloat(s.discountAmount.toString()), 0);
+    const totalCommission = sales.reduce((sum, s) => sum + parseFloat(s.commissionAmount.toString()), 0);
+    const totalDiscount = sales.reduce((sum, s) => sum + parseFloat(s.discountAmount.toString()), 0);
 
     return {
       date: targetDate.toISOString().split('T')[0],
@@ -430,7 +490,7 @@ export class POSService {
       netProfit: totalRevenue - totalCost - totalCommission,
       totalCommission,
       totalDiscount,
-      itemsSold: sales.reduce((sum: number, s: any) => sum + s.items.reduce((iSum: number, i: any) => iSum + i.quantity, 0), 0),
+      itemsSold: sales.reduce((sum, s) => sum + s.items.reduce((iSum, i) => iSum + i.quantity, 0), 0),
       averageOrderValue: sales.length > 0 ? totalRevenue / sales.length : 0,
       paymentBreakdown: this.getPaymentBreakdown(sales),
     };
@@ -452,31 +512,55 @@ export class POSService {
           where: { id: saleId },
           include: {
             items: true,
-            stall: { include: { merchant: { include: { user: true } } } },
+            stall: {
+              include: {
+                merchant: { include: { user: true } },
+                attendants: { where: { userId: processedBy }, select: { userId: true } },
+              },
+            },
           },
         });
 
         if (!sale) throw new NotFoundException('Sale not found');
+
+        // Caller must own or be an attendant of the stall
+        const isOwner = sale.stall.merchant.userId === processedBy;
+        const isAttendant = sale.stall.attendants.length > 0;
+        if (!isOwner && !isAttendant) throw new ForbiddenException('You do not have permission to refund this sale');
+
         if (sale.status === POSSaleStatus.FULLY_REFUNDED) {
           throw new BadRequestException('Sale already fully refunded');
         }
 
-        // 1. Restore inventory
+        // 1. Restore inventory — batch fetch all inventory records in ONE query (no N+1)
+        //    Aggregate per variantId first so duplicate sale lines don't produce
+        //    stale previousQty/newQty values in the inventory log.
+        const refundQtyByVariant = new Map<string, number>();
         for (const item of sale.items) {
-          const inventory = await tx.inventory.findUnique({
-            where: { variantId: item.variantId },
-          });
+          refundQtyByVariant.set(
+            item.variantId,
+            (refundQtyByVariant.get(item.variantId) ?? 0) + item.quantity,
+          );
+        }
+        const refundVariantIds = Array.from(refundQtyByVariant.keys());
+        const refundInventories = await tx.inventory.findMany({
+          where: { variantId: { in: refundVariantIds } },
+        });
+        const refundInventoryMap = new Map(refundInventories.map((inv) => [inv.variantId, inv]));
+
+        for (const [variantId, totalQty] of refundQtyByVariant) {
+          const inventory = refundInventoryMap.get(variantId);
           if (inventory) {
             await tx.inventory.update({
               where: { id: inventory.id },
-              data: { quantity: { increment: item.quantity } },
+              data: { quantity: { increment: totalQty } },
             });
             await tx.inventoryLog.create({
               data: {
                 inventoryId: inventory.id,
-                changeQty: item.quantity,
+                changeQty: totalQty,
                 previousQty: inventory.quantity,
-                newQty: inventory.quantity + item.quantity,
+                newQty: inventory.quantity + totalQty,
                 reason: 'REFUND',
                 referenceId: saleId,
                 referenceType: 'pos_sale',
@@ -570,13 +654,34 @@ export class POSService {
       );
     }
 
-    // Read-only cart valuation — no DB writes yet
+    // Aggregate duplicate variantIds so the total amount matches what processSale
+    // will ultimately charge (processSale also aggregates).
+    const aggregatedItems = new Map<string, CartItem>();
+    for (const line of data.items) {
+      if (!line.variantId) throw new BadRequestException('Cart line missing variantId');
+      if (!Number.isFinite(line.quantity) || line.quantity <= 0) {
+        throw new BadRequestException('Cart line quantity must be > 0');
+      }
+      const existing = aggregatedItems.get(line.variantId);
+      if (existing) {
+        existing.quantity += line.quantity;
+        existing.discount = (existing.discount ?? 0) + (line.discount ?? 0);
+      } else {
+        aggregatedItems.set(line.variantId, { ...line });
+      }
+    }
+
+    // Read-only cart valuation — batch fetch all variants in ONE query (no N+1)
     let subtotal = 0;
-    for (const item of data.items) {
-      const variant = await this.prisma.productVariant.findUnique({
-        where: { id: item.variantId },
-        select: { sellingPrice: true, product: { select: { stallId: true } } },
-      });
+    const merchantPayVariantIds = Array.from(aggregatedItems.keys());
+    const merchantPayVariants = await this.prisma.productVariant.findMany({
+      where: { id: { in: merchantPayVariantIds } },
+      select: { id: true, sellingPrice: true, product: { select: { stallId: true } } },
+    });
+    const merchantPayVariantMap = new Map(merchantPayVariants.map((v) => [v.id, v]));
+
+    for (const item of aggregatedItems.values()) {
+      const variant = merchantPayVariantMap.get(item.variantId);
       if (!variant) throw new BadRequestException(`Variant ${item.variantId} not found`);
       if (variant.product.stallId !== data.stallId) {
         throw new BadRequestException('Product does not belong to this stall');
@@ -765,7 +870,7 @@ export class POSService {
     });
   }
 
-  private getPaymentBreakdown(sales: any[]) {
+  private getPaymentBreakdown(sales: SaleWithItems[]) {
     const breakdown: Record<string, { count: number; total: number }> = {};
     for (const sale of sales) {
       const method = sale.paymentMethod;

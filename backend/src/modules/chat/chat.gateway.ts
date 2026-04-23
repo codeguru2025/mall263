@@ -19,7 +19,10 @@ type AuthPayload = {
 
 @WebSocketGateway({
   namespace: '/chat',
-  cors: { origin: true, credentials: true },
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+  },
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()

@@ -12,8 +12,10 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { DeliveryService } from './delivery.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { DeliveryMode } from '@prisma/client';
+import { DeliveryMode, UserRole } from '@prisma/client';
 
 function validateGps(lat: number, lng: number) {
   if (typeof lat !== 'number' || typeof lng !== 'number') {
@@ -38,8 +40,6 @@ export class DeliveryController {
     body: {
       orderId: string;
       orderType: 'OFFER' | 'POS_SALE';
-      sellerId: string;
-      buyerId: string;
       mode: DeliveryMode;
       pickupZone: string;
       dropZone: string;
@@ -54,8 +54,8 @@ export class DeliveryController {
       deliveryFee: number;
     },
   ) {
-    if (!body.orderId || !body.sellerId || !body.buyerId) {
-      throw new BadRequestException('orderId, sellerId and buyerId are required');
+    if (!body.orderId) {
+      throw new BadRequestException('orderId is required');
     }
     if (isNaN(Number(body.itemAmount)) || Number(body.itemAmount) <= 0) {
       throw new BadRequestException('itemAmount must be a positive number');
@@ -63,7 +63,21 @@ export class DeliveryController {
     if (isNaN(Number(body.deliveryFee)) || Number(body.deliveryFee) < 0) {
       throw new BadRequestException('deliveryFee must be a non-negative number');
     }
-    return this.delivery.createJob(body);
+    // buyerId always comes from the JWT — never trust the request body for this.
+    // sellerId is derived from the order record server-side in createJob.
+    return this.delivery.createJob({ ...body, buyerId: userId });
+  }
+
+  @Get('jobs')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS, UserRole.FINANCE_ADMIN)
+  @ApiOperation({ summary: 'Admin: list all delivery jobs' })
+  async listAllJobs(
+    @Query('status') status?: string,
+    @Query('limit') limit?: number,
+    @Query('page') page?: number,
+  ) {
+    return this.delivery.listAllJobs({ status, limit, page });
   }
 
   @Get('jobs/broadcast')

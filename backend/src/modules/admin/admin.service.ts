@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import {
   StallStatus, ProductStatus, POSSaleStatus,
   DemandStatus, WalletTransactionType, WalletTransactionStatus, UserStatus, UserRole,
@@ -11,7 +12,10 @@ import {
 
 @Injectable()
 export class AdminService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private subscriptions: SubscriptionsService,
+  ) {}
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
 
@@ -45,6 +49,35 @@ export class AdminService {
   }
 
   // ── Users ─────────────────────────────────────────────────────────────────
+
+  async createUser(actorId: string, data: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    password: string;
+    role: UserRole;
+  }) {
+    const actor = await this.prisma.user.findUnique({ where: { id: actorId }, select: { role: true } });
+    // Only super admins can create other super admins
+    if (data.role === UserRole.SUPER_ADMIN && actor?.role !== UserRole.SUPER_ADMIN) {
+      throw new ForbiddenException('Only super admins can create super admin accounts');
+    }
+
+    const existing = await this.prisma.user.findFirst({ where: { phone: data.phone.trim() } });
+    if (existing) throw new ConflictException('A user with this phone number already exists');
+
+    const passwordHash = await bcrypt.hash(data.password, 12);
+    return this.prisma.user.create({
+      data: {
+        firstName: data.firstName.trim(),
+        lastName: data.lastName.trim(),
+        phone: data.phone.trim(),
+        passwordHash,
+        role: data.role,
+      },
+      select: { id: true, firstName: true, lastName: true, phone: true, role: true, status: true, createdAt: true },
+    });
+  }
 
   async listUsers(params: { search?: string; page?: number; limit?: number }) {
     const { search } = params;
@@ -170,11 +203,18 @@ export class AdminService {
       if (others === 0) throw new BadRequestException('Cannot demote the last active super admin');
     }
 
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id: userId },
       data: { role },
       select: { id: true, firstName: true, lastName: true, phone: true, role: true, status: true },
     });
+
+    // Role changes affect the plan used by subscriptions.getStatus (buyer $1 vs
+    // seller $5, feature entitlements, etc.). Bust the cache so the next call
+    // reflects the new role immediately instead of waiting for TTL.
+    this.subscriptions.invalidateStatusCache(userId).catch(() => {});
+
+    return updated;
   }
 
   async suspendUser(userId: string) {
@@ -275,7 +315,22 @@ export class AdminService {
     const settings = await this.prisma.appSetting.findMany();
     const map: Record<string, string> = {};
     for (const s of settings) map[s.key] = s.value;
-    return { delivery_rate_per_km: '0.50', ...map };
+    // Expose all configurable keys with their defaults so the admin panel shows them even when not yet overridden
+    return {
+      delivery_rate_per_km: '0.50',
+      platform_commission_rate: '0.025',
+      delivery_platform_fee_rate: '0.03',
+      delivery_reserve_rate: '0.02',
+      delivery_driver_float_rate: '0.10',
+      agent_commission_rate: '0.10',
+      product_boost_price_7: '1.00',
+      product_boost_price_14: '2.00',
+      product_boost_price_30: '4.00',
+      stall_boost_price_7: '1.00',
+      stall_boost_price_14: '2.00',
+      stall_boost_price_30: '4.00',
+      ...map,
+    };
   }
 
   async setSetting(key: string, value: string) {
@@ -291,7 +346,7 @@ export class AdminService {
   async listSubscriptions(params: { status?: SubscriptionStatus; page?: number; limit?: number; search?: string }) {
     const { status, search } = params;
     const page = Math.max(1, params.page ?? 1);
-    const limit = Math.max(1, params.limit ?? 30);
+    const limit = Math.min(Math.max(1, params.limit ?? 30), 200);
 
     const where: any = {};
     if (status) where.status = status;
@@ -481,7 +536,7 @@ export class AdminService {
     return this.prisma.ad.findMany({ orderBy: { createdAt: 'desc' } });
   }
 
-  async listActiveAds(role?: string) {
+  async listActiveAds(role?: string, placement?: string) {
     const now = new Date();
     const roleFilter = role
       ? [{ targetRole: null }, { targetRole: role }]
@@ -491,6 +546,7 @@ export class AdminService {
       where: {
         isActive: true,
         startsAt: { lte: now },
+        ...(placement ? { placement: placement as AdPlacement } : {}),
         AND: [
           { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
           { OR: roleFilter },

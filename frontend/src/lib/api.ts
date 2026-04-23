@@ -1,20 +1,30 @@
 import axios from 'axios';
 
 // Strip any accidental /api/v1 suffix — the env var should be the base domain only.
-// DO dashboard may have it set with the suffix from a previous config.
 const _rawUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const API_URL = _rawUrl.replace(/\/api\/v1\/?$/, '');
+
+// Access token is stored in memory only — never in localStorage.
+// This protects against XSS token theft. The refresh token lives in an
+// httpOnly cookie set by the backend, so it is never readable by JS.
+let _accessToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  _accessToken = token;
+}
+export function getAccessToken(): string | null {
+  return _accessToken;
+}
 
 export const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
+  // Send the httpOnly refresh-token cookie on every request to the same origin.
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('access_token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (_accessToken) config.headers.Authorization = `Bearer ${_accessToken}`;
   // Let the browser set multipart boundaries; default application/json breaks FormData uploads.
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type'];
@@ -23,24 +33,18 @@ api.interceptors.request.use((config) => {
 });
 
 // Mutex to prevent concurrent refresh token requests.
-// When multiple 401s fire simultaneously, only the first triggers a refresh;
-// the rest wait for the same promise and reuse the new token.
 let refreshPromise: Promise<string | null> | null = null;
 
 function doRefresh(): Promise<string | null> {
-  const refreshToken = localStorage.getItem('refresh_token');
-  if (!refreshToken) return Promise.resolve(null);
-
+  // POST with no body — the httpOnly cookie is sent automatically.
   return axios
-    .post(`${API_URL}/api/v1/auth/refresh`, { refreshToken })
+    .post(`${API_URL}/api/v1/auth/refresh`, {}, { withCredentials: true })
     .then(({ data }) => {
-      localStorage.setItem('access_token', data.accessToken);
-      localStorage.setItem('refresh_token', data.refreshToken);
+      setAccessToken(data.accessToken);
       return data.accessToken as string;
     })
     .catch(() => {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
+      setAccessToken(null);
       if (typeof window !== 'undefined') {
         window.location.href = '/auth/login';
       }

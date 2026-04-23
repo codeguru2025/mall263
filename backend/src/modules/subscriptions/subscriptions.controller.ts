@@ -67,8 +67,11 @@ export class SubscriptionsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Poll subscription payment status' })
-  async poll(@Param('reference') reference: string) {
-    return this.subscriptionsService.pollPayment(reference);
+  async poll(
+    @Param('reference') reference: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.subscriptionsService.pollPayment(reference, userId);
   }
 
   @Post('webhook')

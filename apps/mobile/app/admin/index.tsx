@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -14,6 +14,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Brand } from '@/constants/brand';
 import { fetchDashboard } from '@/lib/admin-api';
 import { formatMoney } from '@/lib/products';
+import { useAuth } from '@/contexts/AuthContext';
+
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN', 'SUPPORT_ADMIN'];
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -23,8 +26,15 @@ const cardShadow =
 type StatTile = { label: string; value: string | number; color: string };
 
 export default function AdminDashboard() {
+  const { isAuthenticated, user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
-  const statsQ = useQuery({ queryKey: ['admin-dashboard'], queryFn: fetchDashboard });
+
+  useEffect(() => {
+    if (!isAuthenticated) { router.replace('/login'); return; }
+    if (user && !ADMIN_ROLES.includes(user.role)) router.replace('/(tabs)');
+  }, [isAuthenticated, user]);
+
+  const statsQ = useQuery({ queryKey: ['admin-dashboard'], queryFn: fetchDashboard, enabled: isAuthenticated });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -45,7 +55,18 @@ export default function AdminDashboard() {
   const navItems = [
     { label: 'Users', icon: '👤', route: '/admin/users' as const },
     { label: 'Stalls', icon: '🏪', route: '/admin/stalls' as const },
+    { label: 'Merchants', icon: '🏬', route: '/admin/merchants' as const },
+    { label: 'Drivers', icon: '🚗', route: '/admin/drivers' as const },
     { label: 'Subscriptions', icon: '📋', route: '/admin/subscriptions' as const },
+    { label: 'Sub Plans', icon: '💳', route: '/admin/subscription-plans' as const },
+    { label: 'Deliveries', icon: '🚚', route: '/admin/deliveries' as const },
+    { label: 'Promotions', icon: '🏷', route: '/admin/promotions' as const },
+    { label: 'Ads', icon: '📢', route: '/admin/ads' as const },
+    { label: 'Malls', icon: '🏛', route: '/admin/malls' as const },
+    { label: 'Categories', icon: '🏷️', route: '/admin/categories' as const },
+    { label: 'Disputes', icon: '⚖️', route: '/admin/disputes' as const },
+    { label: 'Support', icon: '💬', route: '/admin/support' as const },
+    { label: 'Settings', icon: '⚙️', route: '/admin/settings' as const },
   ];
 
   return (
@@ -74,7 +95,7 @@ export default function AdminDashboard() {
         <Pressable
           key={item.route}
           style={[styles.navCard, cardShadow]}
-          onPress={() => router.push(item.route)}
+          onPress={() => router.push(item.route as never)}
         >
           <Text style={styles.navIcon}>{item.icon}</Text>
           <Text style={styles.navLabel}>{item.label}</Text>

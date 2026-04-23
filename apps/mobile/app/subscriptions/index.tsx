@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -20,9 +20,19 @@ import {
   fetchSubscriptionStatus,
   initiateSubscriptionPayment,
   pollSubscriptionPayment,
+  validatePromoCode,
   type SubscriptionPlan,
 } from '@/lib/subscriptions-api';
 import { Brand } from '@/constants/brand';
+
+function useDebounced(value: string, ms: number) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
 
 function formatMoney(value: unknown, currency = 'USD') {
   const n = typeof value === 'number' ? value : Number(value);
@@ -43,6 +53,15 @@ export default function SubscriptionsScreen() {
   const qc = useQueryClient();
   const [promo, setPromo] = useState('');
   const [polling, setPolling] = useState(false);
+  const debouncedPromo = useDebounced(promo, 600);
+
+  const promoValidQ = useQuery({
+    queryKey: ['promo-validate', debouncedPromo],
+    queryFn: () => validatePromoCode(debouncedPromo.trim()),
+    enabled: debouncedPromo.trim().length >= 3,
+    retry: false,
+    staleTime: 30_000,
+  });
 
   const statusQ = useQuery({
     queryKey: ['subscription-status'],
@@ -152,14 +171,46 @@ export default function SubscriptionsScreen() {
         <View style={styles.payCard}>
           <Text style={styles.label}>Promo code (optional)</Text>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              promoValidQ.data?.valid === true && styles.inputValid,
+              promoValidQ.data?.valid === false && styles.inputInvalid,
+            ]}
             value={promo}
-            onChangeText={setPromo}
+            onChangeText={(v: string) => setPromo(v.toUpperCase())}
             placeholder="Enter promo or referral code"
             placeholderTextColor="#9ca3af"
             autoCapitalize="characters"
             editable={!payMut.isPending}
           />
+          {/* Promo validation feedback */}
+          {promo.trim().length >= 3 && (
+            <View style={styles.promoFeedbackRow}>
+              {promoValidQ.isFetching ? (
+                <>
+                  <ActivityIndicator size="small" color={Brand.blue} />
+                  <Text style={styles.promoChecking}>Checking code...</Text>
+                </>
+              ) : promoValidQ.data?.valid === true ? (
+                <>
+                  <FontAwesome name="check-circle" size={14} color="#16a34a" />
+                  <Text style={styles.promoValid}>
+                    {promoValidQ.data.discount
+                      ? `${promoValidQ.data.discount}% off`
+                      : promoValidQ.data.months
+                      ? `+${promoValidQ.data.months} free month${promoValidQ.data.months > 1 ? 's' : ''}`
+                      : 'Valid code!'}
+                    {promoValidQ.data.message ? ` — ${promoValidQ.data.message}` : ''}
+                  </Text>
+                </>
+              ) : promoValidQ.data?.valid === false ? (
+                <>
+                  <FontAwesome name="times-circle" size={14} color={Brand.red} />
+                  <Text style={styles.promoInvalid}>{promoValidQ.data.message ?? 'Invalid code'}</Text>
+                </>
+              ) : null}
+            </View>
+          )}
 
           <Pressable
             style={[styles.payBtn, (payMut.isPending || polling) && styles.payBtnDisabled]}
@@ -314,4 +365,10 @@ const styles = StyleSheet.create({
   payBtnDisabled: { opacity: 0.7 },
   payBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   helper: { fontSize: 11, color: Brand.muted, marginTop: 10, lineHeight: 16 },
+  inputValid: { borderColor: '#16a34a', borderWidth: 1.5 },
+  inputInvalid: { borderColor: Brand.red, borderWidth: 1.5 },
+  promoFeedbackRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  promoChecking: { fontSize: 12, color: Brand.muted },
+  promoValid: { fontSize: 12, color: '#16a34a', fontWeight: '700', flex: 1 },
+  promoInvalid: { fontSize: 12, color: Brand.red, fontWeight: '700', flex: 1 },
 });

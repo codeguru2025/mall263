@@ -150,8 +150,9 @@ export class PaymentsService {
   /**
    * Frontend polls this to know when a mobile payment has been approved.
    * Returns { paid, status } — frontend stops polling when paid === true.
+   * userId is required to ensure callers can only poll their own payments.
    */
-  async pollStatus(reference: string) {
+  async pollStatus(reference: string, userId: string) {
     if (await this.walletService.hasCompletedDepositByExternalRef(reference)) {
       return { paid: true, status: 'PAID' };
     }
@@ -160,6 +161,9 @@ export class PaymentsService {
 
     // Key was already deleted or is missing entirely
     if (!pending) return { paid: false, status: 'NOT_FOUND' };
+
+    // Prevent cross-user status probing
+    if (pending.userId !== userId) return { paid: false, status: 'NOT_FOUND' };
 
     // Webhook already credited the wallet — tell the frontend immediately
     if (pending.credited) return { paid: true, status: 'PAID' };

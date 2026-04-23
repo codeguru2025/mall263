@@ -27,9 +27,12 @@ export class SearchController {
     @Query('sortBy') sortBy?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('nearLat') nearLat?: number,
+    @Query('nearLng') nearLng?: number,
+    @Query('radiusKm') radiusKm?: number,
   ) {
     const resolvedMall = mallId || mallLegacy;
-    return this.searchService.search(query || '', { categoryId, mallId: resolvedMall, city, minPrice, maxPrice, inStock, sortBy, page, limit });
+    return this.searchService.search(query || '', { categoryId, mallId: resolvedMall, city, minPrice, maxPrice, inStock, sortBy, page, limit, nearLat, nearLng, radiusKm });
   }
 
   @Get('suggestions')

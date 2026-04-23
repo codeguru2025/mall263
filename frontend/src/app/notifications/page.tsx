@@ -1,18 +1,39 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { ArrowLeft, Bell, Loader2, CheckCheck } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { useAuthStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 
+const TYPE_PILLS = [
+  { label: 'All', value: '' },
+  { label: 'Orders', value: 'ORDER' },
+  { label: 'Wallet', value: 'WALLET' },
+  { label: 'Demands', value: 'DEMAND' },
+  { label: 'Promo', value: 'PROMO' },
+  { label: 'System', value: 'SYSTEM' },
+];
+
 export default function NotificationsPage() {
+  const router = useRouter();
+  const { isAuthenticated, isLoading: authLoading } = useAuthStore((s) => ({ isAuthenticated: s.isAuthenticated, isLoading: s.isLoading }));
   const queryClient = useQueryClient();
+  const [typeFilter, setTypeFilter] = useState('');
+  const [unreadOnly, setUnreadOnly] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) router.push('/auth/login');
+  }, [authLoading, isAuthenticated, router]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['notifications-all'],
     queryFn: () => api.get('/api/v1/notifications', { params: { limit: 100 } }).then((r) => r.data),
+    enabled: isAuthenticated,
   });
 
   const markAll = useMutation({
@@ -32,8 +53,15 @@ export default function NotificationsPage() {
     },
   });
 
-  const notifications: any[] = data?.data ?? [];
+  const allNotifications: any[] = data?.data ?? [];
   const unread = data?.unreadCount ?? 0;
+
+  const filtered = useMemo(() => {
+    let list = allNotifications;
+    if (typeFilter) list = list.filter((n) => n.type === typeFilter);
+    if (unreadOnly) list = list.filter((n) => !n.isRead);
+    return list;
+  }, [allNotifications, typeFilter, unreadOnly]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -58,6 +86,35 @@ export default function NotificationsPage() {
             </button>
           )}
         </div>
+
+        {/* Type filter pills */}
+        <div className="max-w-lg mx-auto px-4 pb-3 flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          {TYPE_PILLS.map((p) => (
+            <button
+              key={p.value}
+              type="button"
+              onClick={() => setTypeFilter(p.value)}
+              className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+                typeFilter === p.value
+                  ? 'bg-brand-orange text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setUnreadOnly((v) => !v)}
+            className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+              unreadOnly
+                ? 'bg-navy-700 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Unread only
+          </button>
+        </div>
       </header>
 
       <div className="max-w-lg mx-auto px-4 py-4 pb-24 sm:pb-6">
@@ -66,15 +123,17 @@ export default function NotificationsPage() {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 text-brand-orange animate-spin" />
             </div>
-          ) : notifications.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="text-center py-16">
               <Bell className="w-12 h-12 text-gray-200 mx-auto mb-3" />
               <p className="font-bold text-navy-700 mb-1">No notifications</p>
-              <p className="text-gray-400 text-sm">You&apos;re all caught up!</p>
+              <p className="text-gray-400 text-sm">
+                {typeFilter || unreadOnly ? 'No results for this filter.' : "You're all caught up!"}
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-gray-50">
-              {notifications.map((n: any) => (
+              {filtered.map((n: any) => (
                 <button
                   key={n.id}
                   onClick={() => { if (!n.isRead) markOne.mutate(n.id); }}
@@ -82,8 +141,15 @@ export default function NotificationsPage() {
                 >
                   <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${!n.isRead ? 'bg-brand-orange' : 'bg-gray-200'}`} />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-semibold text-navy-700 ${!n.isRead ? 'font-bold' : ''}`}>
-                      {n.title}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-sm font-semibold text-navy-700 ${!n.isRead ? 'font-bold' : ''}`}>
+                        {n.title}
+                      </span>
+                      {n.type && (
+                        <span className="text-[10px] font-bold bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                          {n.type}
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 mt-0.5">{n.body}</div>
                     <div className="text-xs text-gray-400 mt-1">

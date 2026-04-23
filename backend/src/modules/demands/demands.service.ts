@@ -178,17 +178,19 @@ export class DemandsService {
   async getOpenDemands(params: {
     categoryId?: string;
     mallId?: string;
+    cityId?: string;
     urgency?: DemandUrgency;
     page?: number;
     limit?: number;
   }) {
-    const { categoryId, mallId, urgency, page = 1, limit = 20 } = params;
+    const { categoryId, mallId, cityId, urgency, page = 1, limit = 20 } = params;
     const where: any = {
       status: DemandStatus.OPEN,
       expiresAt: { gt: new Date() },
     };
     if (categoryId) where.categoryId = categoryId;
     if (mallId) where.mallId = mallId;
+    if (cityId) where.mall = { cityId };
     if (urgency) where.urgency = urgency;
 
     const [data, total] = await Promise.all([
@@ -387,7 +389,7 @@ export class DemandsService {
             totalPrice: data.totalPrice,
             currency: 'USD',
             status: OfferStatus.PENDING,
-            expiresAt: new Date(Date.now() + (data.expiresInHours || 48) * 60 * 60 * 1000),
+            expiresAt: new Date(Date.now() + 60 * 1000), // 1-minute offer window
             items: {
               create: data.items.map(item => ({
                 variantId: item.variantId,
@@ -609,6 +611,14 @@ export class DemandsService {
       }> = [];
 
       if (offer.items && offer.items.length > 0) {
+        // Aggregate quantities per variantId so duplicate lines don't create
+        // stale previousQty / newQty values or bypass the stock check.
+        const qtyByVariant = new Map<string, number>();
+        for (const item of offer.items) {
+          if (!item.variant) continue;
+          qtyByVariant.set(item.variantId, (qtyByVariant.get(item.variantId) ?? 0) + item.quantity);
+        }
+
         for (const item of offer.items) {
           if (!item.variant) continue;
           const itemPrice = new Prisma.Decimal(item.price);
@@ -624,32 +634,35 @@ export class DemandsService {
             discount: new Prisma.Decimal(0),
             totalPrice: lineTotal,
           });
+        }
 
-          // Deduct inventory for known variants
-          if (item.variant.inventory) {
-            const available = item.variant.inventory.quantity - item.variant.inventory.reservedQty;
-            if (available < item.quantity) {
-              throw new BadRequestException(
-                `Insufficient stock for ${item.variant.product.name}. Available: ${available}, needed: ${item.quantity}`,
-              );
-            }
-            await tx.inventory.update({
-              where: { id: item.variant.inventory.id },
-              data: { quantity: { decrement: item.quantity } },
-            });
-            await tx.inventoryLog.create({
-              data: {
-                inventoryId: item.variant.inventory.id,
-                changeQty: -item.quantity,
-                previousQty: item.variant.inventory.quantity,
-                newQty: item.variant.inventory.quantity - item.quantity,
-                reason: 'DEMAND_SALE',
-                referenceId: demandId,
-                referenceType: 'buyer_demand',
-                performedBy: cashierId,
-              },
-            });
+        // Stock check + decrement: one pass per unique variant, using aggregated qty.
+        for (const [variantId, totalQty] of qtyByVariant) {
+          const item = offer.items.find((i) => i.variantId === variantId && i.variant);
+          if (!item || !item.variant?.inventory) continue;
+          const inv = item.variant.inventory;
+          const available = inv.quantity - inv.reservedQty;
+          if (available < totalQty) {
+            throw new BadRequestException(
+              `Insufficient stock for ${item.variant.product.name}. Available: ${available}, needed: ${totalQty}`,
+            );
           }
+          await tx.inventory.update({
+            where: { id: inv.id },
+            data: { quantity: { decrement: totalQty } },
+          });
+          await tx.inventoryLog.create({
+            data: {
+              inventoryId: inv.id,
+              changeQty: -totalQty,
+              previousQty: inv.quantity,
+              newQty: inv.quantity - totalQty,
+              reason: 'DEMAND_SALE',
+              referenceId: demandId,
+              referenceType: 'buyer_demand',
+              performedBy: cashierId,
+            },
+          });
         }
       }
 
@@ -785,6 +798,22 @@ export class DemandsService {
    * 3. Records a BID_UNLOCK wallet transaction
    * 4. Marks the demand as EXPIRED if still OPEN
    */
+  /** Expire any PENDING offers whose 1-minute window has passed. Runs every minute. */
+  @Cron(CronExpression.EVERY_MINUTE)
+  async expirePendingOffers() {
+    const now = new Date();
+    const result = await this.prisma.sellerOffer.updateMany({
+      where: {
+        status: OfferStatus.PENDING,
+        expiresAt: { lt: now },
+      },
+      data: { status: OfferStatus.EXPIRED },
+    });
+    if (result.count > 0) {
+      this.logger.log(`Expired ${result.count} pending offer(s)`);
+    }
+  }
+
   @Cron(CronExpression.EVERY_5_MINUTES)
   async releaseExpiredBidLocks() {
     const expiredLocks = await this.prisma.walletLock.findMany({

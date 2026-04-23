@@ -45,7 +45,12 @@ import { DiscountsModule } from './modules/discounts/discounts.module';
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot({
-      throttlers: [{ name: 'default', ttl: 60_000, limit: 200 }],
+      throttlers: [
+        // Broad baseline — 120 req/min per IP (keeps crawlers/scrapers from hammering)
+        { name: 'global', ttl: 60_000, limit: 120 },
+        // Burst allowance — up to 20 req/sec to handle legitimate mobile burst on app open
+        { name: 'burst', ttl: 1_000, limit: 20 },
+      ],
     }),
     PrismaModule,
     RedisModule,

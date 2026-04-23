@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -12,6 +13,9 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+
+// Leaflet is browser-only — load it client-side to avoid SSR issues
+const DriverMapLeaflet = dynamic(() => import('@/components/DriverMapLeaflet'), { ssr: false });
 
 const STATUS_LABELS: Record<string, string> = {
   BROADCAST: 'Finding a driver…',
@@ -50,29 +54,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DriverMap({ lat, lng }: { lat: number; lng: number }) {
-  const delta = 0.015;
-  return (
-    <div className="rounded-xl overflow-hidden border border-gray-100">
-      <iframe
-        title="Driver location"
-        width="100%"
-        height="220"
-        loading="lazy"
-        style={{ border: 0, display: 'block' }}
-        src={`https://www.openstreetmap.org/export/embed.html?bbox=${lng - delta}%2C${lat - delta}%2C${lng + delta}%2C${lat + delta}&layer=mapnik&marker=${lat}%2C${lng}`}
-      />
-      <a
-        href={`https://www.google.com/maps?q=${lat},${lng}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-center gap-2 py-2.5 bg-brand-blue text-white text-sm font-bold hover:bg-blue-600 transition-colors"
-      >
-        <Navigation className="w-4 h-4" /> Open in Google Maps
-      </a>
-    </div>
-  );
-}
+// DriverMap now uses the dynamic Leaflet component below
 
 export default function DeliveryTrackPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -203,7 +185,7 @@ export default function DeliveryTrackPage() {
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5" /> Driver Location
             </p>
-            <DriverMap lat={driverLat!} lng={driverLng!} />
+            <DriverMapLeaflet lat={driverLat!} lng={driverLng!} />
           </div>
         )}
 
@@ -213,7 +195,7 @@ export default function DeliveryTrackPage() {
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wide flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5" /> Pickup Location
             </p>
-            <DriverMap lat={pickupLat} lng={pickupLng} />
+            <DriverMapLeaflet lat={pickupLat} lng={pickupLng} />
           </div>
         )}
 

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Brand } from '@/constants/brand';
 import {
@@ -20,6 +21,9 @@ import {
   activateStall,
   type AdminStall,
 } from '@/lib/admin-api';
+import { useAuth } from '@/contexts/AuthContext';
+
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN', 'SUPPORT_ADMIN'];
 
 const STATUS_COLOR: Record<string, string> = {
   ACTIVE: Brand.green,
@@ -35,15 +39,22 @@ const cardShadow =
 
 export default function AdminStallsScreen() {
   const qc = useQueryClient();
+  const { isAuthenticated, user } = useAuth();
   const [search, setSearch] = useState('');
   const [committed, setCommitted] = useState('');
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const [actioning, setActioning] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!isAuthenticated) { router.replace('/login'); return; }
+    if (user && !ADMIN_ROLES.includes(user.role)) router.replace('/(tabs)');
+  }, [isAuthenticated, user]);
+
   const stallsQ = useQuery({
     queryKey: ['admin-stalls', committed, page],
     queryFn: () => fetchAdminStalls(committed, page),
+    enabled: isAuthenticated,
   });
 
   const onRefresh = useCallback(async () => {

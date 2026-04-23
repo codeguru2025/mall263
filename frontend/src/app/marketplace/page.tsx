@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Search, MapPin, Star, Gavel, ShoppingBag, Loader2, X, ChevronRight, Zap } from 'lucide-react';
-import { useState, Suspense, useEffect } from 'react';
+import { Search, MapPin, Star, Gavel, ShoppingBag, Loader2, X, ChevronRight, Zap, Navigation } from 'lucide-react';
+import { useState, Suspense, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
@@ -162,10 +162,43 @@ function MarketplaceContent() {
   const [selectedCity, setSelectedCity] = useState(() => searchParams.get('city') || '');
   const [sortBy, setSortBy] = useState('newest');
   const [page, setPage] = useState(1);
+  const [nearLat, setNearLat] = useState<number | null>(() => {
+    const v = parseFloat(searchParams.get('nearLat') || '');
+    return Number.isFinite(v) ? v : null;
+  });
+  const [nearLng, setNearLng] = useState<number | null>(() => {
+    const v = parseFloat(searchParams.get('nearLng') || '');
+    return Number.isFinite(v) ? v : null;
+  });
+  const [radiusKm, setRadiusKm] = useState(() => {
+    const v = parseFloat(searchParams.get('radiusKm') || '');
+    return Number.isFinite(v) && v > 0 ? v : 10;
+  });
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState('');
   const user = useAuthStore((s) => s.user);
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
 
-  useEffect(() => { setPage(1); }, [debouncedQuery, selectedCategoryId, selectedMall, selectedCity]);
+  useEffect(() => { setPage(1); }, [debouncedQuery, selectedCategoryId, selectedMall, selectedCity, nearLat, nearLng, radiusKm]);
+
+  const handleNearMe = useCallback(() => {
+    if (!navigator.geolocation) { setGeoError('Geolocation not supported in this browser'); return; }
+    setGeoLoading(true);
+    setGeoError('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setNearLat(pos.coords.latitude);
+        setNearLng(pos.coords.longitude);
+        setSelectedCity('');
+        setSelectedMall('');
+        setGeoLoading(false);
+      },
+      () => { setGeoError('Could not get your location'); setGeoLoading(false); },
+      { timeout: 8000 },
+    );
+  }, []);
+
+  const clearGeo = useCallback(() => { setNearLat(null); setNearLng(null); setGeoError(''); }, []);
 
   const urlSig = searchParams.toString();
   useEffect(() => {
@@ -176,6 +209,19 @@ function MarketplaceContent() {
     setSelectedMall(m);
     setSelectedCategoryId(c);
     setSelectedCity(city);
+
+    // Pick up geo params from the URL (so shared links restore "Near me")
+    const lat = parseFloat(params.get('nearLat') || '');
+    const lng = parseFloat(params.get('nearLng') || '');
+    const r = parseFloat(params.get('radiusKm') || '');
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      setNearLat(lat);
+      setNearLng(lng);
+      if (Number.isFinite(r) && r > 0) setRadiusKm(r);
+    } else {
+      setNearLat(null);
+      setNearLng(null);
+    }
   }, [urlSig]);
 
   // Keep URL in sync so shares / back-button work
@@ -183,11 +229,19 @@ function MarketplaceContent() {
     const params = new URLSearchParams();
     if (debouncedQuery) params.set('q', debouncedQuery);
     if (selectedCategoryId) params.set('categoryId', selectedCategoryId);
-    if (selectedMall) params.set('mallId', selectedMall);
-    if (selectedCity.trim()) params.set('city', selectedCity.trim());
+    // Geo and mall/city are mutually exclusive in the query, so only one set
+    // at a time ends up in the URL.
+    if (nearLat != null && nearLng != null) {
+      params.set('nearLat', nearLat.toFixed(6));
+      params.set('nearLng', nearLng.toFixed(6));
+      params.set('radiusKm', String(radiusKm));
+    } else {
+      if (selectedMall) params.set('mallId', selectedMall);
+      if (selectedCity.trim()) params.set('city', selectedCity.trim());
+    }
     const qs = params.toString();
     router.replace(qs ? `/marketplace?${qs}` : '/marketplace', { scroll: false });
-  }, [debouncedQuery, selectedCategoryId, selectedMall, selectedCity, router]);
+  }, [debouncedQuery, selectedCategoryId, selectedMall, selectedCity, nearLat, nearLng, radiusKm, router]);
 
   const { data: malls = [] } = useQuery<any[]>({
     queryKey: ['malls'],
@@ -210,23 +264,27 @@ function MarketplaceContent() {
     ? categories.find((c: any) => c.id === selectedCategoryId)?.name
     : null;
 
-  const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['search', debouncedQuery.trim(), selectedMall, selectedCategoryId, selectedCity.trim(), sortBy, page],
+  const { data, isLoading, isFetching, isError } = useQuery({
+    queryKey: ['search', debouncedQuery.trim(), selectedMall, selectedCategoryId, selectedCity.trim(), sortBy, page, nearLat, nearLng, radiusKm],
     queryFn: () =>
       api.get('/api/v1/search', {
         params: {
           q: debouncedQuery.trim() || undefined,
-          mallId: selectedMall || undefined,
+          mallId: (!nearLat && selectedMall) ? selectedMall : undefined,
           categoryId: selectedCategoryId || undefined,
-          city: selectedCity.trim() || undefined,
+          city: (!nearLat && selectedCity.trim()) ? selectedCity.trim() : undefined,
           sortBy,
           page,
           limit: 20,
+          nearLat: nearLat ?? undefined,
+          nearLng: nearLng ?? undefined,
+          radiusKm: nearLat ? radiusKm : undefined,
         },
       }).then((r) => r.data),
     placeholderData: (prev: any) => prev,
     staleTime: 120_000,
     gcTime: 300_000,
+    retry: 2,
   });
 
   const products: any[] = data?.data || [];
@@ -321,7 +379,7 @@ function MarketplaceContent() {
             </div>
           )}
 
-          {/* Location — cities from malls (Facebook-style area filter) */}
+          {/* Location — cities from malls + Near me GPS filter */}
           {cityOptions.length > 0 && (
             <div className="flex items-center gap-2 pt-2 pb-2 border-t border-gray-50 mt-1">
               <MapPin className="w-3.5 h-3.5 text-brand-orange flex-shrink-0" aria-hidden />
@@ -329,33 +387,70 @@ function MarketplaceContent() {
                 Area
               </span>
               <div className="flex gap-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0 pb-0.5">
+                {/* Near me button */}
                 <button
                   type="button"
-                  onClick={() => setSelectedCity('')}
-                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
-                    !selectedCity.trim()
-                      ? 'bg-navy-700 text-white border-navy-700'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                  onClick={nearLat ? clearGeo : handleNearMe}
+                  disabled={geoLoading}
+                  title={nearLat ? 'Clear location filter' : 'Filter by your current location'}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                    nearLat
+                      ? 'bg-brand-blue text-white border-brand-blue'
+                      : 'bg-white text-brand-blue border-brand-blue hover:bg-blue-50'
                   }`}
                 >
-                  Everywhere
+                  {geoLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Navigation className="w-3 h-3" />}
+                  {nearLat ? `Near me (${radiusKm}km) ×` : 'Near me'}
                 </button>
-                {cityOptions.map((city) => (
-                  <button
-                    type="button"
-                    key={city}
-                    onClick={() => setSelectedCity(selectedCity === city ? '' : city)}
-                    className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
-                      selectedCity === city
-                        ? 'bg-navy-700 text-white border-navy-700'
-                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-                    }`}
-                  >
-                    {city}
-                  </button>
-                ))}
+                {/* Radius slider — only when geo active */}
+                {nearLat && (
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <input
+                      type="range"
+                      min={2}
+                      max={50}
+                      step={2}
+                      value={radiusKm}
+                      onChange={(e) => setRadiusKm(Number(e.target.value))}
+                      className="w-20 accent-brand-blue"
+                    />
+                    <span className="text-[10px] text-gray-500 font-bold whitespace-nowrap">{radiusKm}km</span>
+                  </div>
+                )}
+                {!nearLat && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCity('')}
+                      className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                        !selectedCity.trim()
+                          ? 'bg-navy-700 text-white border-navy-700'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                      }`}
+                    >
+                      Everywhere
+                    </button>
+                    {cityOptions.map((city) => (
+                      <button
+                        type="button"
+                        key={city}
+                        onClick={() => setSelectedCity(selectedCity === city ? '' : city)}
+                        className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap transition-all ${
+                          selectedCity === city
+                            ? 'bg-navy-700 text-white border-navy-700'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                        }`}
+                      >
+                        {city}
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
+          )}
+          {geoError && (
+            <p className="text-xs text-red-500 font-medium px-1 pb-1">{geoError}</p>
           )}
         </div>
       </header>
@@ -366,6 +461,12 @@ function MarketplaceContent() {
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="rounded-[18px] overflow-hidden animate-pulse bg-gray-200 aspect-[3/4]" />
             ))}
+          </div>
+        ) : isError ? (
+          <div className="text-center py-20">
+            <p className="text-2xl mb-2">⚠️</p>
+            <p className="font-bold text-navy-700 mb-1">Search unavailable</p>
+            <p className="text-sm text-gray-500">Could not load products right now. Please try again.</p>
           </div>
         ) : (
           <>

@@ -2,15 +2,20 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from '@nes
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
 import { AgentCommissionStatus, NotificationType, SubscriptionStatus, UserRole, WalletTransactionStatus, WalletTransactionType, Prisma } from '@prisma/client';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { Paynow } = require('paynow');
 
-const FALLBACK_PRICE_USD = 5;
+/** TTL for subscription status cache — 60 s; short enough that plan changes propagate quickly. */
+const SUB_STATUS_CACHE_TTL = 60;
+
+const FALLBACK_PRICE_USD = 5;       // seller default
+const FALLBACK_BUYER_PRICE_USD = 1; // buyer tier
 const FALLBACK_TRIAL_DAYS = 7;
 const GRACE_DAYS = 3;
 const RETRY_INTERVAL_MINUTES = 30;
-const AGENT_COMMISSION_RATE = 0.10; // 10% of subscription payment
+const DEFAULT_AGENT_COMMISSION_RATE = 0.10; // 10% of subscription payment — DB-overridable via 'agent_commission_rate'
 
 /** Roles that are permanently exempt from subscription billing and gates. */
 const SUBSCRIPTION_EXEMPT_ROLES: ReadonlySet<UserRole> = new Set([
@@ -31,6 +36,7 @@ export class SubscriptionsService {
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
+    private redis: RedisService,
   ) {
     const integrationId = this.config.get('PAYNOW_INTEGRATION_ID');
     const integrationKey = this.config.get('PAYNOW_INTEGRATION_KEY');
@@ -42,10 +48,19 @@ export class SubscriptionsService {
     this.paynow.returnUrl = this.config.get('PAYNOW_RETURN_URL', '');
   }
 
+  private async getAgentCommissionRate(): Promise<number> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: 'agent_commission_rate' } });
+    if (row) {
+      const n = parseFloat(row.value);
+      if (Number.isFinite(n) && n >= 0 && n <= 1) return n;
+    }
+    return DEFAULT_AGENT_COMMISSION_RATE;
+  }
+
   // ── Plan helpers ──────────────────────────────────────────────────────────
 
   /**
-   * Returns the active default plan, or a safe fallback if none is configured yet.
+   * Returns the active default (seller) plan, or a safe fallback.
    */
   private async getDefaultPlan() {
     const plan = await this.prisma.subscriptionPlan.findFirst({
@@ -55,9 +70,28 @@ export class SubscriptionsService {
     return plan ?? {
       priceUsd: FALLBACK_PRICE_USD,
       trialDays: FALLBACK_TRIAL_DAYS,
-      name: 'Standard',
+      name: 'Seller Standard',
       features: [],
     };
+  }
+
+  /**
+   * Returns plan price appropriate for the given user role.
+   * Buyers pay $1/month; sellers/attendants pay $5/month.
+   */
+  private async getPlanForRole(role: UserRole): Promise<{ priceUsd: number; name: string }> {
+    const isBuyer = role === UserRole.BUYER || !role;
+    if (isBuyer) {
+      const buyerPlan = await this.prisma.subscriptionPlan.findFirst({
+        where: { isActive: true, slug: 'buyer' },
+      });
+      return {
+        priceUsd: buyerPlan ? Number(buyerPlan.priceUsd) : FALLBACK_BUYER_PRICE_USD,
+        name: buyerPlan?.name ?? 'Buyer Basic',
+      };
+    }
+    const defaultPlan = await this.getDefaultPlan();
+    return { priceUsd: Number(defaultPlan.priceUsd), name: 'name' in defaultPlan ? defaultPlan.name : 'Seller Standard' };
   }
 
   /**
@@ -129,14 +163,34 @@ export class SubscriptionsService {
       create: { userId, status: SubscriptionStatus.TRIAL, trialEndsAt },
       update: {},
     });
+    await this.invalidateStatusCache(userId);
   }
 
   // ── Status ─────────────────────────────────────────────────────────────────
 
+  private subStatusCacheKey(userId: string) {
+    return `sub:status:${userId}`;
+  }
+
+  /**
+   * Invalidate cached status for a user — call after any subscription mutation
+   * OR any change that affects pricing/features (e.g. role change promotes a
+   * BUYER → STALL_OWNER, which changes the plan used by `getStatus`).
+   */
+  async invalidateStatusCache(userId: string) {
+    await this.redis.del(this.subStatusCacheKey(userId)).catch(() => {});
+  }
+
   async getStatus(userId: string) {
+    const cacheKey = this.subStatusCacheKey(userId);
+    const cached = await this.redis.get(cacheKey).catch(() => null);
+    if (cached) {
+      try { return JSON.parse(cached); } catch { /* fall through */ }
+    }
+
     const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     if (user && SUBSCRIPTION_EXEMPT_ROLES.has(user.role)) {
-      return {
+      const result = {
         status: 'EXEMPT' as const,
         trialEndsAt: null,
         trialActive: false,
@@ -148,6 +202,8 @@ export class SubscriptionsService {
         nextBillingDate: null,
         plan: null,
       };
+      await this.redis.set(cacheKey, JSON.stringify(result), SUB_STATUS_CACHE_TTL).catch(() => {});
+      return result;
     }
 
     let sub = await this.prisma.subscription.findUnique({ where: { userId } });
@@ -162,9 +218,10 @@ export class SubscriptionsService {
     const isGrace = sub!.status === SubscriptionStatus.GRACE;
     const fullyAccess = trialActive || isActive || isGrace;
 
-    const plan = await this.getDefaultPlan();
+    const rolePlan = await this.getPlanForRole(user!.role);
+    const defaultPlan = await this.getDefaultPlan();
 
-    return {
+    const result = {
       status: sub!.status,
       trialEndsAt: sub!.trialEndsAt,
       trialActive,
@@ -175,12 +232,15 @@ export class SubscriptionsService {
       currentPeriodEnd: sub!.currentPeriodEnd,
       nextBillingDate: sub!.nextBillingDate,
       plan: {
-        name: 'name' in plan ? plan.name : 'Standard',
-        priceUsd: Number(plan.priceUsd),
-        trialDays: plan.trialDays,
-        features: plan.features as string[],
+        name: rolePlan.name,
+        priceUsd: rolePlan.priceUsd,
+        trialDays: defaultPlan.trialDays,
+        features: ('features' in defaultPlan ? defaultPlan.features : []) as string[],
       },
     };
+
+    await this.redis.set(cacheKey, JSON.stringify(result), SUB_STATUS_CACHE_TTL).catch(() => {});
+    return result;
   }
 
   // ── EcoCash number ────────────────────────────────────────────────────────
@@ -214,14 +274,17 @@ export class SubscriptionsService {
     overridePhone?: string,
     promoCode?: string,
   ): Promise<{ reference: string; instructions: string; finalPrice: number; discountApplied: boolean }> {
-    const sub = await this.prisma.subscription.findUnique({ where: { userId } });
+    const [sub, userRow] = await Promise.all([
+      this.prisma.subscription.findUnique({ where: { userId } }),
+      this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
+    ]);
     if (!sub) throw new NotFoundException('Subscription not found');
 
     const phone = overridePhone ?? sub.ecocashNumber;
     if (!phone) throw new BadRequestException('No EcoCash number saved. Please add your EcoCash number first.');
 
-    const plan = await this.getDefaultPlan();
-    let basePrice = Number(plan.priceUsd);
+    const rolePlan = await this.getPlanForRole(userRow?.role ?? UserRole.BUYER);
+    let basePrice = rolePlan.priceUsd;
     let discountApplied = false;
 
     // Apply promo code if provided
@@ -283,9 +346,13 @@ export class SubscriptionsService {
       },
     });
 
+    const defaultPlan = await this.getDefaultPlan();
     await this.prisma.subscription.update({
       where: { userId },
-      data: { lastPaymentRef: reference, ...('id' in plan ? { planId: plan.id } : {}) },
+      data: {
+        lastPaymentRef: reference,
+        ...('id' in defaultPlan ? { planId: (defaultPlan as { id: string }).id } : {}),
+      },
     });
 
     return {
@@ -325,9 +392,15 @@ export class SubscriptionsService {
 
   // ── Poll ──────────────────────────────────────────────────────────────────
 
-  async pollPayment(reference: string): Promise<{ paid: boolean; status: string }> {
-    const payment = await this.prisma.subscriptionPayment.findUnique({ where: { paynowRef: reference } });
+  async pollPayment(reference: string, userId: string): Promise<{ paid: boolean; status: string }> {
+    const payment = await this.prisma.subscriptionPayment.findUnique({
+      where: { paynowRef: reference },
+      include: { subscription: { select: { userId: true } } },
+    });
     if (!payment) return { paid: false, status: 'NOT_FOUND' };
+
+    // Prevent cross-user status probing
+    if (payment.subscription.userId !== userId) return { paid: false, status: 'NOT_FOUND' };
     if (payment.status === 'SUCCESS') return { paid: true, status: 'PAID' };
 
     let statusResponse: any;
@@ -486,6 +559,7 @@ export class SubscriptionsService {
         nextRetryAt: null,
       },
     });
+    await this.invalidateStatusCache(sub.userId);
 
     await this.prisma.notification.create({
       data: {
@@ -506,7 +580,8 @@ export class SubscriptionsService {
       });
 
       if (merchant?.onboardedById) {
-        const commissionAmount = new Prisma.Decimal(Number(payment?.amount ?? FALLBACK_PRICE_USD) * AGENT_COMMISSION_RATE);
+        const agentCommissionRate = await this.getAgentCommissionRate();
+        const commissionAmount = new Prisma.Decimal(Number(payment?.amount ?? FALLBACK_PRICE_USD) * agentCommissionRate);
 
         // Check no commission already credited for this subscription payment
         const alreadyCredited = await this.prisma.agentCommission.findFirst({
@@ -533,7 +608,7 @@ export class SubscriptionsService {
                   balanceBefore,
                   balanceAfter,
                   completedAt: new Date(),
-                  description: `Agent commission: ${AGENT_COMMISSION_RATE * 100}% of subscription payment (ref ${reference})`,
+                  description: `Agent commission: ${(agentCommissionRate * 100).toFixed(1)}% of subscription payment (ref ${reference})`,
                 },
               });
               await tx.agentCommission.create({

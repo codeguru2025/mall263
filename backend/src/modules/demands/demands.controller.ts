@@ -4,6 +4,7 @@ import { DemandsService } from './demands.service';
 import { DemandRankingService } from './demand-ranking.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { SellerSubscriptionGuard } from '../../common/guards/seller-subscription.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -37,11 +38,12 @@ export class DemandsController {
   async getOpenDemands(
     @Query('categoryId') categoryId?: string,
     @Query('mallId') mallId?: string,
+    @Query('cityId') cityId?: string,
     @Query('urgency') urgency?: DemandUrgency,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.demandsService.getOpenDemands({ categoryId, mallId, urgency, page, limit });
+    return this.demandsService.getOpenDemands({ categoryId, mallId, cityId, urgency, page, limit });
   }
 
   @Get('ranked')
@@ -91,9 +93,9 @@ export class DemandsController {
 
   @Get('stall/:stallId/offers')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, SellerSubscriptionGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
-  @ApiOperation({ summary: 'Get offers for a stall' })
+  @ApiOperation({ summary: 'Get offers for a stall — requires active subscription' })
   async getStallOffers(@Param('stallId') stallId: string) {
     return this.demandsService.getOffersForStall(stallId);
   }
@@ -123,9 +125,9 @@ export class DemandsController {
 
   @Post(':demandId/offers')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, SellerSubscriptionGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
-  @ApiOperation({ summary: 'Submit an offer for a demand (seller)' })
+  @ApiOperation({ summary: 'Submit an offer for a demand (seller) — requires active subscription' })
   async submitOffer(@Param('demandId') demandId: string, @Body() dto: SubmitOfferDto) {
     const { stallId, ...payload } = dto;
     return this.demandsService.submitOffer(stallId, demandId, payload);
@@ -145,7 +147,7 @@ export class DemandsController {
 
   @Patch(':id/fulfill')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, SellerSubscriptionGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
   @ApiOperation({ summary: 'Complete a demand sale — records POS sale, generates receipt, marks fulfilled (seller)' })
   async completeDemandSale(

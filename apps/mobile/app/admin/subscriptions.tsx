@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -6,8 +6,10 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -38,16 +40,36 @@ function fmtDate(iso?: string | null) {
   catch { return iso; }
 }
 
+const STATUS_OPTIONS = ['', 'TRIAL', 'ACTIVE', 'EXPIRED', 'CANCELLED', 'GRACE'];
+
 export default function AdminSubscriptionsScreen() {
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const [actioning, setActioning] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   const subsQ = useQuery({
     queryKey: ['admin-subscriptions', page],
     queryFn: () => fetchAdminSubscriptions(page),
   });
+
+  const allData = subsQ.data?.data ?? [];
+
+  const filtered = useMemo(() => {
+    let rows = allData;
+    if (statusFilter) rows = rows.filter((s) => s.status === statusFilter);
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      rows = rows.filter(
+        (s) =>
+          `${s.user.firstName} ${s.user.lastName}`.toLowerCase().includes(q) ||
+          s.user.phone.toLowerCase().includes(q),
+      );
+    }
+    return rows;
+  }, [allData, search, statusFilter]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -145,18 +167,47 @@ export default function AdminSubscriptionsScreen() {
   const total = subsQ.data?.total ?? 0;
   const totalPages = subsQ.data?.totalPages ?? 1;
 
+  const listHeader = (
+    <View>
+      <TextInput
+        style={styles.searchInput}
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Search by name or phone..."
+        placeholderTextColor={Brand.muted}
+        clearButtonMode="while-editing"
+      />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusChips}>
+        {STATUS_OPTIONS.map((s) => (
+          <Pressable
+            key={s || 'all'}
+            style={[styles.statusChip, statusFilter === s && styles.statusChipActive]}
+            onPress={() => setStatusFilter(s)}
+          >
+            <Text style={[styles.statusChipText, statusFilter === s && styles.statusChipTextActive]}>
+              {s || 'All'}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
+      <Text style={styles.count}>
+        {filtered.length} of {total} subscription{total !== 1 ? 's' : ''}
+      </Text>
+    </View>
+  );
+
   return (
     <View style={styles.flex}>
       {subsQ.isPending ? (
         <View style={styles.centered}><ActivityIndicator color={Brand.blue} /></View>
       ) : (
         <FlatList
-          data={subsQ.data?.data ?? []}
+          data={filtered}
           keyExtractor={(item: { id: string }) => item.id}
           renderItem={renderSub}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} />}
-          ListHeaderComponent={<Text style={styles.count}>{total} subscription{total !== 1 ? 's' : ''}</Text>}
+          ListHeaderComponent={listHeader}
           ListFooterComponent={
             totalPages > 1 ? (
               <View style={styles.pagination}>
@@ -204,4 +255,17 @@ const styles = StyleSheet.create({
   pageBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   pageInfo: { fontSize: 13, color: Brand.muted, fontWeight: '700' },
   empty: { textAlign: 'center', color: Brand.muted, marginTop: 32 },
+  searchInput: {
+    borderWidth: 1, borderColor: Brand.border, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14,
+    color: Brand.text, backgroundColor: Brand.card, marginBottom: 10,
+  },
+  statusChips: { flexDirection: 'row', gap: 8, paddingBottom: 10 },
+  statusChip: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999,
+    borderWidth: 1.5, borderColor: Brand.border, backgroundColor: Brand.card,
+  },
+  statusChipActive: { backgroundColor: Brand.blue, borderColor: Brand.blue },
+  statusChipText: { fontSize: 12, fontWeight: '700', color: Brand.navy },
+  statusChipTextActive: { color: '#fff' },
 });

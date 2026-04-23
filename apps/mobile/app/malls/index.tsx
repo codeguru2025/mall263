@@ -38,7 +38,7 @@ export default function MallsScreen() {
     if (!q.trim()) return true;
     const needle = q.trim().toLowerCase();
     return (
-      m.name.toLowerCase().includes(needle) ||
+      (m.name ?? '').toLowerCase().includes(needle) ||
       (m.city ?? '').toLowerCase().includes(needle) ||
       (m.address ?? '').toLowerCase().includes(needle)
     );

@@ -3,6 +3,7 @@ import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { POSService } from './pos.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { SellerSubscriptionGuard } from '../../common/guards/seller-subscription.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -11,7 +12,7 @@ import { InitiateMerchantPaymentDto, ProcessSaleDto } from './dto/pos.dto';
 
 @ApiTags('POS')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, SellerSubscriptionGuard)
 @Controller('pos')
 export class POSController {
   constructor(private posService: POSService) {}
@@ -27,6 +28,7 @@ export class POSController {
   @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
   @ApiOperation({ summary: 'Get sales for a stall' })
   async getSalesByStall(
+    @CurrentUser('id') userId: string,
     @Param('stallId') stallId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
@@ -34,7 +36,7 @@ export class POSController {
     @Query('page') page?: number,
     @Query('limit') limit?: number,
   ) {
-    return this.posService.getSalesByStall(stallId, {
+    return this.posService.getSalesByStall(stallId, userId, {
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
       status, page, limit,
@@ -44,18 +46,19 @@ export class POSController {
   @Get('sales/:id')
   @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
   @ApiOperation({ summary: 'Get sale details' })
-  async getSaleById(@Param('id') id: string) {
-    return this.posService.getSaleById(id);
+  async getSaleById(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.posService.getSaleById(id, userId);
   }
 
   @Get('summary/stall/:stallId')
   @Roles(UserRole.STALL_OWNER, UserRole.ATTENDANT)
   @ApiOperation({ summary: 'Get daily sales summary' })
   async getDailySummary(
+    @CurrentUser('id') userId: string,
     @Param('stallId') stallId: string,
     @Query('date') date?: string,
   ) {
-    return this.posService.getDailySummary(stallId, date ? new Date(date) : undefined);
+    return this.posService.getDailySummary(stallId, userId, date ? new Date(date) : undefined);
   }
 
   @Get('receipts/verify/:saleId')

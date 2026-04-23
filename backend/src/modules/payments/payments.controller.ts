@@ -42,8 +42,11 @@ export class PaymentsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Poll payment status by reference' })
-  async getStatus(@Param('reference') reference: string) {
-    return this.paymentsService.pollStatus(reference);
+  async getStatus(
+    @Param('reference') reference: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.paymentsService.pollStatus(reference, userId);
   }
 
   /**

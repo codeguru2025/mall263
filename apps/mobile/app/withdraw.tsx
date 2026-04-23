@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,9 +18,15 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { fetchWalletBalance, requestWalletWithdrawal } from '@/lib/wallet-api';
 import { formatMoney } from '@/lib/products';
 import { Brand } from '@/constants/brand';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function WithdrawScreen() {
   const qc = useQueryClient();
+  const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (!isAuthenticated) router.replace('/login');
+  }, [isAuthenticated]);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
 

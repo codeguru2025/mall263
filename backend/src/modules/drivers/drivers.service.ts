@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { DriverTier, Prisma, UserRole } from '@prisma/client';
 
 const TIER_THRESHOLDS = {
@@ -20,7 +21,10 @@ const COD_LIMITS = {
 
 @Injectable()
 export class DriversService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private subscriptions: SubscriptionsService,
+  ) {}
 
   // ─── Register ─────────────────────────────────────────────────────────────
 
@@ -34,7 +38,7 @@ export class DriversService {
       data: { role: UserRole.DRIVER },
     });
 
-    return this.prisma.driver.create({
+    const driver = await this.prisma.driver.create({
       data: {
         userId,
         vehicleType: data.vehicleType,
@@ -43,6 +47,11 @@ export class DriversService {
         maxCodExposure: COD_LIMITS.ONBOARDING,
       },
     });
+
+    // Role change → subscription plan lookup changes. Invalidate the cache.
+    this.subscriptions.invalidateStatusCache(userId).catch(() => {});
+
+    return driver;
   }
 
   // ─── Get profile ──────────────────────────────────────────────────────────

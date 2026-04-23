@@ -1,7 +1,25 @@
+import { api } from '@/lib/api';
 import { fetchBrowsePage, type BrowseProduct } from '@/lib/products';
 import { fetchSearchPage, type SearchHit } from '@/lib/search';
 
 export { formatMoney } from '@/lib/products';
+
+export type AdItem = {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  linkUrl: string | null;
+  placement: string;
+};
+
+export async function fetchActiveAd(placement = 'BANNER_TOP'): Promise<AdItem | null> {
+  try {
+    const { data } = await api.get<AdItem>('/api/v1/ads/active', { params: { placement } });
+    return data ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export type ShopListItem = {
   id: string;
@@ -47,10 +65,36 @@ export type ShopFeedPage = {
   rows: ShopListItem[];
 };
 
-export async function fetchShopFeedPage(searchQuery: string, page: number, limit = 20): Promise<ShopFeedPage> {
+export async function fetchShopFeedPage(
+  searchQuery: string,
+  page: number,
+  limit = 20,
+  filters?: {
+    categoryId?: string;
+    mallId?: string;
+    nearLat?: number;
+    nearLng?: number;
+    radiusKm?: number;
+  },
+): Promise<ShopFeedPage> {
   const q = searchQuery.trim();
+  const params: Record<string, unknown> = { page, limit };
+  if (filters?.categoryId) params.categoryId = filters.categoryId;
+  if (filters?.mallId) params.mallId = filters.mallId;
+  if (filters?.nearLat != null) params.nearLat = filters.nearLat;
+  if (filters?.nearLng != null) params.nearLng = filters.nearLng;
+  if (filters?.radiusKm != null) params.radiusKm = filters.radiusKm;
+
+  // When no query: use /products/browse (grid feed with category/mall/geo filters).
+  // When there's a query: use /search (which supports the same filters + geo server-side).
   if (!q) {
-    const b = await fetchBrowsePage(page, limit);
+    const { data: b } = await api.get<{
+      data: BrowseProduct[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>('/api/v1/products/browse', { params });
     return {
       page: b.page,
       limit: b.limit,
@@ -59,7 +103,13 @@ export async function fetchShopFeedPage(searchQuery: string, page: number, limit
       rows: b.data.map(fromBrowse),
     };
   }
-  const s = await fetchSearchPage(q, page, limit);
+  const s = await fetchSearchPage(q, page, limit, {
+    categoryId: filters?.categoryId,
+    mallId: filters?.mallId,
+    nearLat: filters?.nearLat,
+    nearLng: filters?.nearLng,
+    radiusKm: filters?.radiusKm,
+  });
   const totalPages = Math.max(1, Math.ceil(s.total / s.limit));
   return {
     page: s.page,
