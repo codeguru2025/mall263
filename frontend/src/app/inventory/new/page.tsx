@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuthStore } from '@/lib/store';
 import Link from 'next/link';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -294,10 +295,26 @@ function NewProductForm() {
   );
 }
 
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuthStore((s) => ({ isAuthenticated: s.isAuthenticated, isLoading: s.isLoading }));
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/auth/login');
+    }
+  }, [isLoading, isAuthenticated, router]);
+
+  if (isLoading || !isAuthenticated) return null;
+  return <>{children}</>;
+}
+
 export default function NewProductPage() {
   return (
     <Suspense>
-      <NewProductForm />
+      <AuthGate>
+        <NewProductForm />
+      </AuthGate>
     </Suspense>
   );
 }

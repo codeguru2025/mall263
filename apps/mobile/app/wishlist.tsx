@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Platform,
   Pressable,
@@ -14,6 +15,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Brand } from '@/constants/brand';
 import {
   getWishlist,
+  refreshWishlistFromServer,
   removeFromWishlist,
   type WishlistItem,
 } from '@/lib/wishlist';
@@ -27,9 +29,18 @@ const cardShadow =
 export default function WishlistScreen() {
   const router = useRouter();
   const [items, setItems] = useState<WishlistItem[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const reload = useCallback(async () => {
+    // Load from cache immediately for a snappy feel
     setItems(await getWishlist());
+    // Then refresh from server in background to get latest prices/images
+    setRefreshing(true);
+    try {
+      setItems(await refreshWishlistFromServer());
+    } finally {
+      setRefreshing(false);
+    }
   }, []);
 
   useFocusEffect(useCallback(() => { reload(); }, [reload]));

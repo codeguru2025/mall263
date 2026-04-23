@@ -318,17 +318,26 @@ model SupportRequest {
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
-  token     String   @unique
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
-  revokedAt DateTime? @map("revoked_at")
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  token        String   @unique
+  // Rotation family: every token issued in a single login/logout lifecycle shares
+  // the same familyId. Detecting use of an already-revoked token in a family is
+  // the classic "refresh-token reuse" attack, and we revoke the entire family.
+  familyId     String   @default(uuid()) @map("family_id") @db.Uuid
+  // The token that superseded this one (set at rotation time). Null means the
+  // token is the current head of its family.
+  replacedById String?  @map("replaced_by_id") @db.Uuid
+  expiresAt    DateTime @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  revokedAt    DateTime? @map("revoked_at")
+  revokedReason String? @map("revoked_reason")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([token])
+  @@index([familyId])
   @@map("refresh_tokens")
 }
 
@@ -843,6 +852,7 @@ model WalletTransaction {
   @@index([status])
   @@index([createdAt])
   @@index([referenceId])
+  @@index([externalRef])
   @@map("wallet_transactions")
 }
 
@@ -931,6 +941,7 @@ model SellerOffer {
   @@index([demandId])
   @@index([stallId])
   @@index([status])
+  @@index([expiresAt])
   @@map("seller_offers")
 }
 

@@ -34,7 +34,9 @@ export class RedisService implements OnModuleDestroy {
         const delay = Math.min(times * 200, 2000);
         return delay;
       },
-      tls: tlsEnabled ? { rejectUnauthorized: false } : undefined,
+      tls: tlsEnabled
+        ? { rejectUnauthorized: this.config.get('REDIS_TLS_REJECT_UNAUTHORIZED', 'true') !== 'false' }
+        : undefined,
     });
 
     this.client.on('error', (err: Error) => {

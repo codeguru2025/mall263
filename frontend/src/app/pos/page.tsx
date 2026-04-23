@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, Plus, Minus, Trash2, Store, Receipt, MapPin, Package, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
@@ -23,6 +24,7 @@ const PAYMENT_METHODS = [
 ];
 
 export default function POSPage() {
+  const { user, isAuthenticated, isLoading } = useAuthStore((s) => ({ user: s.user, isAuthenticated: s.isAuthenticated, isLoading: s.isLoading }));
   const [stallId, setStallId] = useState('');
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 200);
@@ -33,12 +35,19 @@ export default function POSPage() {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [lastSaleId, setLastSaleId] = useState<string | null>(null);
   const cart = useCartStore();
-  const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/auth/login');
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   const { data: merchant, isError: merchantError } = useQuery({
     queryKey: ['my-merchant'],
     queryFn: () => api.get('/api/v1/merchants/me').then((r) => r.data),
+    enabled: isAuthenticated,
   });
 
   const { data: stalls } = useQuery({

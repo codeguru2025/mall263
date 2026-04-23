@@ -6,8 +6,8 @@ import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { 
-  ArrowLeft, Gavel, Clock, ChevronRight, Zap, PlusCircle, 
-  TrendingUp, AlertCircle, MapPin, Flame, Target, MessageCircle
+  Gavel, Zap, PlusCircle, 
+  TrendingUp, MapPin, Flame, Target, MessageCircle, ChevronDown
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import DemandCard from '@/components/DemandCard';
@@ -17,6 +17,7 @@ export default function DemandsPage() {
   // Default to full open list so sellers always see every live demand; ranked/urgent are optional views.
   const [tab, setTab] = useState<'ranked' | 'open' | 'my' | 'urgent'>('open');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedCityId, setSelectedCityId] = useState('');
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const user = useAuthStore((s) => s.user);
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
@@ -63,9 +64,17 @@ export default function DemandsPage() {
     enabled: tab === 'urgent',
   });
 
+  const { data: cities } = useQuery({
+    queryKey: ['cities'],
+    queryFn: () => api.get('/api/v1/stalls/cities').then((r) => r.data).catch(() => []),
+    staleTime: 300_000,
+  });
+
   const { data: openDemands, isLoading: openLoading } = useQuery({
-    queryKey: ['demands-open'],
-    queryFn: () => api.get('/api/v1/demands/open', { params: { limit: 20 } }).then((r) => r.data),
+    queryKey: ['demands-open', selectedCityId],
+    queryFn: () => api.get('/api/v1/demands/open', {
+      params: { limit: 20, cityId: selectedCityId || undefined },
+    }).then((r) => r.data),
     enabled: tab === 'open',
   });
 
@@ -173,6 +182,26 @@ export default function DemandsPage() {
               </button>
             ))}
           </div>
+
+          {/* City filter — only for open / ranked tabs */}
+          {(tab === 'open' || tab === 'ranked') && Array.isArray(cities) && cities.length > 0 && (
+            <div className="flex items-center gap-2 mt-3 pb-1">
+              <MapPin className="w-4 h-4 text-brand-orange flex-shrink-0" />
+              <div className="relative">
+                <select
+                  value={selectedCityId}
+                  onChange={(e) => setSelectedCityId(e.target.value)}
+                  className="appearance-none pl-3 pr-8 py-1.5 rounded-xl border-2 border-gray-200 text-xs font-bold text-navy-700 bg-white focus:outline-none focus:border-brand-orange cursor-pointer"
+                >
+                  <option value="">All cities</option>
+                  {cities.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              </div>
+            </div>
+          )}
         </div>
       </header>
 

@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SearchService } from '../search/search.service';
 import { StallAnalyticsEventType, StallStatus, UserRole, WalletTransactionType, WalletTransactionStatus, Prisma } from '@prisma/client';
 
-// Stall boost pricing in USD
-const STALL_BOOST_PRICES: Record<number, number> = { 7: 1.00, 14: 2.00, 30: 4.00 };
+// Default stall boost pricing in USD — DB-overridable via AppSetting keys: stall_boost_price_7, stall_boost_price_14, stall_boost_price_30
+const DEFAULT_STALL_BOOST_PRICES: Record<number, number> = { 7: 1.00, 14: 2.00, 30: 4.00 };
 
 const ADMIN_ROLES: UserRole[] = [
   UserRole.SUPER_ADMIN,
@@ -30,7 +31,20 @@ function assertNoContactInfoInStall(fields: Record<string, string | undefined>) 
 
 @Injectable()
 export class StallsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private search: SearchService,
+  ) {}
+
+  private async getStallBoostPrice(days: number): Promise<number> {
+    const key = `stall_boost_price_${days}`;
+    const row = await this.prisma.appSetting.findUnique({ where: { key } });
+    if (row) {
+      const n = parseFloat(row.value);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return DEFAULT_STALL_BOOST_PRICES[days] ?? 1.00;
+  }
 
   async create(data: {
     merchantId: string;
@@ -47,8 +61,24 @@ export class StallsService {
     operatingDays?: string[];
     latitude?: number;
     longitude?: number;
-  }) {
+  }, requesterId: string) {
     assertNoContactInfoInStall({ name: data.name, description: data.description });
+
+    // Verify the caller is the merchant they claim to be, unless they are an admin/agent
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: data.merchantId },
+      select: { userId: true },
+    });
+    if (!merchant) throw new NotFoundException('Merchant not found');
+
+    const requester = await this.prisma.user.findUnique({ where: { id: requesterId }, select: { role: true } });
+    const privilegedRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS, UserRole.FIELD_AGENT];
+    const isPrivileged = requester && privilegedRoles.includes(requester.role);
+
+    if (!isPrivileged && merchant.userId !== requesterId) {
+      throw new ForbiddenException('You can only create stalls for your own merchant account');
+    }
+
     return this.prisma.stall.create({
       data: {
         merchantId: data.merchantId,
@@ -405,12 +435,19 @@ export class StallsService {
     if (!stall) throw new NotFoundException('Stall not found');
     if (stall.merchant.userId !== userId) throw new ForbiddenException('Not your stall');
 
-    return this.prisma.shopSettings.upsert({
+    const result = await this.prisma.shopSettings.upsert({
       where: { stallId },
       create: { stallId, showOnMarketplace },
       update: { showOnMarketplace },
       select: { stallId: true, showOnMarketplace: true, updatedAt: true },
     });
+
+    // Reindex all of this stall's products so Meilisearch reflects the new
+    // visibility immediately. Fire-and-forget — indexing failures must not
+    // block the user's settings update.
+    this.search.reindexStall(stallId).catch(() => {});
+
+    return result;
   }
 
   async getMarketplaceVisibility(stallId: string, userId: string) {
@@ -432,15 +469,14 @@ export class StallsService {
 
   // ── Stall Boost ───────────────────────────────────────────────────────────
 
-  getStallBoostPricing() {
-    return Object.entries(STALL_BOOST_PRICES).map(([days, price]) => ({
-      days: parseInt(days),
-      priceUsd: price,
-    }));
+  async getStallBoostPricing() {
+    const durations = [7, 14, 30];
+    const prices = await Promise.all(durations.map((d) => this.getStallBoostPrice(d)));
+    return durations.map((d, i) => ({ days: d, priceUsd: prices[i] }));
   }
 
   async boostStall(userId: string, stallId: string, days: number) {
-    const price = STALL_BOOST_PRICES[days];
+    const price = await this.getStallBoostPrice(days);
     if (!price) throw new BadRequestException('Invalid boost duration. Choose 7, 14, or 30 days.');
 
     const stall = await this.prisma.stall.findUnique({
@@ -455,7 +491,7 @@ export class StallsService {
     const feeDec = new Prisma.Decimal(price);
     if (wallet.availableBalance.lessThan(feeDec)) {
       throw new BadRequestException(
-        `Insufficient wallet balance. You need $${price.toFixed(2)} to boost for ${days} days. ` +
+        `Insufficient wallet balance. You need $${Number(price).toFixed(2)} to boost for ${days} days. ` +
         `Current balance: $${wallet.availableBalance.toFixed(2)}`,
       );
     }

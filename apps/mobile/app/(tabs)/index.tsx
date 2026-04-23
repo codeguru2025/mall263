@@ -1,9 +1,12 @@
-import { ScrollView, StyleSheet, View, Text, Platform, Pressable } from 'react-native';
+import { ScrollView, StyleSheet, View, Text, Platform, Pressable, FlatList, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { Brand } from '@/constants/brand';
 import { Logo } from '@/components/Logo';
+import { fetchBrowsePage, formatMoney, type BrowseProduct } from '@/lib/products';
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -79,6 +82,13 @@ const QUICK_LINKS: QuickLink[] = [
 export default function HomeScreen() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
+
+  const featuredQ = useQuery({
+    queryKey: ['home-featured'],
+    queryFn: () => fetchBrowsePage(1, 10),
+    staleTime: 5 * 60_000,
+  });
+  const featuredItems = featuredQ.data?.data ?? [];
 
   if (!isAuthenticated) {
     return (
@@ -172,6 +182,53 @@ export default function HomeScreen() {
           </Pressable>
         ))}
       </View>
+
+      {/* Featured products */}
+      <View style={styles.sectionRow}>
+        <Text style={styles.sectionTitle}>Featured products</Text>
+        <Pressable onPress={() => router.push('/(tabs)/shop')}>
+          <Text style={styles.sectionSeeAll}>See all →</Text>
+        </Pressable>
+      </View>
+      {featuredQ.isPending ? (
+        <ActivityIndicator color={Brand.blue} style={{ marginBottom: 16 }} />
+      ) : (
+        <FlatList
+          data={featuredItems}
+          keyExtractor={(item: BrowseProduct) => item.id}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.featuredList}
+          renderItem={({ item }: { item: BrowseProduct }) => {
+            const img = item.images?.[0]?.url;
+            return (
+              <Pressable
+                style={({ pressed }: { pressed: boolean }) => [styles.featuredCard, cardShadow, pressed && { opacity: 0.88 }]}
+                onPress={() => router.push({ pathname: '/product/[id]', params: { id: item.id } })}
+              >
+                <View style={styles.featuredThumb}>
+                  {img ? (
+                    <Image
+                      source={{ uri: img }}
+                      style={styles.featuredThumbImg}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      transition={150}
+                    />
+                  ) : (
+                    <Text style={styles.featuredThumbLetter}>{item.name.charAt(0).toUpperCase()}</Text>
+                  )}
+                </View>
+                <Text style={styles.featuredPrice} numberOfLines={1}>
+                  {formatMoney(item.minPrice, item.currency || 'USD')}
+                </Text>
+                <Text style={styles.featuredName} numberOfLines={2}>{item.name}</Text>
+              </Pressable>
+            );
+          }}
+          ListEmptyComponent={null}
+        />
+      )}
 
       <View style={styles.bottomBand}>
         {ZW_STRIPE_COLORS.map((c) => (
@@ -278,6 +335,25 @@ const styles = StyleSheet.create({
 
   bottomBand: { flexDirection: 'row', height: 5, borderRadius: 3, overflow: 'hidden' },
   bottomStripe: { flex: 1 },
+
+  sectionRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: 10, marginLeft: 4,
+  },
+  sectionSeeAll: { fontSize: 12, fontWeight: '700', color: Brand.blue },
+  featuredList: { paddingLeft: 4, paddingRight: 16, paddingBottom: 4, gap: 10 },
+  featuredCard: {
+    width: 130, backgroundColor: Brand.card, borderRadius: 14,
+    borderWidth: 1, borderColor: Brand.border, overflow: 'hidden', marginBottom: 16,
+  },
+  featuredThumb: {
+    width: '100%', height: 100, backgroundColor: '#f1f5f9',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  featuredThumbImg: { width: '100%', height: '100%' },
+  featuredThumbLetter: { fontSize: 36, fontWeight: '900', color: Brand.blue },
+  featuredPrice: { fontSize: 13, fontWeight: '900', color: Brand.orange, paddingHorizontal: 8, paddingTop: 8 },
+  featuredName: { fontSize: 11, fontWeight: '600', color: Brand.navy, paddingHorizontal: 8, paddingBottom: 10, lineHeight: 14 },
 
   guestBtn: {
     backgroundColor: Brand.navy,

@@ -91,14 +91,47 @@ export function resolveNotificationRoute(
 ): string | null {
   if (!data) return null;
 
-  if (type.startsWith('DELIVERY_') || type === 'DISPUTE_OPENED' || type === 'DISPUTE_RESOLVED') {
+  // Delivery & dispute notifications
+  if (
+    type.startsWith('DELIVERY_') ||
+    type === 'JOB_BROADCAST' ||
+    type === 'JOB_PICKUP_CONFIRMED' ||
+    type === 'JOB_DELIVERED' ||
+    type === 'JOB_CANCELLED' ||
+    type === 'DISPUTE_OPENED' ||
+    type === 'DISPUTE_RESOLVED'
+  ) {
     if (data.jobId) return `/delivery/track/${data.jobId}`;
   }
-  if (type === 'OFFER_RECEIVED' || type === 'OFFER_ACCEPTED' || type === 'OFFER_REJECTED') {
+
+  // Demand & offer notifications
+  if (
+    type === 'OFFER_RECEIVED' ||
+    type === 'OFFER_ACCEPTED' ||
+    type === 'OFFER_REJECTED' ||
+    type === 'DEMAND_EXPIRED' ||
+    type === 'DEMAND_MATCHED'
+  ) {
+    if (data.offerId) return `/demand/offer/${data.offerId}`;
     if (data.demandId) return `/demand/${data.demandId}`;
   }
+
+  // Chat messages
   if (type === 'NEW_MESSAGE') {
     if (data.roomId) return `/chat/${data.roomId}`;
+  }
+
+  // Subscription / wallet notifications
+  if (type === 'SUBSCRIPTION_EXPIRING' || type === 'SUBSCRIPTION_EXPIRED' || type === 'SUBSCRIPTION_RENEWED') {
+    return '/wallet/subscription';
+  }
+  if (type === 'WITHDRAWAL_COMPLETED' || type === 'WITHDRAWAL_FAILED' || type === 'WALLET_CREDITED') {
+    return '/wallet';
+  }
+
+  // Review approved/rejected
+  if (type === 'REVIEW_APPROVED' || type === 'REVIEW_REMOVED') {
+    if (data.productId) return `/product/${data.productId}`;
   }
 
   return null;

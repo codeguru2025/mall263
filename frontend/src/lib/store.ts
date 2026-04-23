@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import api from './api';
+import api, { setAccessToken } from './api';
 
 interface User {
   id: string;
@@ -36,37 +36,53 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   login: async (phone, password) => {
     const { data } = await api.post('/api/v1/auth/login', { phone, password });
-    localStorage.setItem('access_token', data.accessToken);
-    localStorage.setItem('refresh_token', data.refreshToken);
+    // Access token is stored in memory only — refresh token is in httpOnly cookie
+    setAccessToken(data.accessToken);
     set({ user: data.user, isAuthenticated: true, isLoading: false });
   },
 
   register: async (regData) => {
     const { data } = await api.post('/api/v1/auth/register', regData);
-    localStorage.setItem('access_token', data.accessToken);
-    localStorage.setItem('refresh_token', data.refreshToken);
+    setAccessToken(data.accessToken);
     set({ user: data.user, isAuthenticated: true, isLoading: false });
   },
 
   logout: () => {
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (refreshToken) api.post('/api/v1/auth/logout', { refreshToken }).catch(() => {});
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    api.post('/api/v1/auth/logout').catch(() => {});
+    setAccessToken(null);
     set({ user: null, isAuthenticated: false, isLoading: false });
   },
 
   loadUser: async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) { set({ isLoading: false }); return; }
+      // On first load or page refresh the access token is not in memory.
+      // Try to get a new one using the httpOnly refresh-token cookie.
+      if (!window.__mall263_access_token_loaded) {
+        window.__mall263_access_token_loaded = true;
+        try {
+          const { data: refreshData } = await api.post('/api/v1/auth/refresh', {}, { withCredentials: true });
+          setAccessToken(refreshData.accessToken);
+        } catch {
+          // No valid session — user is logged out
+          set({ isLoading: false });
+          return;
+        }
+      }
       const { data } = await api.get('/api/v1/users/me');
       set({ user: data, isAuthenticated: true, isLoading: false });
     } catch {
+      setAccessToken(null);
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
 }));
+
+// Augment window type for the one-time refresh flag
+declare global {
+  interface Window {
+    __mall263_access_token_loaded?: boolean;
+  }
+}
 
 interface CartItem {
   variantId: string;

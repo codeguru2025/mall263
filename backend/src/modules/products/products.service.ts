@@ -5,10 +5,23 @@ import { SearchService } from '../search/search.service';
 import { ProductStatus, StallAnalyticsEventType, WalletTransactionType, WalletTransactionStatus, Prisma } from '@prisma/client';
 import { containsContactInfo } from '../../common/contact-info.util';
 
-// Boost pricing in USD
-const BOOST_PRICES: Record<number, number> = { 7: 1.00, 14: 2.00, 30: 4.00 };
+// Default boost pricing in USD — DB-overridable via AppSetting keys: product_boost_price_7, product_boost_price_14, product_boost_price_30
+const DEFAULT_BOOST_PRICES: Record<number, number> = { 7: 1.00, 14: 2.00, 30: 4.00 };
 
 const BUYER_TRIAL_DAYS = 7;
+
+/** Haversine great-circle distance in km between two WGS-84 coordinate pairs. */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 function assertNoContactInfo(fields: Record<string, string | undefined>) {
   for (const [field, value] of Object.entries(fields)) {
@@ -29,6 +42,16 @@ export class ProductsService {
     private searchService: SearchService,
   ) {}
 
+  private async getBoostPrice(days: number): Promise<number> {
+    const key = `product_boost_price_${days}`;
+    const row = await this.prisma.appSetting.findUnique({ where: { key } });
+    if (row) {
+      const n = parseFloat(row.value);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return DEFAULT_BOOST_PRICES[days] ?? 1.00;
+  }
+
   async create(stallId: string, data: {
     name: string;
     categoryId?: string;
@@ -48,9 +71,29 @@ export class ProductsService {
       stockQuantity: number;
     }>;
     images?: Array<{ url: string; alt?: string; isPrimary?: boolean }>;
-  }) {
+  }, requesterId: string) {
     if (!data.variants || data.variants.length === 0) {
       throw new BadRequestException('At least one variant is required');
+    }
+
+    // Verify the caller owns or is an attendant of this stall
+    const stall = await this.prisma.stall.findUnique({
+      where: { id: stallId },
+      select: {
+        merchant: { select: { userId: true } },
+        attendants: { where: { userId: requesterId }, select: { userId: true } },
+      },
+    });
+    if (!stall) throw new NotFoundException('Stall not found');
+
+    const requester = await this.prisma.user.findUnique({ where: { id: requesterId }, select: { role: true } });
+    const privilegedRoles = ['SUPER_ADMIN', 'ADMIN_OPS', 'FIELD_AGENT'];
+    const isPrivileged = requester && privilegedRoles.includes(requester.role);
+    const isOwner = stall.merchant.userId === requesterId;
+    const isAttendant = stall.attendants.length > 0;
+
+    if (!isPrivileged && !isOwner && !isAttendant) {
+      throw new ForbiddenException('You do not have permission to add products to this stall');
     }
 
     assertNoContactInfo({ name: data.name, description: data.description, brand: data.brand });
@@ -277,6 +320,9 @@ export class ProductsService {
     page?: number;
     limit?: number;
     sortBy?: string;
+    nearLat?: number;
+    nearLng?: number;
+    radiusKm?: number;
   }) {
     const { categoryId, mallId, stallId, sortBy } = params;
     // Guard against NaN — enableImplicitConversion can turn missing query params into NaN
@@ -285,13 +331,52 @@ export class ProductsService {
     const where: any = { status: ProductStatus.ACTIVE };
 
     if (categoryId) where.categoryId = categoryId;
+
+    // ── Geo filter ──────────────────────────────────────────────────────────
+    // If nearLat/nearLng supplied, find malls within radiusKm (default 10km)
+    // and restrict to products sold from those malls.
+    let effectiveMallId = mallId;
+    if (Number.isFinite(params.nearLat) && Number.isFinite(params.nearLng)) {
+      const radius = Number.isFinite(params.radiusKm) ? params.radiusKm! : 10;
+      const allMalls = await this.prisma.mall.findMany({
+        where: { latitude: { not: null }, longitude: { not: null } },
+        select: { id: true, latitude: true, longitude: true },
+      });
+      const nearbyMallIds = allMalls
+        .filter((m) => haversineKm(params.nearLat!, params.nearLng!, m.latitude!, m.longitude!) <= radius)
+        .map((m) => m.id);
+
+      if (nearbyMallIds.length === 0) {
+        return { data: [], total: 0, page, limit, totalPages: 0 };
+      }
+      // If a specific mallId was already given, intersect (keep only if it's nearby)
+      if (effectiveMallId) {
+        if (!nearbyMallIds.includes(effectiveMallId)) {
+          return { data: [], total: 0, page, limit, totalPages: 0 };
+        }
+      } else {
+        // Set where.stall.mallId to the nearby set
+        where.stall = { mallId: { in: nearbyMallIds } };
+      }
+    }
+
     if (stallId) {
       where.stallId = stallId;
-    } else {
+    } else if (!where.stall) {
       // Marketplace browse: respect the merchant's showOnMarketplace toggle.
       // Shops with no settings row default to visible (showOnMarketplace DEFAULT TRUE).
       where.stall = {
-        ...(mallId ? { mallId } : {}),
+        ...(effectiveMallId ? { mallId: effectiveMallId } : {}),
+        OR: [
+          { shopSettings: null },
+          { shopSettings: { showOnMarketplace: true } },
+        ],
+      };
+    } else {
+      // Geo filter already set stall, add mallId and marketplace visibility on top
+      where.stall = {
+        ...where.stall,
+        ...(effectiveMallId ? { mallId: effectiveMallId } : {}),
         OR: [
           { shopSettings: null },
           { shopSettings: { showOnMarketplace: true } },
@@ -431,7 +516,7 @@ export class ProductsService {
    * Fee is deducted from their wallet immediately using a serializable transaction.
    */
   async boostProduct(userId: string, productId: string, days: 7 | 14 | 30): Promise<{ promotedUntil: Date; fee: number }> {
-    const fee = BOOST_PRICES[days];
+    const fee = await this.getBoostPrice(days);
     if (!fee) throw new BadRequestException('Invalid boost duration. Choose 7, 14, or 30 days.');
 
     // Verify product ownership: product → stall → merchant → user
@@ -486,8 +571,10 @@ export class ProductsService {
   }
 
   /** Boost pricing lookup (public — shown in UI before confirming). */
-  getBoostPricing(): { days: number; fee: number }[] {
-    return Object.entries(BOOST_PRICES).map(([d, f]) => ({ days: Number(d), fee: f }));
+  async getBoostPricing(): Promise<{ days: number; fee: number }[]> {
+    const durations = [7, 14, 30];
+    const prices = await Promise.all(durations.map((d) => this.getBoostPrice(d)));
+    return durations.map((d, i) => ({ days: d, fee: prices[i] }));
   }
 
   /** Daily cron: clear expired boosts so they stop floating to the top. */

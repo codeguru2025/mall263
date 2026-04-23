@@ -111,3 +111,122 @@ export async function extendTrial(userId: string, days: number): Promise<void> {
 export async function grantFreeMonth(userId: string): Promise<void> {
   await api.patch(`/api/v1/admin/subscriptions/${userId}/grant-month`);
 }
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+export async function fetchAdminSettings(): Promise<Record<string, string>> {
+  const { data } = await api.get<Record<string, string>>('/api/v1/admin/settings');
+  return data;
+}
+
+export async function saveAdminSetting(key: string, value: string): Promise<void> {
+  await api.post(`/api/v1/admin/settings/${key}`, { value });
+}
+
+// ── Merchants ─────────────────────────────────────────────────────────────────
+
+export type AdminMerchant = {
+  id: string;
+  businessName: string;
+  status: string;
+  createdAt: string;
+  user?: { phone: string; firstName: string; lastName: string } | null;
+};
+
+export async function fetchAdminMerchants(search: string, page = 1) {
+  const { data } = await api.get<{ data: AdminMerchant[]; total: number; page: number; totalPages: number }>(
+    '/api/v1/merchants', { params: { search: search || undefined, page, limit: 20 } }
+  );
+  return data;
+}
+
+export async function verifyMerchant(id: string): Promise<void> { await api.patch(`/api/v1/merchants/${id}/verify`); }
+export async function suspendMerchant(id: string): Promise<void> { await api.patch(`/api/v1/merchants/${id}/suspend`); }
+export async function activateMerchant(id: string): Promise<void> { await api.patch(`/api/v1/merchants/${id}/activate`); }
+
+// ── Drivers ───────────────────────────────────────────────────────────────────
+
+export type AdminDriver = {
+  id: string;
+  tier: string;
+  kycStatus: string;
+  totalEarnings: unknown;
+  floatBalance: unknown;
+  isActive: boolean;
+  user?: { firstName: string; lastName: string; phone: string } | null;
+};
+
+export async function fetchAdminDrivers(): Promise<AdminDriver[]> {
+  const { data } = await api.get<AdminDriver[]>('/api/v1/drivers');
+  return data;
+}
+
+export async function approveDriverKyc(id: string): Promise<void> { await api.patch(`/api/v1/drivers/${id}/kyc-approve`); }
+export async function setDriverTier(id: string, tier: string): Promise<void> { await api.patch(`/api/v1/drivers/${id}/tier`, { tier }); }
+
+// ── Promotions ────────────────────────────────────────────────────────────────
+
+export type AdminPromotion = {
+  id: string;
+  code: string;
+  type: 'REFERRAL' | 'COUPON' | 'DISCOUNT';
+  discountPct: string | null;
+  discountAmt: string | null;
+  maxUses: number | null;
+  usedCount: number;
+  validFrom: string;
+  validUntil: string | null;
+  isActive: boolean;
+  description: string | null;
+};
+
+export async function fetchAdminPromotions(): Promise<AdminPromotion[]> {
+  const { data } = await api.get<AdminPromotion[]>('/api/v1/admin/promotions');
+  return data;
+}
+
+export async function createPromotion(body: Partial<AdminPromotion> & { validFrom: string }): Promise<AdminPromotion> {
+  const { data } = await api.post<AdminPromotion>('/api/v1/admin/promotions', body);
+  return data;
+}
+
+export async function togglePromotion(id: string, isActive: boolean): Promise<void> {
+  await api.patch(`/api/v1/admin/promotions/${id}`, { isActive });
+}
+
+export async function deletePromotion(id: string): Promise<void> {
+  await api.delete(`/api/v1/admin/promotions/${id}`);
+}
+
+// ── Ads ───────────────────────────────────────────────────────────────────────
+
+export type AdminAd = {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  linkUrl: string | null;
+  placement: string;
+  targetRole: string | null;
+  isActive: boolean;
+  startsAt: string;
+  endsAt: string | null;
+  impressions: number;
+};
+
+export async function fetchAdminAds(): Promise<AdminAd[]> {
+  const { data } = await api.get<AdminAd[]>('/api/v1/admin/ads');
+  return data;
+}
+
+export async function createAd(body: Omit<AdminAd, 'id' | 'impressions'>): Promise<AdminAd> {
+  const { data } = await api.post<AdminAd>('/api/v1/admin/ads', body);
+  return data;
+}
+
+export async function toggleAd(id: string, isActive: boolean): Promise<void> {
+  await api.patch(`/api/v1/admin/ads/${id}`, { isActive });
+}
+
+export async function deleteAd(id: string): Promise<void> {
+  await api.delete(`/api/v1/admin/ads/${id}`);
+}

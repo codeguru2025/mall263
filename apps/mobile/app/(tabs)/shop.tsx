@@ -1,20 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Linking,
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import * as Location from 'expo-location';
 import { Image } from 'expo-image';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { Brand } from '@/constants/brand';
-import { fetchShopFeedPage, formatMoney, type ShopListItem } from '@/lib/shop-feed';
+import { fetchShopFeedPage, fetchActiveAd, formatMoney, type ShopListItem } from '@/lib/shop-feed';
+import { fetchCategories } from '@/lib/seller-api';
+import { fetchMalls } from '@/lib/stalls-api';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -27,12 +33,7 @@ function useDebouncedValue<T>(value: T, ms: number): T {
 
 const cardShadow =
   Platform.OS === 'ios'
-    ? {
-        shadowColor: '#0f172a',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 10,
-      }
+    ? { shadowColor: '#0f172a', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 10 }
     : { elevation: 3 };
 
 export default function ShopScreen() {
@@ -40,13 +41,59 @@ export default function ShopScreen() {
   const [draftQuery, setDraftQuery] = useState('');
   const debouncedQuery = useDebouncedValue(draftQuery, 400);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [selectedMallId, setSelectedMallId] = useState<string | null>(null);
+  const [showMallFilter, setShowMallFilter] = useState(false);
+  const [nearLat, setNearLat] = useState<number | null>(null);
+  const [nearLng, setNearLng] = useState<number | null>(null);
+  const [radiusKm, setRadiusKm] = useState(10);
+  const [geoLoading, setGeoLoading] = useState(false);
 
-  const feedKey = useMemo(() => debouncedQuery.trim(), [debouncedQuery]);
+  const handleNearMe = useCallback(async () => {
+    if (nearLat !== null) {
+      setNearLat(null);
+      setNearLng(null);
+      return;
+    }
+    setGeoLoading(true);
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission denied', 'Enable location access in Settings to filter by proximity.');
+      setGeoLoading(false);
+      return;
+    }
+    try {
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setNearLat(loc.coords.latitude);
+      setNearLng(loc.coords.longitude);
+      setSelectedMallId(null);
+    } catch {
+      Alert.alert('Location error', 'Could not get your current location.');
+    } finally {
+      setGeoLoading(false);
+    }
+  }, [nearLat]);
+
+  const categoriesQ = useQuery({ queryKey: ['categories'], queryFn: fetchCategories, staleTime: 5 * 60_000 });
+  const mallsQ = useQuery({ queryKey: ['malls'], queryFn: () => fetchMalls(), staleTime: 5 * 60_000 });
+  const adQ = useQuery({ queryKey: ['shop-ad'], queryFn: () => fetchActiveAd('BANNER_TOP'), staleTime: 60_000, retry: false });
+
+  const feedKey = useMemo(
+    () => `${debouncedQuery.trim()}|${selectedCategoryId ?? ''}|${selectedMallId ?? ''}|${nearLat ?? ''}|${nearLng ?? ''}|${radiusKm}`,
+    [debouncedQuery, selectedCategoryId, selectedMallId, nearLat, nearLng, radiusKm],
+  );
 
   const query = useInfiniteQuery({
     queryKey: ['shop-feed', feedKey],
     initialPageParam: 1,
-    queryFn: ({ pageParam }) => fetchShopFeedPage(feedKey, pageParam as number, 20),
+    queryFn: ({ pageParam }) =>
+      fetchShopFeedPage(debouncedQuery.trim(), pageParam as number, 20, {
+        categoryId: selectedCategoryId ?? undefined,
+        mallId: nearLat ? undefined : (selectedMallId ?? undefined),
+        nearLat: nearLat ?? undefined,
+        nearLng: nearLng ?? undefined,
+        radiusKm: nearLat ? radiusKm : undefined,
+      }),
     getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
   });
 
@@ -114,6 +161,11 @@ export default function ShopScreen() {
     [router],
   );
 
+  const categories = categoriesQ.data ?? [];
+  const malls = mallsQ.data ?? [];
+  const selectedMall = malls.find((m) => m.id === selectedMallId);
+  const ad = adQ.data;
+
   const header = (
     <View style={styles.headerBlock}>
       <View style={styles.heroBar}>
@@ -138,7 +190,110 @@ export default function ShopScreen() {
           </Pressable>
         ) : null}
       </View>
-      {typeof totalLoaded === 'number' && !feedKey ? (
+
+      {/* Category filter strip */}
+      {categories.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryStrip}>
+          <Pressable
+            style={[styles.catChip, !selectedCategoryId && styles.catChipActive]}
+            onPress={() => setSelectedCategoryId(null)}
+          >
+            <Text style={[styles.catChipText, !selectedCategoryId && styles.catChipTextActive]}>All</Text>
+          </Pressable>
+          {categories.map((cat) => (
+            <Pressable
+              key={cat.id}
+              style={[styles.catChip, selectedCategoryId === cat.id && styles.catChipActive]}
+              onPress={() => setSelectedCategoryId(selectedCategoryId === cat.id ? null : cat.id)}
+            >
+              <Text style={[styles.catChipText, selectedCategoryId === cat.id && styles.catChipTextActive]}>
+                {cat.name}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Mall filter pill + Near me */}
+      <View style={styles.mallFilterRow}>
+        {/* Near me button */}
+        <Pressable
+          style={[styles.nearMePill, nearLat !== null && styles.nearMePillActive]}
+          onPress={handleNearMe}
+          disabled={geoLoading}
+        >
+          {geoLoading
+            ? <ActivityIndicator size={12} color={nearLat !== null ? '#fff' : Brand.orange} />
+            : <Text style={styles.nearMeIcon}>📍</Text>
+          }
+          <Text style={[styles.nearMePillText, nearLat !== null && styles.nearMePillTextActive]}>
+            {nearLat !== null ? `Near me (${radiusKm}km) ×` : 'Near me'}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.mallPill, !nearLat && selectedMallId && styles.mallPillActive]}
+          onPress={() => !nearLat && setShowMallFilter(!showMallFilter)}
+          disabled={nearLat !== null}
+        >
+          <Text style={[styles.mallPillText, !nearLat && selectedMallId && styles.mallPillTextActive]}>
+            {!nearLat && selectedMall ? `🏬 ${selectedMall.name}` : '🏬 All malls'}
+          </Text>
+          <Text style={[styles.mallPillCaret, !nearLat && selectedMallId && styles.mallPillTextActive]}>▾</Text>
+        </Pressable>
+        {selectedMallId && (
+          <Pressable style={styles.clearMall} onPress={() => setSelectedMallId(null)}>
+            <Text style={styles.clearMallText}>× Clear</Text>
+          </Pressable>
+        )}
+      </View>
+
+      {/* Mall dropdown */}
+      {showMallFilter && malls.length > 0 && (
+        <View style={styles.mallDropdown}>
+          <Pressable
+            style={[styles.mallOption, !selectedMallId && styles.mallOptionActive]}
+            onPress={() => { setSelectedMallId(null); setShowMallFilter(false); }}
+          >
+            <Text style={[styles.mallOptionText, !selectedMallId && styles.mallOptionTextActive]}>All malls</Text>
+          </Pressable>
+          {malls.map((m) => (
+            <Pressable
+              key={m.id}
+              style={[styles.mallOption, selectedMallId === m.id && styles.mallOptionActive]}
+              onPress={() => { setSelectedMallId(m.id); setShowMallFilter(false); }}
+            >
+              <Text style={[styles.mallOptionText, selectedMallId === m.id && styles.mallOptionTextActive]}>
+                {m.name}{m.city ? ` · ${m.city}` : ''}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {/* Ad banner */}
+      {ad?.imageUrl && (
+        <Pressable
+          style={styles.adBanner}
+          onPress={() => ad.linkUrl && Linking.openURL(ad.linkUrl)}
+          activeOpacity={ad.linkUrl ? 0.85 : 1}
+        >
+          <Image
+            source={{ uri: ad.imageUrl }}
+            style={styles.adBannerImg}
+            contentFit="cover"
+            transition={200}
+          />
+          {ad.title ? (
+            <View style={styles.adLabel}>
+              <Text style={styles.adLabelText}>AD</Text>
+              <Text style={styles.adTitle} numberOfLines={1}>{ad.title}</Text>
+            </View>
+          ) : null}
+        </Pressable>
+      )}
+
+      {typeof totalLoaded === 'number' && !debouncedQuery.trim() ? (
         <Text style={styles.countLine}>{totalLoaded} listing{totalLoaded === 1 ? '' : 's'}</Text>
       ) : null}
     </View>
@@ -196,9 +351,9 @@ export default function ShopScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyTitle}>{feedKey ? 'No matches' : 'No products yet'}</Text>
+            <Text style={styles.emptyTitle}>{debouncedQuery.trim() ? 'No matches' : 'No products yet'}</Text>
             <Text style={styles.muted}>
-              {feedKey ? 'Try different keywords or clear search to browse everything.' : 'Check back soon.'}
+              {debouncedQuery.trim() ? 'Try different keywords or clear search to browse everything.' : 'Check back soon.'}
             </Text>
           </View>
         }
@@ -242,33 +397,94 @@ const styles = StyleSheet.create({
   },
   clearBtn: { paddingRight: 12, paddingVertical: 8 },
   clear: { fontSize: 15, fontWeight: '700', color: Brand.blue },
+
+  categoryStrip: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 8,
+  },
+  catChip: {
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderRadius: 999, borderWidth: 1.5, borderColor: Brand.border,
+    backgroundColor: Brand.card,
+  },
+  catChipActive: { backgroundColor: Brand.blue, borderColor: Brand.blue },
+  catChipText: { fontSize: 12, fontWeight: '700', color: Brand.navy },
+  catChipTextActive: { color: '#fff' },
+
+  mallFilterRow: {
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14,
+    paddingTop: 8, paddingBottom: 4, gap: 8,
+  },
+  nearMePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 10, borderWidth: 1.5, borderColor: Brand.orange,
+    backgroundColor: '#fff7f0',
+  },
+  nearMePillActive: { backgroundColor: Brand.orange, borderColor: Brand.orange },
+  nearMeIcon: { fontSize: 12 },
+  nearMePillText: { fontSize: 12, fontWeight: '700', color: Brand.orange },
+  nearMePillTextActive: { color: '#fff' },
+  mallPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 10, borderWidth: 1.5, borderColor: Brand.border,
+    backgroundColor: Brand.card,
+  },
+  mallPillActive: { borderColor: Brand.navy, backgroundColor: '#e6e9f1' },
+  mallPillText: { fontSize: 12, fontWeight: '700', color: Brand.navy },
+  mallPillTextActive: { color: Brand.navy },
+  mallPillCaret: { fontSize: 11, color: Brand.muted },
+  clearMall: { paddingHorizontal: 10, paddingVertical: 7 },
+  clearMallText: { fontSize: 12, fontWeight: '700', color: Brand.red },
+
+  mallDropdown: {
+    marginHorizontal: 14, marginTop: 2,
+    backgroundColor: Brand.card, borderRadius: 12,
+    borderWidth: 1, borderColor: Brand.border,
+    overflow: 'hidden', ...cardShadow,
+  },
+  mallOption: {
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: Brand.border,
+  },
+  mallOptionActive: { backgroundColor: '#f0f7ff' },
+  mallOptionText: { fontSize: 13, color: Brand.text, fontWeight: '600' },
+  mallOptionTextActive: { color: Brand.blue, fontWeight: '700' },
+
+  adBanner: {
+    marginHorizontal: 14, marginTop: 10, borderRadius: 12, overflow: 'hidden',
+    height: 100, backgroundColor: Brand.border,
+  },
+  adBannerImg: { width: '100%', height: '100%' },
+  adLabel: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 10, paddingVertical: 5,
+  },
+  adLabelText: {
+    fontSize: 9, fontWeight: '900', color: '#fff',
+    backgroundColor: Brand.orange, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4,
+  },
+  adTitle: { flex: 1, fontSize: 12, color: '#fff', fontWeight: '600' },
+
   countLine: {
-    marginHorizontal: 20,
-    marginTop: 10,
-    fontSize: 12,
-    fontWeight: '600',
-    color: Brand.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
+    marginHorizontal: 20, marginTop: 10,
+    fontSize: 12, fontWeight: '600', color: Brand.muted,
+    textTransform: 'uppercase', letterSpacing: 0.6,
   },
   listContent: { paddingHorizontal: 6, paddingTop: 10, paddingBottom: 24 },
   columnWrapper: { gap: 5, marginBottom: 5 },
   card: {
-    flex: 1,
-    backgroundColor: Brand.card,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Brand.border,
-    overflow: 'hidden',
+    flex: 1, backgroundColor: Brand.card, borderRadius: 8,
+    borderWidth: 1, borderColor: Brand.border, overflow: 'hidden',
   },
   cardPressed: { opacity: 0.88 },
   thumbWrap: { width: '100%', aspectRatio: 1, backgroundColor: '#f1f5f9' },
   thumb: { width: '100%', height: '100%' },
-  thumbPlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#e8edf5',
-  },
+  thumbPlaceholder: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#e8edf5' },
   thumbLetter: { fontSize: 28, fontWeight: '900', color: Brand.blue },
   cardBody: { paddingHorizontal: 6, paddingTop: 6, paddingBottom: 8, gap: 2 },
   price: { fontSize: 13, fontWeight: '900', color: Brand.orange, letterSpacing: -0.2 },
@@ -278,11 +494,8 @@ const styles = StyleSheet.create({
   muted: { marginTop: 10, color: Brand.muted, textAlign: 'center', fontSize: 15 },
   errorTitle: { fontSize: 18, fontWeight: '800', color: Brand.red },
   retry: {
-    marginTop: 18,
-    backgroundColor: Brand.blue,
-    paddingHorizontal: 22,
-    paddingVertical: 14,
-    borderRadius: 12,
+    marginTop: 18, backgroundColor: Brand.blue,
+    paddingHorizontal: 22, paddingVertical: 14, borderRadius: 12,
   },
   retryText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   emptyBox: { paddingVertical: 48, paddingHorizontal: 24, alignItems: 'center' },

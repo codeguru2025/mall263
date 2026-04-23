@@ -94,8 +94,12 @@ export default function WalletScreen() {
         <View style={[styles.balanceCard, cardShadow]}>
           <Text style={styles.balanceLabel}>Available</Text>
           <Text style={styles.balanceBig}>{formatMoney(b.available, currency)}</Text>
-          <Text style={styles.balanceLabelMuted}>Locked</Text>
-          <Text style={styles.balanceLocked}>{formatMoney(b.locked, currency)}</Text>
+          {Number(b.locked) > 0 && (
+            <>
+              <Text style={styles.balanceLabelMuted}>Locked</Text>
+              <Text style={styles.balanceLocked}>{formatMoney(b.locked, currency)}</Text>
+            </>
+          )}
           <View style={styles.btnRow}>
             <Pressable style={styles.depositBtn} onPress={() => router.push('/deposit')}>
               <Text style={styles.depositBtnText}>+ Deposit</Text>

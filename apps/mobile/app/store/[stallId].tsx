@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   Platform,
   Pressable,
   RefreshControl,
@@ -24,6 +25,16 @@ import {
 } from '@/lib/stalls-api';
 import { formatMoney } from '@/lib/products';
 import { fetchMeProfile } from '@/lib/me-profile';
+import { api } from '@/lib/api';
+
+async function fetchVirtualWalkExists(stallId: string): Promise<boolean> {
+  try {
+    await api.get(`/api/v1/virtual-walk/shop/${stallId}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -50,6 +61,13 @@ export default function StoreScreen() {
     queryKey: ['stall-detail', resolved],
     queryFn: () => fetchStallById(resolved!),
     enabled: !!resolved,
+  });
+
+  const virtualWalkQ = useQuery({
+    queryKey: ['virtual-walk-exists', resolved],
+    queryFn: () => fetchVirtualWalkExists(resolved!),
+    enabled: !!resolved && !!stallQ.data,
+    staleTime: 5 * 60_000,
   });
 
   useEffect(() => {
@@ -192,6 +210,16 @@ export default function StoreScreen() {
             >
               {(optimisticFollowing ?? stall?.isFollowing) ? 'Following' : 'Follow store'}
             </Text>
+          </Pressable>
+        )}
+
+        {virtualWalkQ.data && resolved && (
+          <Pressable
+            style={styles.virtualWalkBtn}
+            onPress={() => router.push({ pathname: '/virtual-walk/[stallId]', params: { stallId: resolved } } as never)}
+          >
+            <FontAwesome name="cube" size={14} color="#fff" />
+            <Text style={styles.virtualWalkText}>Virtual Walk</Text>
           </Pressable>
         )}
       </View>
@@ -412,6 +440,12 @@ const styles = StyleSheet.create({
   followBtnActive: { backgroundColor: Brand.blue, borderColor: Brand.blue },
   followBtnText: { fontSize: 14, fontWeight: '800', color: Brand.blue },
   followBtnTextActive: { color: '#fff' },
+  virtualWalkBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, marginTop: 10, paddingVertical: 11, borderRadius: 12,
+    backgroundColor: Brand.navy,
+  },
+  virtualWalkText: { fontSize: 14, fontWeight: '800', color: '#fff' },
 
   catalogTitle: {
     marginTop: 18,

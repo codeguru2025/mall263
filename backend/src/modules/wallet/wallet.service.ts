@@ -1,12 +1,23 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletTransactionType, WalletTransactionStatus, WalletLockReason, WalletLockStatus, Prisma } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class WalletService {
-  private readonly COMMISSION_RATE = 0.025;
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
-  constructor(private prisma: PrismaService) {}
+  private async getCommissionRate(): Promise<number> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: 'platform_commission_rate' } });
+    if (row) {
+      const n = parseFloat(row.value);
+      if (Number.isFinite(n) && n >= 0 && n <= 1) return n;
+    }
+    return 0.025; // 2.5% default
+  }
 
   async getWallet(userId: string) {
     const wallet = await this.prisma.wallet.findUnique({
@@ -90,6 +101,14 @@ export class WalletService {
             completedAt: new Date(),
           },
         });
+
+        this.audit.log({
+          userId,
+          action: 'WALLET_DEPOSIT',
+          entity: 'WalletTransaction',
+          entityId: transaction.id,
+          newValue: { amount: amount.toString(), externalRef },
+        }).catch(() => {});
 
         return { transaction, newBalance: balanceAfter };
       },
@@ -232,11 +251,12 @@ export class WalletService {
    * Never use this result to gate a write operation.
    */
   async checkCommissionBalance(sellerUserId: string, saleAmount: number): Promise<{ sufficient: boolean; required: number; available: number }> {
+    const commissionRate = await this.getCommissionRate();
     const wallet = await this.prisma.wallet.findUnique({ where: { userId: sellerUserId } });
     if (!wallet) throw new NotFoundException('Seller wallet not found');
 
     const saleDec = new Prisma.Decimal(saleAmount);
-    const requiredDec = saleDec.mul(this.COMMISSION_RATE.toString());
+    const requiredDec = saleDec.mul(commissionRate.toString());
     const availableDec = wallet.availableBalance;
 
     return {
@@ -252,7 +272,8 @@ export class WalletService {
    * This standalone version is suitable for direct API calls or other contexts.
    */
   async deductCommission(sellerUserId: string, saleAmount: number, saleId: string) {
-    const commissionDec = new Prisma.Decimal(saleAmount).mul(this.COMMISSION_RATE.toString());
+    const commissionRate = await this.getCommissionRate();
+    const commissionDec = new Prisma.Decimal(saleAmount).mul(commissionRate.toString());
 
     return this.prisma.$retryTransaction(
       async (tx) => {
@@ -280,7 +301,7 @@ export class WalletService {
             balanceBefore: wallet.availableBalance,
             balanceAfter: newBalance,
             status: WalletTransactionStatus.COMPLETED,
-            description: `Commission for sale ${saleId} (${this.COMMISSION_RATE * 100}% of $${saleAmount.toFixed(2)})`,
+            description: `Commission for sale ${saleId} (${(commissionRate * 100).toFixed(1)}% of $${saleAmount.toFixed(2)})`,
             referenceId: saleId,
             referenceType: 'pos_sale',
             completedAt: new Date(),
@@ -303,7 +324,10 @@ export class WalletService {
     startDate?: Date;
     endDate?: Date;
   }) {
-    const { type, page = 1, limit = 20, startDate, endDate } = params;
+    const type = params.type;
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.min(Math.max(1, params.limit ?? 20), 100);
+    const { startDate, endDate } = params;
     const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
     if (!wallet) throw new NotFoundException('Wallet not found');
 
@@ -391,7 +415,7 @@ export class WalletService {
           data: { availableBalance: newBalance, lastActivityAt: new Date() },
         });
 
-        return tx.walletTransaction.create({
+        const wtx = await tx.walletTransaction.create({
           data: {
             walletId: wallet.id,
             type: WalletTransactionType.WITHDRAWAL,
@@ -403,6 +427,16 @@ export class WalletService {
             completedAt: null,
           },
         });
+
+        this.audit.log({
+          userId,
+          action: 'WALLET_WITHDRAWAL_REQUEST',
+          entity: 'WalletTransaction',
+          entityId: wtx.id,
+          newValue: { amount: amount.toString() },
+        }).catch(() => {});
+
+        return wtx;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
@@ -502,11 +536,12 @@ export class WalletService {
   ) {
     const wallet = await tx.wallet.findUnique({ where: { userId } });
     if (!wallet) throw new NotFoundException('Wallet not found');
-    if (Number(wallet.availableBalance) < amount) {
+    const amountDec = new Prisma.Decimal(amount);
+    if (wallet.availableBalance.lessThan(amountDec)) {
       throw new BadRequestException('Insufficient balance for escrow');
     }
     const balBefore = wallet.availableBalance;
-    const balAfter = new Prisma.Decimal(Number(balBefore) - amount);
+    const balAfter = balBefore.sub(amountDec);
     await tx.wallet.update({
       where: { userId },
       data: { availableBalance: balAfter },
@@ -537,7 +572,7 @@ export class WalletService {
     const wallet = await tx.wallet.findUnique({ where: { userId } });
     if (!wallet) throw new NotFoundException('Wallet not found');
     const balBefore = wallet.availableBalance;
-    const balAfter = new Prisma.Decimal(Number(balBefore) + amount);
+    const balAfter = balBefore.add(new Prisma.Decimal(amount));
     await tx.wallet.update({
       where: { userId },
       data: { availableBalance: balAfter },
@@ -568,7 +603,7 @@ export class WalletService {
     const wallet = await tx.wallet.findUnique({ where: { userId } });
     if (!wallet) throw new NotFoundException('Wallet not found');
     const balBefore = wallet.availableBalance;
-    const balAfter = new Prisma.Decimal(Number(balBefore) + amount);
+    const balAfter = balBefore.add(new Prisma.Decimal(amount));
     await tx.wallet.update({
       where: { userId },
       data: { availableBalance: balAfter },
@@ -599,7 +634,7 @@ export class WalletService {
     const wallet = await tx.wallet.findUnique({ where: { userId } });
     if (!wallet) return; // driver may not have a wallet yet
     const balBefore = wallet.availableBalance;
-    const balAfter = new Prisma.Decimal(Number(balBefore) + amount);
+    const balAfter = balBefore.add(new Prisma.Decimal(amount));
     await tx.wallet.update({
       where: { userId },
       data: { availableBalance: balAfter },

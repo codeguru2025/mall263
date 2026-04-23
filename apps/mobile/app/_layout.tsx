@@ -9,6 +9,7 @@ import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef } from 'react';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -89,6 +90,7 @@ function RootLayoutNav() {
   }, [router]);
 
   return (
+    <SafeAreaProvider>
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -158,6 +160,17 @@ function RootLayoutNav() {
             <Stack.Screen name="admin/users" options={{ title: 'Users' }} />
             <Stack.Screen name="admin/stalls" options={{ title: 'Stalls' }} />
             <Stack.Screen name="admin/subscriptions" options={{ title: 'Subscriptions' }} />
+            <Stack.Screen name="admin/merchants" options={{ title: 'Merchants' }} />
+            <Stack.Screen name="admin/drivers" options={{ title: 'Drivers' }} />
+            <Stack.Screen name="admin/deliveries" options={{ title: 'Delivery Jobs' }} />
+            <Stack.Screen name="admin/promotions" options={{ title: 'Promotions' }} />
+            <Stack.Screen name="admin/ads" options={{ title: 'Ads' }} />
+            <Stack.Screen name="admin/malls" options={{ title: 'Malls' }} />
+            <Stack.Screen name="admin/categories" options={{ title: 'Categories' }} />
+            <Stack.Screen name="admin/subscription-plans" options={{ title: 'Subscription Plans' }} />
+            <Stack.Screen name="admin/disputes" options={{ title: 'Disputes' }} />
+            <Stack.Screen name="admin/support" options={{ title: 'Help Requests' }} />
+            <Stack.Screen name="admin/settings" options={{ title: 'App Settings' }} />
             <Stack.Screen name="delivery/track/[jobId]" options={{ title: 'Track Delivery' }} />
             <Stack.Screen name="delivery/checkout" options={{ title: 'Arrange Delivery' }} />
             <Stack.Screen name="driver/register" options={{ title: 'Become a driver' }} />
@@ -172,5 +185,6 @@ function RootLayoutNav() {
         </ThemeProvider>
       </QueryClientProvider>
     </AuthProvider>
+    </SafeAreaProvider>
   );
 }

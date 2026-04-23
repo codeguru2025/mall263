@@ -18,6 +18,11 @@ export default function AdminSettingsPage() {
 
   const [deliveryRate, setDeliveryRate] = useState('');
   const [radiusKm, setRadiusKm] = useState('');
+  const [commissionRate, setCommissionRate] = useState('');
+  const [deliveryPlatformFee, setDeliveryPlatformFee] = useState('');
+  const [agentCommission, setAgentCommission] = useState('');
+  const [boostPrices, setBoostPrices] = useState({ p7: '', p14: '', p30: '' });
+  const [stallBoostPrices, setStallBoostPrices] = useState({ p7: '', p14: '', p30: '' });
 
   useEffect(() => {
     if (!isAuthenticated) { router.push('/auth/login'); return; }
@@ -31,8 +36,22 @@ export default function AdminSettingsPage() {
   });
 
   useEffect(() => {
-    if (settings?.delivery_rate_per_km !== undefined) setDeliveryRate(settings.delivery_rate_per_km);
-    if (settings?.DELIVERY_RADIUS_KM !== undefined) setRadiusKm(settings.DELIVERY_RADIUS_KM);
+    if (!settings) return;
+    if (settings.delivery_rate_per_km !== undefined) setDeliveryRate(settings.delivery_rate_per_km);
+    if (settings.DELIVERY_RADIUS_KM !== undefined) setRadiusKm(settings.DELIVERY_RADIUS_KM);
+    if (settings.platform_commission_rate !== undefined) setCommissionRate(String(parseFloat(settings.platform_commission_rate) * 100));
+    if (settings.delivery_platform_fee_rate !== undefined) setDeliveryPlatformFee(String(parseFloat(settings.delivery_platform_fee_rate) * 100));
+    if (settings.agent_commission_rate !== undefined) setAgentCommission(String(parseFloat(settings.agent_commission_rate) * 100));
+    setBoostPrices({
+      p7: settings.product_boost_price_7 ?? '1.00',
+      p14: settings.product_boost_price_14 ?? '2.00',
+      p30: settings.product_boost_price_30 ?? '4.00',
+    });
+    setStallBoostPrices({
+      p7: settings.stall_boost_price_7 ?? '1.00',
+      p14: settings.stall_boost_price_14 ?? '2.00',
+      p30: settings.stall_boost_price_30 ?? '4.00',
+    });
   }, [settings]);
 
   const saveSetting = useMutation({
@@ -144,6 +163,171 @@ export default function AdminSettingsPage() {
                       : <><Save className="w-4 h-4" /> Save Radius</>}
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* Commission & Fee Rates */}
+            <div className="bg-white rounded-2xl border-2 border-gray-100 p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                  <Coins className="w-5 h-5 text-brand-blue" />
+                </div>
+                <div>
+                  <h2 className="font-black text-navy-700">Platform Rates</h2>
+                  <p className="text-xs text-gray-500">Commission and fee percentages applied to transactions</p>
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                {/* Platform commission */}
+                <div>
+                  <label className="label">Platform Sales Commission (%)</label>
+                  <div className="relative">
+                    <input
+                      type="number" min="0" max="50" step="0.1"
+                      className="input pr-9 font-black text-lg"
+                      placeholder="2.5"
+                      value={commissionRate}
+                      onChange={(e) => setCommissionRate(e.target.value)}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Deducted from seller wallet on each POS sale. Currently {settings?.platform_commission_rate ? `${(parseFloat(settings.platform_commission_rate) * 100).toFixed(1)}%` : '2.5%'}.</p>
+                  <button
+                    onClick={() => {
+                      const pct = parseFloat(commissionRate);
+                      if (isNaN(pct) || pct < 0 || pct > 50) { toast.error('Enter 0–50'); return; }
+                      saveSetting.mutate({ key: 'platform_commission_rate', value: (pct / 100).toFixed(4) });
+                    }}
+                    disabled={saveSetting.isPending}
+                    className="btn-primary flex items-center gap-2 mt-2 text-sm"
+                  >
+                    <Save className="w-4 h-4" /> Save Commission Rate
+                  </button>
+                </div>
+
+                {/* Delivery platform fee */}
+                <div className="pt-4 border-t border-gray-100">
+                  <label className="label">Delivery Platform Fee (%)</label>
+                  <div className="relative">
+                    <input
+                      type="number" min="0" max="20" step="0.1"
+                      className="input pr-9 font-black text-lg"
+                      placeholder="3"
+                      value={deliveryPlatformFee}
+                      onChange={(e) => setDeliveryPlatformFee(e.target.value)}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Applied to item amount on each delivery job. Currently {settings?.delivery_platform_fee_rate ? `${(parseFloat(settings.delivery_platform_fee_rate) * 100).toFixed(1)}%` : '3%'}.</p>
+                  <button
+                    onClick={() => {
+                      const pct = parseFloat(deliveryPlatformFee);
+                      if (isNaN(pct) || pct < 0 || pct > 20) { toast.error('Enter 0–20'); return; }
+                      saveSetting.mutate({ key: 'delivery_platform_fee_rate', value: (pct / 100).toFixed(4) });
+                    }}
+                    disabled={saveSetting.isPending}
+                    className="btn-primary flex items-center gap-2 mt-2 text-sm"
+                  >
+                    <Save className="w-4 h-4" /> Save Delivery Fee Rate
+                  </button>
+                </div>
+
+                {/* Agent commission */}
+                <div className="pt-4 border-t border-gray-100">
+                  <label className="label">Agent Subscription Commission (%)</label>
+                  <div className="relative">
+                    <input
+                      type="number" min="0" max="50" step="0.1"
+                      className="input pr-9 font-black text-lg"
+                      placeholder="10"
+                      value={agentCommission}
+                      onChange={(e) => setAgentCommission(e.target.value)}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">%</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Credited to agent wallet when their merchant pays a subscription. Currently {settings?.agent_commission_rate ? `${(parseFloat(settings.agent_commission_rate) * 100).toFixed(1)}%` : '10%'}.</p>
+                  <button
+                    onClick={() => {
+                      const pct = parseFloat(agentCommission);
+                      if (isNaN(pct) || pct < 0 || pct > 50) { toast.error('Enter 0–50'); return; }
+                      saveSetting.mutate({ key: 'agent_commission_rate', value: (pct / 100).toFixed(4) });
+                    }}
+                    disabled={saveSetting.isPending}
+                    className="btn-primary flex items-center gap-2 mt-2 text-sm"
+                  >
+                    <Save className="w-4 h-4" /> Save Agent Commission
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Boost Pricing */}
+            <div className="bg-white rounded-2xl border-2 border-gray-100 p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h2 className="font-black text-navy-700">Boost Pricing</h2>
+                  <p className="text-xs text-gray-500">Fees merchants pay to feature products and stalls at the top of listings</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {(['7', '14', '30'] as const).map((days) => {
+                  const key = `p${days}` as 'p7' | 'p14' | 'p30';
+                  return (
+                    <div key={days} className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="label">{days}-day Product Boost ($)</label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            className="input pl-9 font-black"
+                            value={boostPrices[key]}
+                            onChange={(e) => setBoostPrices((prev) => ({ ...prev, [key]: e.target.value }))}
+                          />
+                        </div>
+                        <button
+                          onClick={() => {
+                            const v = parseFloat(boostPrices[key]);
+                            if (isNaN(v) || v < 0) { toast.error('Invalid price'); return; }
+                            saveSetting.mutate({ key: `product_boost_price_${days}`, value: v.toFixed(2) });
+                          }}
+                          disabled={saveSetting.isPending}
+                          className="btn-primary flex items-center gap-1.5 mt-1.5 text-xs px-3 py-1.5"
+                        >
+                          <Save className="w-3 h-3" /> Save
+                        </button>
+                      </div>
+                      <div>
+                        <label className="label">{days}-day Stall Boost ($)</label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            className="input pl-9 font-black"
+                            value={stallBoostPrices[key]}
+                            onChange={(e) => setStallBoostPrices((prev) => ({ ...prev, [key]: e.target.value }))}
+                          />
+                        </div>
+                        <button
+                          onClick={() => {
+                            const v = parseFloat(stallBoostPrices[key]);
+                            if (isNaN(v) || v < 0) { toast.error('Invalid price'); return; }
+                            saveSetting.mutate({ key: `stall_boost_price_${days}`, value: v.toFixed(2) });
+                          }}
+                          disabled={saveSetting.isPending}
+                          className="btn-primary flex items-center gap-1.5 mt-1.5 text-xs px-3 py-1.5"
+                        >
+                          <Save className="w-3 h-3" /> Save
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

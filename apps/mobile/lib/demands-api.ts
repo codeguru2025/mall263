@@ -93,8 +93,14 @@ export type OpenDemandsPage = {
   totalPages: number;
 };
 
-export async function fetchOpenDemandsPage(page: number, limit: number): Promise<OpenDemandsPage> {
-  const { data } = await api.get<OpenDemandsPage>('/api/v1/demands/open', { params: { page, limit } });
+export async function fetchOpenDemandsPage(
+  page: number,
+  limit: number,
+  opts?: { urgency?: string; sortBy?: string },
+): Promise<OpenDemandsPage> {
+  const { data } = await api.get<OpenDemandsPage>('/api/v1/demands/open', {
+    params: { page, limit, ...opts },
+  });
   return data;
 }
 

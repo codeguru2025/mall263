@@ -35,6 +35,21 @@ export class AdminController {
 
   // ── Users ─────────────────────────────────────────────────────────────────
 
+  @Post('users')
+  @ApiOperation({ summary: 'Admin: create a user account' })
+  async createUser(
+    @CurrentUser('id') actorId: string,
+    @Body() body: {
+      firstName: string;
+      lastName: string;
+      phone: string;
+      password: string;
+      role: UserRole;
+    },
+  ) {
+    return this.adminService.createUser(actorId, body);
+  }
+
   @Get('users')
   @ApiOperation({ summary: 'List all users' })
   async listUsers(
@@ -355,9 +370,9 @@ export class AdsPublicController {
 
   @Get('active')
   @Public()
-  @ApiOperation({ summary: 'Get active ads for the current user role' })
-  async getActiveAds(@Query('role') role?: string) {
-    return this.adminService.listActiveAds(role);
+  @ApiOperation({ summary: 'Get active ads for the current user role and placement' })
+  async getActiveAds(@Query('role') role?: string, @Query('placement') placement?: string) {
+    return this.adminService.listActiveAds(role, placement);
   }
 
   @Post(':id/impression')

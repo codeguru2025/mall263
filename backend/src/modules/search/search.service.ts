@@ -3,7 +3,33 @@ import { ConfigService } from '@nestjs/config';
 import { resolveStoreLogo } from '../../common/utils/store-branding';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MeiliSearch, Index } from 'meilisearch';
-import { ProductStatus } from '@prisma/client';
+import { ProductStatus, Prisma } from '@prisma/client';
+
+interface SearchParams {
+  categoryId?: string;
+  mallId?: string;
+  city?: string;
+  page?: number;
+  limit?: number;
+  minPrice?: number;
+  maxPrice?: number;
+  sortBy?: string;
+  inStock?: boolean;
+  nearLat?: number;
+  nearLng?: number;
+  radiusKm?: number;
+}
+
+/** Haversine great-circle distance in km. */
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 interface ProductSearchDoc {
   id: string;
@@ -23,6 +49,9 @@ interface ProductSearchDoc {
   mallName: string;
   city: string;
   inStock: boolean;
+  /** Mirrors `StallShopSettings.showOnMarketplace`. Stalls without a settings
+   *  row are treated as opted-in (value = true). */
+  showOnMarketplace: boolean;
   trustScore: number;
   viewCount: number;
   createdAt: number;
@@ -58,7 +87,7 @@ export class SearchService implements OnModuleInit {
   private async configureIndex() {
     await this.productsIndex.updateSettings({
       searchableAttributes: ['name', 'description', 'brand', 'category', 'tags', 'colors', 'sizes'],
-      filterableAttributes: ['categoryId', 'mallId', 'stallId', 'city', 'inStock', 'minPrice', 'maxPrice', 'trustScore'],
+      filterableAttributes: ['categoryId', 'mallId', 'stallId', 'city', 'inStock', 'showOnMarketplace', 'minPrice', 'maxPrice', 'trustScore'],
       sortableAttributes: ['minPrice', 'maxPrice', 'trustScore', 'viewCount', 'createdAt'],
       rankingRules: ['words', 'typo', 'proximity', 'attribute', 'sort', 'exactness'],
       typoTolerance: { enabled: true, minWordSizeForTypos: { oneTypo: 3, twoTypos: 6 } },
@@ -82,21 +111,55 @@ export class SearchService implements OnModuleInit {
     sortBy?: string;
     page?: number;
     limit?: number;
+    nearLat?: number;
+    nearLng?: number;
+    radiusKm?: number;
   }) {
-    const { categoryId, mallId, city, sortBy } = params;
+    const { categoryId, city, sortBy } = params;
     const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
     const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
     const minPrice = Number.isFinite(params.minPrice) ? params.minPrice : undefined;
     const maxPrice = Number.isFinite(params.maxPrice) ? params.maxPrice : undefined;
     const inStock = params.inStock;
 
+    // ── Geo filter: resolve nearby mall IDs before querying Meilisearch ─────
+    let effectiveMallId = params.mallId;
+    let nearbyMallIds: string[] | undefined;
+    if (Number.isFinite(params.nearLat) && Number.isFinite(params.nearLng)) {
+      const radius = Number.isFinite(params.radiusKm) ? params.radiusKm! : 10;
+      const allMalls = await this.prisma.mall.findMany({
+        where: { latitude: { not: null }, longitude: { not: null } },
+        select: { id: true, latitude: true, longitude: true },
+      });
+      nearbyMallIds = allMalls
+        .filter((m) => haversineKm(params.nearLat!, params.nearLng!, m.latitude!, m.longitude!) <= radius)
+        .map((m) => m.id);
+      if (nearbyMallIds.length === 0) {
+        return { data: [], total: 0, page, limit, totalPages: 0, query };
+      }
+      // If a specific mall was already chosen, keep it only if it's nearby
+      if (effectiveMallId && !nearbyMallIds.includes(effectiveMallId)) {
+        return { data: [], total: 0, page, limit, totalPages: 0, query };
+      } else if (!effectiveMallId) {
+        effectiveMallId = undefined; // will use nearbyMallIds filter below
+      }
+    }
+
     try {
       if (!this.productsIndex) throw new Error('Meilisearch index not initialised');
 
       // Build filter array
       const filters: string[] = [];
+      // Marketplace visibility: only surface stalls that opted in. Documents
+      // indexed before this field was added will not match `= true` — that's
+      // a safe default (hidden) until a reindex runs.
+      filters.push('showOnMarketplace = true');
       if (categoryId) filters.push(`categoryId = "${categoryId}"`);
-      if (mallId) filters.push(`mallId = "${mallId}"`);
+      if (nearbyMallIds && !effectiveMallId) {
+        filters.push(`mallId IN [${nearbyMallIds.map((id) => `"${id}"`).join(', ')}]`);
+      } else if (effectiveMallId) {
+        filters.push(`mallId = "${effectiveMallId}"`);
+      }
       if (city) filters.push(`city = "${city}"`);
       if (minPrice !== undefined) filters.push(`maxPrice >= ${minPrice}`);
       if (maxPrice !== undefined) filters.push(`minPrice <= ${maxPrice}`);
@@ -146,6 +209,7 @@ export class SearchService implements OnModuleInit {
         stall: {
           include: {
             mall: { include: { city: true } },
+            shopSettings: { select: { showOnMarketplace: true } },
             merchant: { include: { user: { include: { trustScore: true } } } },
           },
         },
@@ -153,6 +217,9 @@ export class SearchService implements OnModuleInit {
     });
 
     if (!product) return;
+
+    // Default to visible when no shopSettings row exists (matches DB fallback)
+    const showOnMarketplace = product.stall.shopSettings?.showOnMarketplace ?? true;
 
     const doc: ProductSearchDoc = {
       id: product.id,
@@ -172,6 +239,7 @@ export class SearchService implements OnModuleInit {
       mallName: product.stall.mall?.name || '',
       city: product.stall.mall?.city?.name || '',
       inStock: product.variants.some(v => v.inventory && v.inventory.quantity > 0),
+      showOnMarketplace,
       trustScore: parseFloat(product.stall.merchant.user.trustScore?.overallScore?.toString() || '50'),
       viewCount: product.viewCount,
       createdAt: product.createdAt.getTime(),
@@ -196,6 +264,22 @@ export class SearchService implements OnModuleInit {
       await this.indexProduct(product.id);
     }
 
+    return { indexed: products.length };
+  }
+
+  /**
+   * Re-index every active product belonging to a stall. Called when the stall's
+   * marketplace visibility (or any other stall-level field indexed on product
+   * documents) changes so the Meilisearch index stays consistent with Postgres.
+   */
+  async reindexStall(stallId: string): Promise<{ indexed: number }> {
+    const products = await this.prisma.product.findMany({
+      where: { stallId, status: ProductStatus.ACTIVE },
+      select: { id: true },
+    });
+    for (const product of products) {
+      await this.indexProduct(product.id);
+    }
     return { indexed: products.length };
   }
 
@@ -227,14 +311,32 @@ export class SearchService implements OnModuleInit {
     }
   }
 
-  private async dbFallbackSearch(query: string, params: any) {
-    const { categoryId, mallId, city } = params;
-    const page = Number.isFinite(params.page) ? Math.max(1, params.page) : 1;
-    const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit) : 20;
+  private async dbFallbackSearch(query: string, params: SearchParams) {
+    const { categoryId, city } = params;
+    const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
+    const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
     const minPrice = Number.isFinite(params.minPrice) ? params.minPrice : undefined;
     const maxPrice = Number.isFinite(params.maxPrice) ? params.maxPrice : undefined;
 
-    const where: any = { status: ProductStatus.ACTIVE };
+    // Resolve effective mall IDs (explicit mallId or derived from geo filter)
+    let effectiveMallIds: string[] | undefined;
+    if (Number.isFinite(params.nearLat) && Number.isFinite(params.nearLng)) {
+      const radius = Number.isFinite(params.radiusKm) ? params.radiusKm! : 10;
+      const allMalls = await this.prisma.mall.findMany({
+        where: { latitude: { not: null }, longitude: { not: null } },
+        select: { id: true, latitude: true, longitude: true },
+      });
+      effectiveMallIds = allMalls
+        .filter((m) => haversineKm(params.nearLat!, params.nearLng!, m.latitude!, m.longitude!) <= radius)
+        .map((m) => m.id);
+      if (effectiveMallIds.length === 0) {
+        return { data: [], total: 0, page, limit, totalPages: 0, query };
+      }
+    } else if (params.mallId) {
+      effectiveMallIds = [params.mallId];
+    }
+
+    const where: Prisma.ProductWhereInput = { status: ProductStatus.ACTIVE };
 
     // Only add OR text search when there's actually a query
     if (query.trim()) {
@@ -247,24 +349,25 @@ export class SearchService implements OnModuleInit {
     }
 
     if (categoryId) where.categoryId = categoryId;
+
     // Marketplace search: respect the merchant's showOnMarketplace toggle.
-    where.stall = {
+    const stallFilter: Prisma.StallWhereInput = {
       OR: [
         { shopSettings: null },
         { shopSettings: { showOnMarketplace: true } },
       ],
     };
-    if (mallId || city) {
-      if (mallId) where.stall.mallId = mallId;
-      if (city && typeof city === 'string' && city.trim()) {
-        where.stall.mall = { city: { name: { equals: city.trim(), mode: 'insensitive' } } };
-      }
+    if (effectiveMallIds) stallFilter.mallId = { in: effectiveMallIds };
+    if (city && typeof city === 'string' && city.trim()) {
+      stallFilter.mall = { city: { name: { equals: city.trim(), mode: 'insensitive' } } };
     }
+    where.stall = stallFilter;
+
     if (minPrice !== undefined) where.minPrice = { gte: minPrice };
     if (maxPrice !== undefined) where.maxPrice = { lte: maxPrice };
 
-    const sortBy = params.sortBy as string | undefined;
-    let orderBy: any = { createdAt: 'desc' };
+    const sortBy = params.sortBy;
+    let orderBy: Prisma.ProductOrderByWithRelationInput = { createdAt: 'desc' };
     if (sortBy === 'price_asc') orderBy = { minPrice: 'asc' };
     else if (sortBy === 'price_desc') orderBy = { maxPrice: 'desc' };
     else if (sortBy === 'popular') orderBy = { viewCount: 'desc' };

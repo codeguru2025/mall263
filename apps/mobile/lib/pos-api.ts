@@ -53,16 +53,21 @@ export type ProcessSaleResult = {
   commission: number;
 };
 
-export async function processSale(body: {
-  stallId: string;
-  items: Array<{ variantId: string; quantity: number; discount?: number }>;
-  paymentMethod: PaymentMethod;
-  discountAmount?: number;
-  customerPhone?: string;
-  notes?: string;
-  deliveryAddress?: string;
-}): Promise<ProcessSaleResult> {
-  const { data } = await api.post<ProcessSaleResult>('/api/v1/pos/sales', body);
+export async function processSale(
+  body: {
+    stallId: string;
+    items: Array<{ variantId: string; quantity: number; discount?: number }>;
+    paymentMethod: PaymentMethod;
+    discountAmount?: number;
+    customerPhone?: string;
+    notes?: string;
+    deliveryAddress?: string;
+  },
+  idempotencyKey?: string,
+): Promise<ProcessSaleResult> {
+  const { data } = await api.post<ProcessSaleResult>('/api/v1/pos/sales', body, {
+    headers: idempotencyKey ? { 'X-Idempotency-Key': idempotencyKey } : undefined,
+  });
   return data;
 }
 

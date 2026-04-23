@@ -7,8 +7,21 @@ export class TrustService {
   constructor(private prisma: PrismaService) {}
 
   async getScore(userId: string) {
-    const score = await this.prisma.trustScore.findUnique({ where: { userId } });
-    if (!score) throw new NotFoundException('Trust score not found');
+    let score = await this.prisma.trustScore.findUnique({ where: { userId } });
+    if (!score) {
+      // Auto-initialise with default score of 50 so the UI always has data
+      score = await this.prisma.trustScore.create({
+        data: {
+          userId,
+          overallScore: 50,
+          fundingScore: 50,
+          completionScore: 50,
+          cancellationScore: 50,
+          responseScore: 50,
+          accuracyScore: 50,
+        },
+      });
+    }
     return score;
   }
 

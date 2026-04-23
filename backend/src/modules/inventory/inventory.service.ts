@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 
@@ -41,7 +41,32 @@ export class InventoryService {
     `;
   }
 
+  /** Asserts the given user owns or is an attendant of the stall that owns this variant. */
+  private async assertVariantAccess(variantId: string, userId: string) {
+    const variant = await this.prisma.productVariant.findUnique({
+      where: { id: variantId },
+      select: {
+        product: {
+          select: {
+            stall: {
+              select: {
+                merchant: { select: { userId: true } },
+                attendants: { where: { userId }, select: { userId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!variant) throw new NotFoundException('Variant not found');
+    const stall = variant.product.stall;
+    const isOwner = stall.merchant.userId === userId;
+    const isAttendant = stall.attendants.length > 0;
+    if (!isOwner && !isAttendant) throw new ForbiddenException('You do not have access to this inventory item');
+  }
+
   async adjustStock(variantId: string, changeQty: number, reason: string, performedBy: string) {
+    await this.assertVariantAccess(variantId, performedBy);
     return this.prisma.$retryTransaction(
       async (tx) => {
         const inventory = await tx.inventory.findUnique({ where: { variantId } });
@@ -81,12 +106,33 @@ export class InventoryService {
    * ALL adjustments are rolled back — preventing partial inventory states.
    */
   async bulkAdjust(adjustments: Array<{ variantId: string; quantity: number }>, performedBy: string) {
+    // Aggregate per variantId so duplicate entries (same variant twice) don't
+    // produce wrong previousQty/newQty in the inventory log.
+    const aggregated = new Map<string, number>();
+    for (const a of adjustments) {
+      if (!a.variantId) throw new BadRequestException('Adjustment missing variantId');
+      aggregated.set(a.variantId, (aggregated.get(a.variantId) ?? 0) + a.quantity);
+    }
+    const dedupedAdjustments = Array.from(aggregated.entries()).map(([variantId, quantity]) => ({
+      variantId,
+      quantity,
+    }));
+
+    // Verify caller owns all variants before starting the transaction
+    await Promise.all(dedupedAdjustments.map((a) => this.assertVariantAccess(a.variantId, performedBy)));
     return this.prisma.$retryTransaction(
       async (tx) => {
+        // Batch-fetch all inventory rows in ONE query (no N+1)
+        const bulkVariantIds = dedupedAdjustments.map((a) => a.variantId);
+        const inventoryRows = await tx.inventory.findMany({
+          where: { variantId: { in: bulkVariantIds } },
+        });
+        const inventoryByVariant = new Map(inventoryRows.map((inv) => [inv.variantId, inv]));
+
         const results: Array<{ variantId: string; previousQty: number; newQty: number; changeQty: number }> = [];
 
-        for (const adj of adjustments) {
-          const inventory = await tx.inventory.findUnique({ where: { variantId: adj.variantId } });
+        for (const adj of dedupedAdjustments) {
+          const inventory = inventoryByVariant.get(adj.variantId);
           if (!inventory) {
             throw new NotFoundException(`Inventory not found for variant ${adj.variantId}`);
           }

@@ -13,12 +13,9 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiConsumes, ApiBody, ApiParam } from '@nestjs/swagger';
 import { UploadService, UploadResult } from './upload.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { Public } from '../../common/decorators/public.decorator';
-import { SkipThrottle } from '@nestjs/throttler';
 
 @ApiTags('Upload')
 @ApiBearerAuth()
-@SkipThrottle()
 @UseGuards(JwtAuthGuard)
 @Controller('upload')
 export class UploadController {
@@ -34,7 +31,6 @@ export class UploadController {
   }
 
   @Post('avatar')
-  @Public()
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 3 * 1024 * 1024 } }))
   async uploadAvatar(@UploadedFile() file: Express.Multer.File): Promise<UploadResult> {

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Injectable,
   NotFoundException,
   BadRequestException,
@@ -43,10 +43,11 @@ const FLAGS = {
   DRIVER_FLOAT: 'ENABLE_DRIVER_FLOAT_SYSTEM',
 };
 
-// Financial constants
-const PLATFORM_FEE_RATE = 0.03;   // 3% platform fee on item amount
-const RESERVE_RATE = 0.02;         // 2% split to risk reserve pool
-const FLOAT_AUTO_HOLD_RATE = 0.10; // 10% of driver earnings held as float top-up
+// Financial constants â€” DB-overridable via AppSetting keys:
+// delivery_platform_fee_rate (default 0.03), delivery_reserve_rate (default 0.02), delivery_driver_float_rate (default 0.10)
+const DEFAULT_PLATFORM_FEE_RATE = 0.03;
+const DEFAULT_RESERVE_RATE = 0.02;
+const DEFAULT_FLOAT_AUTO_HOLD_RATE = 0.10;
 const COD_TIER_LIMITS = {
   ONBOARDING: 50,
   TRUSTED: 200,
@@ -61,7 +62,7 @@ export class DeliveryService {
     private notifications: NotificationsService,
   ) {}
 
-  // ─── Feature flag helpers ─────────────────────────────────────────────────
+  // â”€â”€â”€ Feature flag helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async getFlag(key: string): Promise<boolean> {
     const setting = await this.prisma.appSetting.findUnique({ where: { key } });
@@ -73,12 +74,30 @@ export class DeliveryService {
     if (!enabled) throw new BadRequestException(`Feature ${key} is not enabled`);
   }
 
-  // ─── Job creation ─────────────────────────────────────────────────────────
+  private async getRate(key: string, fallback: number): Promise<number> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key } });
+    if (row) {
+      const n = parseFloat(row.value);
+      if (Number.isFinite(n) && n >= 0 && n <= 1) return n;
+    }
+    return fallback;
+  }
+
+  private async getFinancialRates() {
+    const [platformFeeRate, reserveRate, floatAutoHoldRate] = await Promise.all([
+      this.getRate('delivery_platform_fee_rate', DEFAULT_PLATFORM_FEE_RATE),
+      this.getRate('delivery_reserve_rate', DEFAULT_RESERVE_RATE),
+      this.getRate('delivery_driver_float_rate', DEFAULT_FLOAT_AUTO_HOLD_RATE),
+    ]);
+    return { platformFeeRate, reserveRate, floatAutoHoldRate };
+  }
+
+  // â”€â”€â”€ Job creation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async createJob(params: {
     orderId: string;
     orderType: 'OFFER' | 'POS_SALE';
-    sellerId: string;
+    /** buyerId is always the authenticated user â€” set by the controller from JWT. */
     buyerId: string;
     mode: DeliveryMode;
     pickupZone: string;
@@ -95,9 +114,36 @@ export class DeliveryService {
   }) {
     await this.requireFlag(FLAGS.DELIVERY_LAYER);
 
+    // Resolve sellerId from the order â€” never trust client-supplied values.
+    let sellerId: string;
+    if (params.orderType === 'OFFER') {
+      const offer = await this.prisma.sellerOffer.findUnique({
+        where: { id: params.orderId },
+        include: {
+          stall: { select: { merchant: { select: { userId: true } } } },
+          demand: { select: { buyerId: true } },
+        },
+      });
+      if (!offer) throw new NotFoundException('Offer not found');
+      if (offer.demand.buyerId !== params.buyerId) throw new ForbiddenException('This offer does not belong to you');
+      sellerId = offer.stall.merchant.userId;
+    } else {
+      const sale = await this.prisma.pOSSale.findUnique({
+        where: { id: params.orderId },
+        include: { stall: { select: { merchant: { select: { userId: true } } } } },
+      });
+      if (!sale) throw new NotFoundException('POS sale not found');
+      if (sale.cashierId !== params.buyerId && sale.stall.merchant.userId !== params.buyerId) {
+        throw new ForbiddenException('You are not a party to this sale');
+      }
+      sellerId = sale.stall.merchant.userId;
+    }
+
     if (params.mode === DeliveryMode.DIRECT_DEAL) {
       await this.requireFlag(FLAGS.DIRECT_DEAL);
     }
+    // Bind the resolved sellerId into params for the rest of createJob.
+    const resolvedParams = { ...params, sellerId };
     if (params.mode === DeliveryMode.SAFE_PAY) {
       await this.requireFlag(FLAGS.SAFE_PAY);
     }
@@ -105,47 +151,48 @@ export class DeliveryService {
       await this.requireFlag(FLAGS.COD);
     }
 
-    const platformFee = Number((params.itemAmount * PLATFORM_FEE_RATE).toFixed(2));
-    const reserveAmount = Number((params.itemAmount * RESERVE_RATE).toFixed(2));
-    const driverEarning = Number((params.deliveryFee * 0.85).toFixed(2)); // driver gets 85% of delivery fee
+    const { platformFeeRate, reserveRate } = await this.getFinancialRates();
+    const platformFee = Number((resolvedParams.itemAmount * platformFeeRate).toFixed(2));
+    const reserveAmount = Number((resolvedParams.itemAmount * reserveRate).toFixed(2));
+    const driverEarning = Number((resolvedParams.deliveryFee * 0.85).toFixed(2)); // driver gets 85% of delivery fee
 
-    const job = await this.prisma.$transaction(
+    const job = await this.prisma.$retryTransaction(
       async (tx) => {
       const deliveryJob = await tx.deliveryJob.create({
         data: {
-          orderId: params.orderId,
-          orderType: params.orderType,
-          sellerId: params.sellerId,
-          buyerId: params.buyerId,
-          mode: params.mode,
-          status: params.mode === DeliveryMode.DIRECT_DEAL
+          orderId: resolvedParams.orderId,
+          orderType: resolvedParams.orderType,
+          sellerId: resolvedParams.sellerId,
+          buyerId: resolvedParams.buyerId,
+          mode: resolvedParams.mode,
+          status: resolvedParams.mode === DeliveryMode.DIRECT_DEAL
             ? DeliveryJobStatus.COMPLETED  // Direct deal needs no driver
             : DeliveryJobStatus.BROADCAST,
-          pickupZone: params.pickupZone,
-          dropZone: params.dropZone,
-          pickupAddress: params.pickupAddress,
-          dropAddress: params.dropAddress,
-          pickupLat: params.pickupLat ? new Prisma.Decimal(params.pickupLat) : null,
-          pickupLng: params.pickupLng ? new Prisma.Decimal(params.pickupLng) : null,
-          dropLat: params.dropLat ? new Prisma.Decimal(params.dropLat) : null,
-          dropLng: params.dropLng ? new Prisma.Decimal(params.dropLng) : null,
-          distanceKm: params.distanceKm ? new Prisma.Decimal(params.distanceKm) : null,
-          itemAmount: new Prisma.Decimal(params.itemAmount),
-          deliveryFee: new Prisma.Decimal(params.deliveryFee),
+          pickupZone: resolvedParams.pickupZone,
+          dropZone: resolvedParams.dropZone,
+          pickupAddress: resolvedParams.pickupAddress,
+          dropAddress: resolvedParams.dropAddress,
+          pickupLat: resolvedParams.pickupLat ? new Prisma.Decimal(resolvedParams.pickupLat) : null,
+          pickupLng: resolvedParams.pickupLng ? new Prisma.Decimal(resolvedParams.pickupLng) : null,
+          dropLat: resolvedParams.dropLat ? new Prisma.Decimal(resolvedParams.dropLat) : null,
+          dropLng: resolvedParams.dropLng ? new Prisma.Decimal(resolvedParams.dropLng) : null,
+          distanceKm: resolvedParams.distanceKm ? new Prisma.Decimal(resolvedParams.distanceKm) : null,
+          itemAmount: new Prisma.Decimal(resolvedParams.itemAmount),
+          deliveryFee: new Prisma.Decimal(resolvedParams.deliveryFee),
           platformFee: new Prisma.Decimal(platformFee),
           reserveAmount: new Prisma.Decimal(reserveAmount),
           driverEarning: new Prisma.Decimal(driverEarning),
-          broadcastedAt: params.mode !== DeliveryMode.DIRECT_DEAL ? new Date() : null,
+          broadcastedAt: resolvedParams.mode !== DeliveryMode.DIRECT_DEAL ? new Date() : null,
         },
       });
 
       // Lock buyer funds in escrow for SafePay
-      if (params.mode === DeliveryMode.SAFE_PAY) {
-        const totalHeld = params.itemAmount + params.deliveryFee + platformFee;
+      if (resolvedParams.mode === DeliveryMode.SAFE_PAY) {
+        const totalHeld = resolvedParams.itemAmount + resolvedParams.deliveryFee + platformFee;
         await tx.escrowAccount.create({
           data: {
             jobId: deliveryJob.id,
-            buyerId: params.buyerId,
+            buyerId: resolvedParams.buyerId,
             totalHeld: new Prisma.Decimal(totalHeld),
             itemAmount: new Prisma.Decimal(params.itemAmount),
             deliveryFee: new Prisma.Decimal(params.deliveryFee),
@@ -156,7 +203,7 @@ export class DeliveryService {
         });
 
         // Debit buyer wallet
-        await this.wallet.debitForEscrow(params.buyerId, totalHeld, deliveryJob.id, tx);
+        await this.wallet.debitForEscrow(resolvedParams.buyerId, totalHeld, deliveryJob.id, tx);
       }
 
       return deliveryJob;
@@ -166,13 +213,39 @@ export class DeliveryService {
 
     // Notify nearby drivers (broadcast)
     if (job.status === DeliveryJobStatus.BROADCAST) {
-      await this.broadcastToDrivers(job.id, params.pickupZone, params.pickupLat, params.pickupLng);
+      await this.broadcastToDrivers(job.id, resolvedParams.pickupZone, resolvedParams.pickupLat, resolvedParams.pickupLng);
     }
 
     return job;
   }
 
-  // ─── Broadcast ────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Admin list all jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  async listAllJobs(params: { status?: string; limit?: number; page?: number }) {
+    const limit = Math.min(params.limit ?? 50, 200);
+    const page = Math.max(params.page ?? 1, 1);
+    const where: any = {};
+    if (params.status) where.status = params.status;
+
+    const [data, total] = await Promise.all([
+      this.prisma.deliveryJob.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          seller: { select: { firstName: true, lastName: true, phone: true } },
+          buyer: { select: { firstName: true, lastName: true, phone: true } },
+          driver: { include: { user: { select: { firstName: true, lastName: true } } } },
+          escrow: { select: { status: true, totalHeld: true } },
+        },
+      }),
+      this.prisma.deliveryJob.count({ where }),
+    ]);
+    return { data, total, page, limit };
+  }
+
+  // â”€â”€â”€ Broadcast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async getRadiusKm(): Promise<number> {
     const s = await this.prisma.appSetting.findUnique({ where: { key: 'DELIVERY_RADIUS_KM' } });
@@ -219,7 +292,7 @@ export class DeliveryService {
     );
   }
 
-  // ─── Get broadcast jobs (driver view — zones only, radius-filtered) ─────────
+  // â”€â”€â”€ Get broadcast jobs (driver view â€” zones only, radius-filtered) â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getBroadcastJobs(driverId: string) {
     await this.requireFlag(FLAGS.DELIVERY_LAYER);
@@ -265,18 +338,18 @@ export class DeliveryService {
           hasDriverGps && j.pickupLat != null && j.pickupLng != null
             ? Number(haversineKm(driverLat!, driverLng!, Number(j.pickupLat), Number(j.pickupLng)).toFixed(2))
             : null;
-        // Strip GPS coords — drivers don't need them before accepting
+        // Strip GPS coords â€” drivers don't need them before accepting
         const { pickupLat, pickupLng, ...safe } = j;
         return { ...safe, distFromDriverKm: distFromDriver, radiusKm };
       });
   }
 
-  // ─── Accept job ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ Accept job â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async acceptJob(jobId: string, driverId: string) {
     await this.requireFlag(FLAGS.DELIVERY_LAYER);
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$retryTransaction(async (tx) => {
       // Re-fetch driver inside tx so COD exposure check reflects latest state
       const driver = await tx.driver.findUnique({ where: { id: driverId } });
       if (!driver?.isActive || !driver.kycVerified) {
@@ -342,7 +415,7 @@ export class DeliveryService {
     );
   }
 
-  // ─── Submit pickup proof ──────────────────────────────────────────────────
+  // â”€â”€â”€ Submit pickup proof â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async confirmPickup(
     jobId: string,
@@ -351,7 +424,7 @@ export class DeliveryService {
   ) {
     await this.requireFlag(FLAGS.DELIVERY_LAYER);
 
-    return this.prisma.$transaction(
+    return this.prisma.$retryTransaction(
       async (tx) => {
       const job = await tx.deliveryJob.findUnique({ where: { id: jobId } });
       if (!job || job.driverId !== driverId) throw new ForbiddenException();
@@ -384,7 +457,7 @@ export class DeliveryService {
     );
   }
 
-  // ─── Submit delivery proof ────────────────────────────────────────────────
+  // â”€â”€â”€ Submit delivery proof â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async confirmDelivery(
     jobId: string,
@@ -393,7 +466,7 @@ export class DeliveryService {
   ) {
     await this.requireFlag(FLAGS.DELIVERY_LAYER);
 
-    return this.prisma.$transaction(
+    return this.prisma.$retryTransaction(
       async (tx) => {
         const job = await tx.deliveryJob.findUnique({
           where: { id: jobId },
@@ -438,12 +511,12 @@ export class DeliveryService {
     );
   }
 
-  // ─── Buyer confirms receipt ───────────────────────────────────────────────
+  // â”€â”€â”€ Buyer confirms receipt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async buyerConfirm(jobId: string, buyerId: string) {
     await this.requireFlag(FLAGS.DELIVERY_LAYER);
 
-    return this.prisma.$transaction(
+    return this.prisma.$retryTransaction(
       async (tx) => {
         const job = await tx.deliveryJob.findUnique({
           where: { id: jobId },
@@ -478,12 +551,12 @@ export class DeliveryService {
     );
   }
 
-  // ─── Cancel job ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ Cancel job â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async cancelJob(jobId: string, userId: string, reason: string) {
     await this.requireFlag(FLAGS.DELIVERY_LAYER);
 
-    return this.prisma.$transaction(
+    return this.prisma.$retryTransaction(
       async (tx) => {
         const job = await tx.deliveryJob.findUnique({
           where: { id: jobId },
@@ -525,7 +598,7 @@ export class DeliveryService {
     );
   }
 
-  // ─── Get job details ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Get job details â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getJob(jobId: string, userId: string) {
     const job = await this.prisma.deliveryJob.findUnique({
@@ -553,7 +626,7 @@ export class DeliveryService {
     return job;
   }
 
-  // ─── My jobs ──────────────────────────────────────────────────────────────
+  // â”€â”€â”€ My jobs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   async getMyJobs(userId: string, role: 'buyer' | 'seller' | 'driver') {
     await this.requireFlag(FLAGS.DELIVERY_LAYER);
@@ -584,7 +657,7 @@ export class DeliveryService {
     });
   }
 
-  // ─── Escrow release ───────────────────────────────────────────────────────
+  // â”€â”€â”€ Escrow release â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async releaseEscrow(jobId: string, tx: Prisma.TransactionClient) {
     const job = await tx.deliveryJob.findUnique({
@@ -625,7 +698,7 @@ export class DeliveryService {
     }
   }
 
-  // ─── Driver earning credit ────────────────────────────────────────────────
+  // â”€â”€â”€ Driver earning credit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   private async creditDriverEarning(job: any, tx: Prisma.TransactionClient) {
     if (!job.driverId) return;
@@ -642,10 +715,11 @@ export class DeliveryService {
       data: { totalEarnings: { increment: job.driverEarning } },
     });
 
-    // Auto-hold float (10% of earning)
+    // Auto-hold float from DB-configured rate
     const useFloat = await this.getFlag(FLAGS.DRIVER_FLOAT);
     if (useFloat) {
-      const holdAmt = Number((Number(job.driverEarning) * FLOAT_AUTO_HOLD_RATE).toFixed(2));
+      const floatRate = await this.getRate('delivery_driver_float_rate', DEFAULT_FLOAT_AUTO_HOLD_RATE);
+      const holdAmt = Number((Number(job.driverEarning) * floatRate).toFixed(2));
       await tx.driver.update({
         where: { id: job.driverId },
         data: { floatBalance: { increment: holdAmt } },

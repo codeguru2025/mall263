@@ -158,7 +158,7 @@ export class DiscountsService {
       where: { id },
       include: {
         stall: {
-          include: { merchant: true }
+          include: { merchant: { select: { userId: true } } }
         }
       }
     });
@@ -167,7 +167,7 @@ export class DiscountsService {
       throw new NotFoundException(`Discount with ID "${id}" not found`);
     }
 
-    if (discount.stall.merchantId !== userId) {
+    if (discount.stall.merchant.userId !== userId) {
       throw new ForbiddenException('You do not have permission to update this discount');
     }
 
@@ -216,7 +216,7 @@ export class DiscountsService {
       where: { id },
       include: {
         stall: {
-          include: { merchant: true }
+          include: { merchant: { select: { userId: true } } }
         }
       }
     });
@@ -225,7 +225,7 @@ export class DiscountsService {
       throw new NotFoundException(`Discount with ID "${id}" not found`);
     }
 
-    if (discount.stall.merchantId !== userId) {
+    if (discount.stall.merchant.userId !== userId) {
       throw new ForbiddenException('You do not have permission to delete this discount');
     }
 

@@ -1,6 +1,16 @@
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Path, Circle } from 'react-native-svg';
+import SvgBase, { Path as PathBase, Circle as CircleBase } from 'react-native-svg';
 import { ZimColors } from '@/constants/brand';
+
+// react-native-svg 15 class components are incompatible with modern @types/react
+// JSX constructor signatures. Cast to `any` — runtime behavior is identical.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const Svg = SvgBase as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const Path = PathBase as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const Circle = CircleBase as any;
 
 /** Shopping-bag mark with exact Zimbabwe flag stripe colours. */
 function BagMark({ size }: { size: number }) {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -20,7 +20,12 @@ import { Brand } from '@/constants/brand';
 import { fetchProductsByStall, type ProductVariant } from '@/lib/seller-api';
 import { processSale, type PaymentMethod } from '@/lib/pos-api';
 import { fetchPaymentConfig, initiateMerchantPayment } from '@/lib/merchant-pay-api';
+import { fetchSubscriptionStatus } from '@/lib/subscriptions-api';
 import { formatMoney } from '@/lib/products';
+
+function generateIdempotencyKey(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 type CartLine = {
   variantId: string;
@@ -53,6 +58,14 @@ export default function POSCartScreen() {
   const [isDelivery, setIsDelivery] = useState(false);
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [processing, setProcessing] = useState(false);
+  const idempotencyKeyRef = useRef<string>(generateIdempotencyKey());
+
+  const subStatusQ = useQuery({
+    queryKey: ['subscription-status'],
+    queryFn: fetchSubscriptionStatus,
+    staleTime: 60_000,
+    retry: false,
+  });
 
   const productsQ = useQuery({
     queryKey: ['stall-products', stallId],
@@ -109,16 +122,30 @@ export default function POSCartScreen() {
   const handleProcess = async () => {
     if (cart.length === 0) { Alert.alert('Empty cart', 'Add at least one item.'); return; }
     if (!stallId) return;
+    const sub = subStatusQ.data;
+    if (sub && !sub.isActive && sub.status !== 'TRIAL') {
+      Alert.alert(
+        'Subscription required',
+        'Your subscription has expired. Please renew to process sales.',
+        [{ text: 'OK' }],
+      );
+      return;
+    }
     setProcessing(true);
+    const key = idempotencyKeyRef.current;
     try {
-      const result = await processSale({
-        stallId,
-        items: cart.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
-        paymentMethod,
-        discountAmount: discountAmt || undefined,
-        customerPhone: customerPhone.trim() || undefined,
-        deliveryAddress: isDelivery && deliveryAddress.trim() ? deliveryAddress.trim() : undefined,
-      });
+      const result = await processSale(
+        {
+          stallId,
+          items: cart.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
+          paymentMethod,
+          discountAmount: discountAmt || undefined,
+          customerPhone: customerPhone.trim() || undefined,
+          deliveryAddress: isDelivery && deliveryAddress.trim() ? deliveryAddress.trim() : undefined,
+        },
+        key,
+      );
+      idempotencyKeyRef.current = generateIdempotencyKey();
       setCart([]);
       setDiscount('');
       setCustomerPhone('');
@@ -171,6 +198,9 @@ export default function POSCartScreen() {
     );
   }
 
+  const subData = subStatusQ.data;
+  const subExpired = subData && !subData.isActive && subData.status !== 'TRIAL';
+
   // ── Product browser ─────────────────────────────────────────────────────────
 
   const renderProduct = ({ item }: { item: typeof products[0] }) => {
@@ -210,6 +240,12 @@ export default function POSCartScreen() {
   if (view === 'products') {
     return (
       <View style={styles.flex}>
+        {subExpired && (
+          <View style={styles.subBanner}>
+            <FontAwesome name="exclamation-triangle" size={14} color="#fff" />
+            <Text style={styles.subBannerText}>Subscription expired — renew to process sales</Text>
+          </View>
+        )}
         {/* Search bar */}
         <View style={styles.searchBar}>
           <TextInput
@@ -498,4 +534,14 @@ const styles = StyleSheet.create({
   btnDisabled: { opacity: 0.5 },
 
   empty: { textAlign: 'center', color: Brand.muted, marginTop: 24, fontSize: 14 },
+
+  subBanner: {
+    backgroundColor: Brand.orange,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  subBannerText: { color: '#fff', fontWeight: '700', fontSize: 13, flex: 1 },
 });
