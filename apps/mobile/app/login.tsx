@@ -34,7 +34,7 @@ export default function LoginScreen() {
       const me = await login(phone, password);
       const next = isStaffAdminRole(me.role)
         ? (getStaffHomePath(me.role) ?? '/admin')
-        : '/(tabs)';
+        : '/(tabs)/shop';
       router.replace(next as never);
     } catch (err: unknown) {
       let msg: string | undefined;

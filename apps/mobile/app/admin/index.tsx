@@ -25,7 +25,7 @@ const cardShadow =
 type StatTile = { label: string; value: string | number; color: string };
 
 export default function AdminDashboard() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -81,6 +81,7 @@ export default function AdminDashboard() {
     { label: 'Categories', icon: '🏷️', route: '/admin/categories' as const },
     { label: 'Disputes', icon: '⚖️', route: '/admin/disputes' as const },
     { label: 'Support', icon: '💬', route: '/admin/support' as const },
+    { label: 'Cities', icon: '🗺️', route: '/admin/cities' as const },
     { label: 'Settings', icon: '⚙️', route: '/admin/settings' as const },
   ];
 
@@ -117,6 +118,10 @@ export default function AdminDashboard() {
           <Text style={styles.navArrow}>›</Text>
         </Pressable>
       ))}
+
+      <Pressable style={styles.signOutBtn} onPress={() => logout()}>
+        <Text style={styles.signOutText}>Sign out</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -144,4 +149,14 @@ const styles = StyleSheet.create({
   navIcon: { fontSize: 22 },
   navLabel: { flex: 1, fontSize: 16, fontWeight: '800', color: Brand.navy },
   navArrow: { fontSize: 22, color: Brand.muted, fontWeight: '300' },
+  signOutBtn: {
+    marginTop: 8,
+    borderWidth: 2,
+    borderColor: Brand.border,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    backgroundColor: Brand.card,
+  },
+  signOutText: { fontSize: 15, fontWeight: '700', color: Brand.navy },
 });

@@ -1,6 +1,7 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Brand } from '@/constants/brand';
+import { StatusBar } from 'expo-status-bar';
 import * as Sentry from '@sentry/react-native';
 import Constants from 'expo-constants';
 import { useFonts } from 'expo-font';
@@ -91,6 +92,7 @@ function RootLayoutNav() {
 
   return (
     <SafeAreaProvider>
+    <StatusBar style="auto" />
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -113,6 +115,7 @@ function RootLayoutNav() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="product/[id]" options={{ title: 'Product' }} />
             <Stack.Screen name="store/[stallId]" options={{ title: 'Store' }} />
+            <Stack.Screen name="virtual-walk/[stallId]" options={{ title: 'Virtual Walk', headerStyle: { backgroundColor: '#0a0a0a' } as any, headerTintColor: '#fff', headerTitleStyle: { color: '#fff', fontWeight: '800' } }} />
             <Stack.Screen name="demand/[id]" options={{ title: 'Demand' }} />
             <Stack.Screen name="demand/new" options={{ title: 'Post demand' }} />
             <Stack.Screen name="demand/open" options={{ title: 'Open demands' }} />
@@ -156,6 +159,9 @@ function RootLayoutNav() {
             <Stack.Screen name="agent/quality-review" options={{ title: 'Quality review' }} />
             <Stack.Screen name="seller/attendants" options={{ title: 'Stall attendants' }} />
             <Stack.Screen name="seller/qr" options={{ title: 'Shop QR Code' }} />
+            <Stack.Screen name="seller/virtual-walk" options={{ title: 'Virtual Walk' }} />
+            <Stack.Screen name="seller/discounts" options={{ title: 'Discount Codes' }} />
+            <Stack.Screen name="seller/inventory" options={{ title: 'Inventory' }} />
             <Stack.Screen name="admin/index" options={{ title: 'Admin' }} />
             <Stack.Screen name="admin/reports" options={{ title: 'Platform reports' }} />
             <Stack.Screen name="admin/users" options={{ title: 'Users' }} />
@@ -172,6 +178,7 @@ function RootLayoutNav() {
             <Stack.Screen name="admin/disputes" options={{ title: 'Disputes' }} />
             <Stack.Screen name="admin/support" options={{ title: 'Help Requests' }} />
             <Stack.Screen name="admin/settings" options={{ title: 'App Settings' }} />
+            <Stack.Screen name="admin/cities" options={{ title: 'Cities' }} />
             <Stack.Screen name="delivery/track/[jobId]" options={{ title: 'Track Delivery' }} />
             <Stack.Screen name="delivery/checkout" options={{ title: 'Arrange Delivery' }} />
             <Stack.Screen name="driver/register" options={{ title: 'Become a driver' }} />

@@ -38,7 +38,11 @@
     padding-bottom: calc(env(safe-area-inset-bottom) + 5rem);
   }
 
-  header.sticky {
+  /* Any top-anchored header or nav gets status-bar / notch clearance */
+  header.sticky,
+  header.fixed,
+  nav.sticky,
+  nav.fixed {
     padding-top: env(safe-area-inset-top);
   }
 

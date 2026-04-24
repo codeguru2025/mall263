@@ -19,7 +19,7 @@ import { getApiBaseUrl } from '@/lib/config';
 import { Brand } from '@/constants/brand';
 import { Logo } from '@/components/Logo';
 
-type RoleChoice = 'BUYER' | 'STALL_OWNER' | 'DELIVERY_DRIVER';
+type RoleChoice = 'BUYER' | 'STALL_OWNER' | 'DELIVERY_DRIVER' | 'FIELD_AGENT';
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -68,8 +68,10 @@ export default function RegisterScreen() {
         router.replace('/seller/setup');
       } else if (role === 'DELIVERY_DRIVER') {
         router.replace('/driver/register');
+      } else if (role === 'FIELD_AGENT') {
+        router.replace('/agent');
       } else {
-        router.replace('/(tabs)');
+        router.replace('/(tabs)/shop');
       }
     } catch (err: unknown) {
       let msg: string | undefined;
@@ -100,20 +102,20 @@ export default function RegisterScreen() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>I am joining as</Text>
-          <View style={styles.roleRow}>
+          <View style={styles.roleGrid}>
             <RoleOption
               active={role === 'BUYER'}
               onPress={() => setRole('BUYER')}
               icon="shopping-bag"
               label="Buyer"
-              desc="Shop and post demands"
+              desc="Shop & post demands"
             />
             <RoleOption
               active={role === 'STALL_OWNER'}
               onPress={() => setRole('STALL_OWNER')}
               icon="briefcase"
               label="Seller"
-              desc="List products & sell"
+              desc="Sell products & services"
             />
             <RoleOption
               active={role === 'DELIVERY_DRIVER'}
@@ -122,12 +124,35 @@ export default function RegisterScreen() {
               label="Driver"
               desc="Deliver & earn"
             />
+            <RoleOption
+              active={role === 'FIELD_AGENT'}
+              onPress={() => setRole('FIELD_AGENT')}
+              icon="map-marker"
+              label="Agent"
+              desc="Recruit & earn commission"
+            />
           </View>
           {role === 'DELIVERY_DRIVER' && (
             <View style={styles.roleNote}>
               <FontAwesome name="info-circle" size={13} color={Brand.blue} />
               <Text style={styles.roleNoteText}>
                 After creating your account you'll complete your vehicle & KYC details. Buyers and sellers can also become drivers later from their profile.
+              </Text>
+            </View>
+          )}
+          {role === 'FIELD_AGENT' && (
+            <View style={styles.roleNote}>
+              <FontAwesome name="info-circle" size={13} color={Brand.blue} />
+              <Text style={styles.roleNoteText}>
+                Field agents recruit merchants onto the platform and earn a commission on every subscription payment. You'll have access to your own Agent Hub after signing up.
+              </Text>
+            </View>
+          )}
+          {role === 'STALL_OWNER' && (
+            <View style={styles.roleNote}>
+              <FontAwesome name="info-circle" size={13} color={Brand.blue} />
+              <Text style={styles.roleNoteText}>
+                Sellers can list physical products and also offer services (repairs, tailoring, etc.) through the Services marketplace.
               </Text>
             </View>
           )}
@@ -302,6 +327,7 @@ const styles = StyleSheet.create({
   },
 
   roleRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  roleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
   roleNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -315,7 +341,7 @@ const styles = StyleSheet.create({
   },
   roleNoteText: { flex: 1, fontSize: 12, color: Brand.blue, lineHeight: 18 },
   roleCard: {
-    flex: 1,
+    width: '48%',
     padding: 14,
     borderRadius: 14,
     borderWidth: 1.5,

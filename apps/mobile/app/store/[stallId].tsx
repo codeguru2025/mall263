@@ -30,8 +30,8 @@ import { api } from '@/lib/api';
 
 async function fetchVirtualWalkExists(stallId: string): Promise<boolean> {
   try {
-    await api.get(`/api/v1/virtual-walk/shop/${stallId}`);
-    return true;
+    const { data } = await api.get<unknown[]>(`/api/v1/virtual-walk/shop/${stallId}`);
+    return Array.isArray(data) && data.length > 0;
   } catch {
     return false;
   }

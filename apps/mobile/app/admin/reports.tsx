@@ -16,6 +16,7 @@ import { Brand } from '@/constants/brand';
 import { fetchDashboard } from '@/lib/admin-api';
 import { formatMoney } from '@/lib/products';
 import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/lib/api';
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -23,6 +24,17 @@ const cardShadow =
     : { elevation: 2 };
 
 type ReportCard = { label: string; value: string; color: string; bg: string };
+
+interface PlatformReport {
+  totalRevenue?: number;
+  totalCommission?: number;
+  totalOrders?: number;
+  totalDeliveries?: number;
+  activeSubscriptions?: number;
+  totalDisputes?: number;
+  resolvedDisputes?: number;
+  [key: string]: unknown;
+}
 
 export default function AdminPlatformReports() {
   const { isAuthenticated, user } = useAuth();
@@ -37,28 +49,44 @@ export default function AdminPlatformReports() {
   }, [isAuthenticated, user]);
 
   const canLoad = isAuthenticated && isAdminConsoleDashboardRole(user?.role);
-  const statsQ = useQuery({ queryKey: ['admin-dashboard'], queryFn: fetchDashboard, enabled: canLoad });
+
+  const dashQ = useQuery({ queryKey: ['admin-dashboard'], queryFn: fetchDashboard, enabled: canLoad });
+
+  const platformQ = useQuery<PlatformReport>({
+    queryKey: ['platform-report'],
+    queryFn: () => api.get('/api/v1/reports/platform').then((r) => r.data),
+    enabled: canLoad,
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    try { await statsQ.refetch(); } finally { setRefreshing(false); }
-  }, [statsQ]);
+    try { await Promise.all([dashQ.refetch(), platformQ.refetch()]); } finally { setRefreshing(false); }
+  }, [dashQ, platformQ]);
 
-  const s = statsQ.data;
-  const reportCards: ReportCard[] = s
+  const s = dashQ.data;
+  const p = platformQ.data;
+
+  const dashCards: ReportCard[] = s
     ? [
-        { label: 'Total users', value: String(s.users), color: Brand.blue, bg: 'rgba(59, 154, 225, 0.12)' },
-        { label: 'Merchants', value: String(s.merchants), color: Brand.green, bg: 'rgba(67, 160, 71, 0.12)' },
-        { label: 'Products', value: String(s.products), color: '#1B2A4A', bg: 'rgba(27, 42, 74, 0.08)' },
-        { label: 'Total sales', value: String(s.sales), color: '#43A047', bg: 'rgba(67, 160, 71, 0.1)' },
-        {
-          label: 'Commission',
-          value: formatMoney(s.totalCommissionRevenue, 'USD'),
-          color: '#C62828',
-          bg: 'rgba(198, 40, 40, 0.08)',
-        },
-        { label: 'Open demands', value: String(s.openDemands), color: Brand.orange, bg: 'rgba(247, 148, 29, 0.12)' },
+        { label: 'Total users', value: String(s.users), color: Brand.blue, bg: 'rgba(0,100,0,0.08)' },
+        { label: 'Merchants', value: String(s.merchants), color: Brand.green, bg: 'rgba(67,160,71,0.10)' },
+        { label: 'Products', value: String(s.products), color: Brand.navy, bg: 'rgba(27,42,74,0.08)' },
+        { label: 'Total sales', value: String(s.sales), color: '#43A047', bg: 'rgba(67,160,71,0.10)' },
+        { label: 'Commission earned', value: formatMoney(s.totalCommissionRevenue, 'USD'), color: '#C62828', bg: 'rgba(198,40,40,0.08)' },
+        { label: 'Open demands', value: String(s.openDemands), color: Brand.orange, bg: 'rgba(247,148,29,0.10)' },
       ]
+    : [];
+
+  const platformCards: ReportCard[] = p
+    ? Object.entries(p)
+        .filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object')
+        .map(([key, val]) => {
+          const label = key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').toLowerCase().trim();
+          const value = typeof val === 'number' && key.toLowerCase().includes('revenue') || key.toLowerCase().includes('commission')
+            ? formatMoney(val as number, 'USD')
+            : String(val);
+          return { label, value, color: Brand.navy, bg: Brand.card };
+        })
     : [];
 
   if (!canLoad) return null;
@@ -67,23 +95,39 @@ export default function AdminPlatformReports() {
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} />
-      }
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.primary} />}
     >
       <Pressable onPress={() => router.replace('/admin' as never)} style={styles.backRow} hitSlop={8}>
         <Text style={styles.backText}>‹ Admin</Text>
       </Pressable>
-      <Text style={styles.heading}>Platform reports</Text>
-      <Text style={styles.sub}>Sales, commission, and user stats (same as web /reports)</Text>
+      <Text style={styles.heading}>Platform Reports</Text>
 
-      {statsQ.isPending ? (
-        <View style={styles.centered}>
-          <ActivityIndicator color={Brand.blue} />
-        </View>
+      {/* Dashboard overview */}
+      <Text style={styles.sectionTitle}>Dashboard overview</Text>
+      {dashQ.isPending ? (
+        <View style={styles.centered}><ActivityIndicator color={Brand.primary} /></View>
       ) : (
         <View style={styles.grid}>
-          {reportCards.map((c) => (
+          {dashCards.map((c) => (
+            <View key={c.label} style={[styles.card, cardShadow, { backgroundColor: c.bg }]}>
+              <Text style={[styles.cardValue, { color: c.color }]}>{c.value}</Text>
+              <Text style={styles.cardLabel}>{c.label}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Platform financial report */}
+      <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Financial report</Text>
+      {platformQ.isPending ? (
+        <View style={styles.centered}><ActivityIndicator color={Brand.primary} /></View>
+      ) : platformQ.isError ? (
+        <Text style={styles.errorText}>Could not load financial report.</Text>
+      ) : platformCards.length === 0 ? (
+        <Text style={styles.muted}>No data available.</Text>
+      ) : (
+        <View style={styles.grid}>
+          {platformCards.map((c) => (
             <View key={c.label} style={[styles.card, cardShadow, { backgroundColor: c.bg }]}>
               <Text style={[styles.cardValue, { color: c.color }]}>{c.value}</Text>
               <Text style={styles.cardLabel}>{c.label}</Text>
@@ -99,19 +143,14 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: Brand.pageBg },
   content: { padding: 16, paddingBottom: 40 },
   backRow: { marginBottom: 8, alignSelf: 'flex-start' },
-  backText: { fontSize: 15, fontWeight: '800', color: Brand.blue },
-  heading: { fontSize: 22, fontWeight: '900', color: Brand.navy, marginBottom: 4 },
-  sub: { fontSize: 13, color: Brand.muted, marginBottom: 20 },
-  centered: { paddingVertical: 40, alignItems: 'center' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  card: {
-    width: '47%',
-    minWidth: 150,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Brand.border,
-  },
+  backText: { fontSize: 15, fontWeight: '800', color: Brand.primary },
+  heading: { fontSize: 22, fontWeight: '900', color: Brand.navy, marginBottom: 16 },
+  sectionTitle: { fontSize: 12, fontWeight: '800', color: Brand.muted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 },
+  centered: { paddingVertical: 24, alignItems: 'center' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 4 },
+  card: { width: '47%', minWidth: 150, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Brand.border },
   cardValue: { fontSize: 22, fontWeight: '900' },
   cardLabel: { fontSize: 11, fontWeight: '700', color: Brand.muted, marginTop: 4, textTransform: 'uppercase' },
+  errorText: { fontSize: 13, color: Brand.red, fontWeight: '700' },
+  muted: { fontSize: 13, color: Brand.muted },
 });

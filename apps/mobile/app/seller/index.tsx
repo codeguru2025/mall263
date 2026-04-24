@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -41,6 +42,7 @@ function stallWebUrl(stallId: string): string {
 }
 
 export default function SellerHubScreen() {
+  const insets = useSafeAreaInsets();
   const [stallIndex, setStallIndex] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [ecocashCode, setEcocashCode] = useState('');
@@ -314,6 +316,26 @@ export default function SellerHubScreen() {
           <Text style={styles.opsCardText}>Subscription</Text>
         </Pressable>
       </View>
+      <View style={styles.opsRow}>
+        {stall && (
+          <Pressable style={styles.opsCard} onPress={() => router.push({ pathname: '/seller/virtual-walk', params: { stallId: stall.id } } as any)}>
+            <Text style={styles.opsCardIcon}>🎥</Text>
+            <Text style={styles.opsCardText}>Virtual Walk</Text>
+          </Pressable>
+        )}
+        {stall && (
+          <Pressable style={styles.opsCard} onPress={() => router.push({ pathname: '/seller/discounts', params: { stallId: stall.id } } as any)}>
+            <Text style={styles.opsCardIcon}>🏷️</Text>
+            <Text style={styles.opsCardText}>Discounts</Text>
+          </Pressable>
+        )}
+        {stall && (
+          <Pressable style={styles.opsCard} onPress={() => router.push({ pathname: '/seller/inventory', params: { stallId: stall.id } } as any)}>
+            <Text style={styles.opsCardIcon}>📦</Text>
+            <Text style={styles.opsCardText}>Inventory</Text>
+          </Pressable>
+        )}
+      </View>
 
       {/* Boost actions */}
       {stall && (
@@ -510,7 +532,7 @@ export default function SellerHubScreen() {
       keyExtractor={(item: { id: string }) => item.id}
       renderItem={renderProduct}
       ListHeaderComponent={listHeader}
-      contentContainerStyle={styles.listContent}
+      contentContainerStyle={[styles.listContent, { paddingTop: insets.top + 16 }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} />}
       ListEmptyComponent={
         <View style={styles.empty}>

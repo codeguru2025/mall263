@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Image } from 'expo-image';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -41,6 +42,7 @@ const cardShadow =
 export default function ShopScreen() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
+  const insets = useSafeAreaInsets();
   const staffHome = isAuthenticated && isStaffAdminRole(user?.role) ? getStaffHomePath(user?.role) : null;
   const blockStaff = !!staffHome;
 
@@ -186,7 +188,7 @@ export default function ShopScreen() {
 
   const header = (
     <View style={styles.headerBlock}>
-      <View style={styles.heroBar}>
+      <View style={[styles.heroBar, { paddingTop: insets.top + 8 }]}>
         <Text style={styles.heroTitle}>Shop</Text>
         <Text style={styles.heroTag}>Same catalogue as the website</Text>
       </View>

@@ -13,16 +13,19 @@ import { compressImageForAvatarUpload } from '@/lib/imageCompress';
 import { Logo } from '@/components/Logo';
 import {
   Phone, Lock, User, ArrowRight, ArrowLeft,
-  ShoppingBag, Store, MapPin, CheckCircle2, Loader2, Camera,
+  ShoppingBag, Store, MapPin, CheckCircle2, Loader2, Camera, Truck, MapPinned,
 } from 'lucide-react';
 
 function RegisterForm() {
   const searchParams = useSearchParams();
-  const roleParam = searchParams.get('role'); // 'buyer' | 'seller' | null
-  const initialRole: 'BUYER' | 'STALL_OWNER' = roleParam === 'seller' ? 'STALL_OWNER' : 'BUYER';
-  const roleLocked = roleParam === 'buyer' || roleParam === 'seller';
+  const roleParam = searchParams.get('role'); // 'buyer' | 'seller' | 'driver' | 'agent' | null
+  const initialRole: 'BUYER' | 'STALL_OWNER' | 'DELIVERY_DRIVER' | 'FIELD_AGENT' =
+    roleParam === 'seller' ? 'STALL_OWNER' :
+    roleParam === 'driver' ? 'DELIVERY_DRIVER' :
+    roleParam === 'agent' ? 'FIELD_AGENT' : 'BUYER';
+  const roleLocked = !!roleParam;
 
-  const [role, setRole] = useState<'BUYER' | 'STALL_OWNER'>(initialRole);
+  const [role, setRole] = useState<'BUYER' | 'STALL_OWNER' | 'DELIVERY_DRIVER' | 'FIELD_AGENT'>(initialRole);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -112,6 +115,18 @@ function RegisterForm() {
         ...(avatarUrl ? { avatarUrl } : {}),
       } as any);
 
+      if (role === 'DELIVERY_DRIVER') {
+        toast.success('Welcome to Mall263! Complete your driver profile to start earning.');
+        router.push('/driver/register');
+        return;
+      }
+
+      if (role === 'FIELD_AGENT') {
+        toast.success('Welcome to Mall263! Your Agent Hub is ready.');
+        router.push('/agent');
+        return;
+      }
+
       if (role === 'STALL_OWNER') {
         try {
           await api.post('/api/v1/merchants/me/setup', {
@@ -163,6 +178,10 @@ function RegisterForm() {
           <p className="text-white/60 mb-10 text-sm">
             {role === 'STALL_OWNER'
               ? 'Set up your account and stall in 3 quick steps.'
+              : role === 'DELIVERY_DRIVER'
+              ? 'Sign up and complete your vehicle details to start delivering.'
+              : role === 'FIELD_AGENT'
+              ? 'Recruit merchants and earn commission on every subscription.'
               : 'Create your account and start buying in under a minute.'}
           </p>
 
@@ -225,47 +244,80 @@ function RegisterForm() {
                 <>
                   {/* Role selector */}
                   {roleLocked ? (
-                    <div className={`flex items-center gap-3 p-4 rounded-2xl border-2 ${role === 'BUYER' ? 'border-brand-blue bg-blue-50' : 'border-brand-green bg-green-50'}`}>
-                      {role === 'BUYER'
-                        ? <ShoppingBag className="w-6 h-6 text-brand-blue flex-shrink-0" />
-                        : <Store className="w-6 h-6 text-brand-green flex-shrink-0" />
-                      }
+                    <div className="flex items-center gap-3 p-4 rounded-2xl border-2 border-brand-green bg-green-50">
+                      {role === 'BUYER' && <ShoppingBag className="w-6 h-6 text-brand-blue flex-shrink-0" />}
+                      {role === 'STALL_OWNER' && <Store className="w-6 h-6 text-brand-green flex-shrink-0" />}
+                      {role === 'DELIVERY_DRIVER' && <Truck className="w-6 h-6 text-brand-orange flex-shrink-0" />}
+                      {role === 'FIELD_AGENT' && <MapPinned className="w-6 h-6 text-purple-600 flex-shrink-0" />}
                       <div>
-                        <div className={`font-bold text-sm ${role === 'BUYER' ? 'text-brand-blue' : 'text-brand-green'}`}>
-                          {role === 'BUYER' ? 'Buyer Account' : 'Seller Account'}
+                        <div className="font-bold text-sm text-navy-700">
+                          {role === 'BUYER' ? 'Buyer Account' : role === 'STALL_OWNER' ? 'Seller Account' : role === 'DELIVERY_DRIVER' ? 'Driver Account' : 'Field Agent Account'}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {role === 'BUYER' ? 'Shop & post demands' : 'List products & use POS'}
+                          {role === 'BUYER' ? 'Shop & post demands' : role === 'STALL_OWNER' ? 'List products, services & use POS' : role === 'DELIVERY_DRIVER' ? 'Deliver orders & earn' : 'Recruit merchants & earn commission'}
                         </div>
                       </div>
                     </div>
                   ) : (
                     <div>
-                      <label className="label mb-2">I want to</label>
+                      <label className="label mb-2">I am joining as</label>
                       <div className="grid grid-cols-2 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => { setRole('BUYER'); setStep(1); }}
-                          className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${role === 'BUYER' ? 'border-brand-blue bg-blue-50' : 'border-gray-100 hover:border-gray-200'}`}
-                        >
-                          <ShoppingBag className={`w-6 h-6 ${role === 'BUYER' ? 'text-brand-blue' : 'text-gray-400'}`} />
-                          <div className="text-center">
-                            <div className={`font-bold text-sm ${role === 'BUYER' ? 'text-brand-blue' : 'text-navy-700'}`}>Buy</div>
-                            <div className="text-xs text-gray-400">Shop & post demands</div>
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setRole('STALL_OWNER'); setStep(1); }}
-                          className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${role === 'STALL_OWNER' ? 'border-brand-green bg-green-50' : 'border-gray-100 hover:border-gray-200'}`}
-                        >
-                          <Store className={`w-6 h-6 ${role === 'STALL_OWNER' ? 'text-brand-green' : 'text-gray-400'}`} />
-                          <div className="text-center">
-                            <div className={`font-bold text-sm ${role === 'STALL_OWNER' ? 'text-brand-green' : 'text-navy-700'}`}>Sell</div>
-                            <div className="text-xs text-gray-400">List products & use POS</div>
-                          </div>
-                        </button>
+                        {[
+                          { r: 'BUYER' as const, icon: <ShoppingBag className="w-6 h-6" />, label: 'Buyer', desc: 'Shop & post demands', color: 'blue' },
+                          { r: 'STALL_OWNER' as const, icon: <Store className="w-6 h-6" />, label: 'Seller', desc: 'Sell products & services', color: 'green' },
+                          { r: 'DELIVERY_DRIVER' as const, icon: <Truck className="w-6 h-6" />, label: 'Driver', desc: 'Deliver orders & earn', color: 'orange' },
+                          { r: 'FIELD_AGENT' as const, icon: <MapPinned className="w-6 h-6" />, label: 'Field Agent', desc: 'Recruit merchants & earn', color: 'purple' },
+                        ].map(({ r, icon, label, desc, color }) => {
+                          const active = role === r;
+                          const colorMap: Record<string, string> = {
+                            blue: active ? 'border-brand-blue bg-blue-50' : 'border-gray-100 hover:border-gray-200',
+                            green: active ? 'border-brand-green bg-green-50' : 'border-gray-100 hover:border-gray-200',
+                            orange: active ? 'border-brand-orange bg-orange-50' : 'border-gray-100 hover:border-gray-200',
+                            purple: active ? 'border-purple-500 bg-purple-50' : 'border-gray-100 hover:border-gray-200',
+                          };
+                          const iconColorMap: Record<string, string> = {
+                            blue: active ? 'text-brand-blue' : 'text-gray-400',
+                            green: active ? 'text-brand-green' : 'text-gray-400',
+                            orange: active ? 'text-brand-orange' : 'text-gray-400',
+                            purple: active ? 'text-purple-600' : 'text-gray-400',
+                          };
+                          const labelColorMap: Record<string, string> = {
+                            blue: active ? 'text-brand-blue' : 'text-navy-700',
+                            green: active ? 'text-brand-green' : 'text-navy-700',
+                            orange: active ? 'text-brand-orange' : 'text-navy-700',
+                            purple: active ? 'text-purple-600' : 'text-navy-700',
+                          };
+                          return (
+                            <button
+                              key={r}
+                              type="button"
+                              onClick={() => { setRole(r); setStep(1); }}
+                              className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${colorMap[color]}`}
+                            >
+                              <span className={iconColorMap[color]}>{icon}</span>
+                              <div className="text-center">
+                                <div className={`font-bold text-sm ${labelColorMap[color]}`}>{label}</div>
+                                <div className="text-xs text-gray-400">{desc}</div>
+                              </div>
+                            </button>
+                          );
+                        })}
                       </div>
+                      {role === 'DELIVERY_DRIVER' && (
+                        <p className="mt-2 text-xs text-gray-500 bg-orange-50 rounded-xl px-3 py-2 border border-orange-100">
+                          After creating your account you&apos;ll complete your vehicle & KYC details on the next screen.
+                        </p>
+                      )}
+                      {role === 'FIELD_AGENT' && (
+                        <p className="mt-2 text-xs text-gray-500 bg-purple-50 rounded-xl px-3 py-2 border border-purple-100">
+                          Field agents recruit merchants onto the platform and earn commission on every subscription payment.
+                        </p>
+                      )}
+                      {role === 'STALL_OWNER' && (
+                        <p className="mt-2 text-xs text-gray-500 bg-green-50 rounded-xl px-3 py-2 border border-green-100">
+                          Sellers can list physical products <strong>and</strong> offer services (repairs, tailoring, etc.) through the Services marketplace.
+                        </p>
+                      )}
                     </div>
                   )}
 

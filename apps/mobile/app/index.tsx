@@ -10,9 +10,8 @@ export default function Index() {
   if (isAuthenticated) {
     const staffHome = getStaffHomePath(user?.role);
     if (staffHome) return <Redirect href={staffHome as never} />;
-    return <Redirect href="/(tabs)" />;
+    return <Redirect href="/(tabs)/shop" />;
   }
 
-  // Guests land on the shop so they can browse immediately
   return <Redirect href="/(tabs)/shop" />;
 }
