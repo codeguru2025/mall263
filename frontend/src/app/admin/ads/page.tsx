@@ -283,14 +283,11 @@ export default function AdsPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 mb-1 block">Image URL (optional)</label>
-                <input
+                <label className="text-xs font-bold text-gray-500 mb-1 block">Ad Image (optional)</label>
+                <AdminImageField
                   value={form.imageUrl}
-                  onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
-                  placeholder="https://… or leave blank"
-                  className="w-full border-2 border-gray-100 rounded-xl px-3 py-2.5 text-sm text-navy-700 focus:border-brand-green outline-none"
+                  onChange={(url) => setForm((f) => ({ ...f, imageUrl: url }))}
                 />
-                <p className="text-xs text-gray-400 mt-1">Upload an image via the upload endpoint first, then paste its CDN URL here.</p>
               </div>
 
               <div>
@@ -355,6 +352,44 @@ export default function AdsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function AdminImageField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const { data } = await api.post('/api/v1/upload/image', form);
+      onChange(data.cdnUrl || data.url);
+    } catch {
+      toast.error('Image upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+  return (
+    <div className="space-y-2">
+      {value && (
+        <div className="relative inline-block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={value} alt="" className="h-20 rounded-xl object-cover border-2 border-gray-100" />
+          <button type="button" onClick={() => onChange('')} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+      <label className={`flex items-center gap-2 px-4 py-2.5 border-2 border-dashed rounded-xl cursor-pointer transition-colors text-sm font-semibold ${uploading ? 'border-gray-200 text-gray-300' : 'border-gray-200 text-gray-500 hover:border-brand-green hover:text-brand-green'}`}>
+        {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+        {uploading ? 'Uploading…' : value ? 'Change image' : 'Upload image'}
+        <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={uploading} />
+      </label>
     </div>
   );
 }

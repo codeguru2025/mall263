@@ -66,6 +66,15 @@ export class UploadController {
     return Promise.all(files.map((f) => this.uploadService.uploadImage(f, 'products', 900, true)));
   }
 
+  @Post('video')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 500 * 1024 * 1024 } }))
+  async uploadVideo(@UploadedFile() file: Express.Multer.File): Promise<UploadResult> {
+    if (!file) throw new BadRequestException('No file provided');
+    return this.uploadService.uploadVideo(file, 'videos');
+  }
+
   // path-to-regexp v8 (Nest 11+): use named wildcard instead of legacy :key(*)
   @Delete('*key')
   @ApiParam({ name: 'key', type: String, description: 'Object key/path under bucket (may include slashes)' })

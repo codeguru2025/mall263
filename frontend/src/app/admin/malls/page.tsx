@@ -9,7 +9,7 @@ import { useAuthStore } from '@/lib/store';
 import { Logo } from '@/components/Logo';
 import {
   ArrowLeft, Plus, Edit2, MapPin, Building2,
-  ToggleLeft, ToggleRight, X, Check, Store,
+  ToggleLeft, ToggleRight, X, Check, Store, Image as ImageIcon, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -348,14 +348,8 @@ export default function AdminMallsPage() {
               </div>
 
               <div>
-                <label className="label">Image URL <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
-                <input
-                  type="url"
-                  className="input"
-                  placeholder="https://..."
-                  value={form.imageUrl}
-                  onChange={(e) => update('imageUrl', e.target.value)}
-                />
+                <label className="label">Mall Image <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+                <MallImageField value={form.imageUrl} onChange={(url) => update('imageUrl', url)} />
               </div>
 
               <div className="flex gap-3 pt-2 pb-safe">
@@ -383,6 +377,44 @@ export default function AdminMallsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function MallImageField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await api.post('/api/v1/upload/image', fd);
+      onChange(data.cdnUrl || data.url);
+    } catch {
+      toast.error('Image upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+  return (
+    <div className="space-y-2">
+      {value && (
+        <div className="relative inline-block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={value} alt="" className="h-20 rounded-xl object-cover border-2 border-gray-100" />
+          <button type="button" onClick={() => onChange('')} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+      <label className={`flex items-center gap-2 px-4 py-2.5 border-2 border-dashed rounded-xl cursor-pointer transition-colors text-sm font-semibold ${uploading ? 'border-gray-200 text-gray-300' : 'border-gray-200 text-gray-500 hover:border-brand-green hover:text-brand-green'}`}>
+        {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+        {uploading ? 'Uploading…' : value ? 'Change image' : 'Upload image'}
+        <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={uploading} />
+      </label>
     </div>
   );
 }

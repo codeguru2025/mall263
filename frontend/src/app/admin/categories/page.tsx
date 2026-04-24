@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { Logo } from '@/components/Logo';
-import { ArrowLeft, Plus, Edit2, Trash2, Tag, ToggleLeft, ToggleRight } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Tag, ToggleLeft, ToggleRight, Image as ImageIcon, Loader2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'];
@@ -286,14 +286,8 @@ export default function AdminCategoriesPage() {
               </div>
 
               <div>
-                <label className="label">Image URL (Optional)</label>
-                <input
-                  type="url"
-                  className="input"
-                  placeholder="https://example.com/image.jpg"
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                />
+                <label className="label">Category Image <span className="text-gray-400 font-normal text-xs">(Optional)</span></label>
+                <CatImageField value={formData.imageUrl} onChange={(url) => setFormData({ ...formData, imageUrl: url })} />
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -320,6 +314,44 @@ export default function AdminCategoriesPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function CatImageField({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false);
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await api.post('/api/v1/upload/image', fd);
+      onChange(data.cdnUrl || data.url);
+    } catch {
+      toast.error('Image upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+  return (
+    <div className="space-y-2">
+      {value && (
+        <div className="relative inline-block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={value} alt="" className="h-16 w-16 rounded-xl object-cover border-2 border-gray-100" />
+          <button type="button" onClick={() => onChange('')} className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center">
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+      <label className={`flex items-center gap-2 px-4 py-2.5 border-2 border-dashed rounded-xl cursor-pointer transition-colors text-sm font-semibold ${uploading ? 'border-gray-200 text-gray-300' : 'border-gray-200 text-gray-500 hover:border-brand-green hover:text-brand-green'}`}>
+        {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+        {uploading ? 'Uploading…' : value ? 'Change image' : 'Upload image'}
+        <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={uploading} />
+      </label>
     </div>
   );
 }

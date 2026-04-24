@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,11 +13,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Brand } from '@/constants/brand';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { uploadImage } from '@/lib/upload-api';
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'MALL_MANAGER'];
 
@@ -209,8 +212,37 @@ export default function AdminMallsScreen() {
               </View>
             </View>
 
-            <Text style={styles.fieldLabel}>Image URL</Text>
-            <TextInput style={styles.input} value={form.imageUrl} onChangeText={(v: string) => setForm((f) => ({ ...f, imageUrl: v }))} placeholder="https://…" placeholderTextColor={Brand.muted} autoCapitalize="none" keyboardType="url" />
+            <Text style={styles.fieldLabel}>Mall Image (optional)</Text>
+            {form.imageUrl ? (
+              <View style={styles.imgPreviewRow}>
+                <Image source={{ uri: form.imageUrl }} style={styles.imgPreview} resizeMode="cover" />
+                <Pressable
+                  style={styles.changeImgBtn}
+                  onPress={async () => {
+                    const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
+                    if (!r.canceled && r.assets[0]) {
+                      try { setForm((f) => ({ ...f, imageUrl: '' })); const url = await uploadImage(r.assets[0].uri, r.assets[0].mimeType ?? 'image/jpeg'); setForm((f) => ({ ...f, imageUrl: url })); }
+                      catch { Alert.alert('Upload failed', 'Could not upload image.'); }
+                    }
+                  }}
+                >
+                  <Text style={styles.changeImgText}>Change</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                style={styles.uploadBtn}
+                onPress={async () => {
+                  const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
+                  if (!r.canceled && r.assets[0]) {
+                    try { const url = await uploadImage(r.assets[0].uri, r.assets[0].mimeType ?? 'image/jpeg'); setForm((f) => ({ ...f, imageUrl: url })); }
+                    catch { Alert.alert('Upload failed', 'Could not upload image.'); }
+                  }
+                }}
+              >
+                <Text style={styles.uploadBtnText}>📷 Choose mall image</Text>
+              </Pressable>
+            )}
 
             <View style={styles.formActions}>
               <Pressable style={[styles.btn, styles.cancelBtn]} onPress={closeForm}>
@@ -261,6 +293,12 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 12, fontWeight: '700', color: Brand.navy, marginBottom: 4, marginTop: 10 },
   input: { borderWidth: 1, borderColor: Brand.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Brand.text, backgroundColor: Brand.pageBg },
   coordRow: { flexDirection: 'row', gap: 10 },
+  uploadBtn: { borderWidth: 1.5, borderColor: Brand.border, borderRadius: 10, paddingVertical: 13, alignItems: 'center', backgroundColor: Brand.pageBg, marginTop: 4 },
+  uploadBtnText: { fontSize: 14, color: Brand.navy, fontWeight: '600' },
+  imgPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  imgPreview: { width: 80, height: 50, borderRadius: 8, backgroundColor: Brand.border },
+  changeImgBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: Brand.border },
+  changeImgText: { fontSize: 12, fontWeight: '700', color: Brand.navy },
   formActions: { flexDirection: 'row', gap: 10, marginTop: 14 },
   btn: { flex: 1, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   primaryBtn: { backgroundColor: Brand.primary },

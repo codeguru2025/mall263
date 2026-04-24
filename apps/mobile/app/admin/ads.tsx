@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,11 +14,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Brand } from '@/constants/brand';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { uploadImage } from '@/lib/upload-api';
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS'];
 
@@ -52,6 +55,22 @@ const PLACEMENT_COLOR: Record<Placement, string> = {
 
 const TODAY = new Date().toISOString().slice(0, 10);
 const BLANK = { title: '', imageUrl: '', linkUrl: '', placement: 'BANNER_TOP' as Placement, targetRole: '', startsAt: TODAY, endsAt: '' };
+
+async function pickAndUploadImage(onUrl: (url: string) => void) {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    quality: 0.85,
+    allowsEditing: true,
+    aspect: [16, 5],
+  });
+  if (result.canceled || !result.assets[0]) return;
+  try {
+    const url = await uploadImage(result.assets[0].uri, result.assets[0].mimeType ?? 'image/jpeg');
+    onUrl(url);
+  } catch {
+    Alert.alert('Upload failed', 'Could not upload ad image. Please try again.');
+  }
+}
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -181,8 +200,19 @@ export default function AdminAdsScreen() {
               ))}
             </View>
 
-            <Text style={styles.fieldLabel}>Image URL</Text>
-            <TextInput style={styles.input} value={form.imageUrl} onChangeText={(v: string) => setForm((f) => ({ ...f, imageUrl: v }))} placeholder="https://…" placeholderTextColor={Brand.muted} autoCapitalize="none" keyboardType="url" />
+            <Text style={styles.fieldLabel}>Ad Image</Text>
+            {form.imageUrl ? (
+              <View style={styles.imagePreviewRow}>
+                <Image source={{ uri: form.imageUrl }} style={styles.imagePreview} resizeMode="cover" />
+                <Pressable style={styles.changeImgBtn} onPress={() => pickAndUploadImage((url) => setForm((f) => ({ ...f, imageUrl: url })))}>
+                  <Text style={styles.changeImgText}>Change</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.uploadBtn} onPress={() => pickAndUploadImage((url) => setForm((f) => ({ ...f, imageUrl: url })))}>
+                <Text style={styles.uploadBtnText}>📷 Choose image from library</Text>
+              </Pressable>
+            )}
 
             <Text style={styles.fieldLabel}>Link URL</Text>
             <TextInput style={styles.input} value={form.linkUrl} onChangeText={(v: string) => setForm((f) => ({ ...f, linkUrl: v }))} placeholder="https://…" placeholderTextColor={Brand.muted} autoCapitalize="none" keyboardType="url" />
@@ -270,4 +300,11 @@ const styles = StyleSheet.create({
   deleteBtn: { alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: Brand.red + '55', backgroundColor: Brand.red + '11' },
   deleteBtnText: { fontSize: 12, fontWeight: '700', color: Brand.red },
   empty: { textAlign: 'center', color: Brand.muted, marginTop: 32 },
+
+  uploadBtn: { borderWidth: 1.5, borderColor: Brand.border, borderRadius: 10, paddingVertical: 14, alignItems: 'center', backgroundColor: Brand.pageBg, marginBottom: 0 },
+  uploadBtnText: { fontSize: 14, color: Brand.navy, fontWeight: '600' },
+  imagePreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 0 },
+  imagePreview: { width: 100, height: 40, borderRadius: 8, backgroundColor: Brand.border },
+  changeImgBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: Brand.border },
+  changeImgText: { fontSize: 12, fontWeight: '700', color: Brand.navy },
 });

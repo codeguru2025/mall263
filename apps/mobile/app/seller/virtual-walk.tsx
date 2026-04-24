@@ -11,11 +11,13 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Brand } from '@/constants/brand';
 import { api } from '@/lib/api';
+import { uploadImage, uploadVideo } from '@/lib/upload-api';
 
 interface Hotspot {
   id: string;
@@ -41,8 +43,6 @@ function fetchVideos(stallId: string): Promise<ShelfVideo[]> {
     const raw = r.data;
     if (Array.isArray(raw)) return raw;
     const all: ShelfVideo[] = [];
-    if (Array.isArray(raw)) return raw;
-    // grouped format: [{aisleName, shelves:[{shelfLayer, video:{...}}]}]
     for (const group of raw as any[]) {
       for (const shelf of group.shelves ?? []) {
         all.push({ ...shelf.video, aisleName: group.aisleName, shelfLayer: shelf.shelfLayer });
@@ -96,14 +96,18 @@ export default function SellerVirtualWalkScreen() {
           <View style={styles.header}>
             <Text style={styles.heading}>Virtual Walk Videos</Text>
             <Text style={styles.sub}>
-              Add aisle walk videos so buyers can browse your stall virtually. Each video can have product hotspot pins.
+              Record and upload aisle walk videos so buyers can browse your stall virtually.
             </Text>
             <Pressable style={styles.addBtn} onPress={() => setShowAdd(true)}>
               <FontAwesome name="plus" size={13} color="#fff" />
               <Text style={styles.addBtnText}>Add video</Text>
             </Pressable>
             {showAdd && resolved && (
-              <AddVideoForm stallId={resolved} onDone={() => { setShowAdd(false); qc.invalidateQueries({ queryKey: ['vw-videos', resolved] }); }} onCancel={() => setShowAdd(false)} />
+              <AddVideoForm
+                stallId={resolved}
+                onDone={() => { setShowAdd(false); qc.invalidateQueries({ queryKey: ['vw-videos', resolved] }); }}
+                onCancel={() => setShowAdd(false)}
+              />
             )}
           </View>
         }
@@ -114,7 +118,7 @@ export default function SellerVirtualWalkScreen() {
             <View style={styles.centered}>
               <FontAwesome name="video-camera" size={40} color={Brand.border} />
               <Text style={styles.emptyText}>No walk videos yet.</Text>
-              <Text style={styles.muted}>Tap "Add video" to upload your first aisle walk.</Text>
+              <Text style={styles.muted}>Tap "Add video" to record and upload your first aisle walk.</Text>
             </View>
           )
         }
@@ -166,33 +170,80 @@ function VideoCard({ video, onDelete, onManageHotspots }: { video: ShelfVideo; s
 function AddVideoForm({ stallId, onDone, onCancel }: { stallId: string; onDone: () => void; onCancel: () => void }) {
   const [aisleName, setAisleName] = useState('');
   const [shelfLayer, setShelfLayer] = useState<ShelfLayerOption>('MIDDLE');
-  const [videoUrl, setVideoUrl] = useState('');
-  const [thumbnailUrl, setThumbnailUrl] = useState('');
+  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [thumbUri, setThumbUri] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStep, setUploadStep] = useState('');
 
   const addMut = useMutation({
-    mutationFn: () =>
-      api.post(`/api/v1/virtual-walk/videos/${stallId}`, {
-        aisleName: aisleName.trim(),
-        shelfLayer,
-        videoUrl: videoUrl.trim(),
-        thumbnailUrl: thumbnailUrl.trim() || undefined,
-      }),
+    mutationFn: (body: object) =>
+      api.post(`/api/v1/virtual-walk/videos/${stallId}`, body),
     onSuccess: onDone,
     onError: (err: any) => Alert.alert('Error', err?.response?.data?.message ?? 'Could not add video.'),
   });
 
-  const onSubmit = () => {
+  async function pickVideo() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['videos'],
+      quality: 1,
+      videoMaxDuration: 300,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setVideoUri(result.assets[0].uri);
+    }
+  }
+
+  async function pickThumbnail() {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.85,
+      allowsEditing: true,
+      aspect: [16, 9],
+    });
+    if (!result.canceled && result.assets[0]) {
+      setThumbUri(result.assets[0].uri);
+    }
+  }
+
+  async function onSubmit() {
     if (!aisleName.trim()) { Alert.alert('Required', 'Enter an aisle name (e.g. "Electronics")'); return; }
-    if (!videoUrl.trim()) { Alert.alert('Required', 'Paste the hosted video URL'); return; }
-    addMut.mutate();
-  };
+    if (!videoUri) { Alert.alert('Required', 'Please select a video to upload.'); return; }
+
+    setUploading(true);
+    try {
+      setUploadStep('Uploading video…');
+      const videoUrl = await uploadVideo(videoUri, 'video/mp4');
+
+      let thumbnailUrl: string | undefined;
+      if (thumbUri) {
+        setUploadStep('Uploading thumbnail…');
+        thumbnailUrl = await uploadImage(thumbUri);
+      }
+
+      setUploadStep('Saving…');
+      addMut.mutate({ aisleName: aisleName.trim(), shelfLayer, videoUrl, thumbnailUrl });
+    } catch (e: any) {
+      Alert.alert('Upload failed', e?.message ?? 'Could not upload. Check your connection.');
+    } finally {
+      setUploading(false);
+      setUploadStep('');
+    }
+  }
+
+  const isPending = uploading || addMut.isPending;
 
   return (
     <View style={styles.form}>
       <Text style={styles.formTitle}>Add aisle video</Text>
 
       <Text style={styles.fieldLabel}>Aisle name</Text>
-      <TextInput style={styles.input} value={aisleName} onChangeText={setAisleName} placeholder="e.g. Electronics, Clothing…" placeholderTextColor={Brand.muted} />
+      <TextInput
+        style={styles.input}
+        value={aisleName}
+        onChangeText={setAisleName}
+        placeholder="e.g. Electronics, Clothing…"
+        placeholderTextColor={Brand.muted}
+      />
 
       <Text style={styles.fieldLabel}>Shelf layer</Text>
       <View style={styles.layerRow}>
@@ -203,19 +254,36 @@ function AddVideoForm({ stallId, onDone, onCancel }: { stallId: string; onDone: 
         ))}
       </View>
 
-      <Text style={styles.fieldLabel}>Video URL</Text>
-      <TextInput style={styles.input} value={videoUrl} onChangeText={setVideoUrl} placeholder="https://…/video.mp4" placeholderTextColor={Brand.muted} autoCapitalize="none" keyboardType="url" />
-      <Text style={styles.hint}>Host your video on Cloudinary, S3, or any CDN and paste the direct URL.</Text>
+      <Text style={styles.fieldLabel}>Walk video</Text>
+      <Pressable style={styles.mediaPickerBtn} onPress={pickVideo} disabled={isPending}>
+        <FontAwesome name="video-camera" size={15} color={videoUri ? Brand.primary : Brand.muted} />
+        <Text style={[styles.mediaPickerText, videoUri && { color: Brand.primary }]}>
+          {videoUri ? 'Video selected ✓' : 'Choose video from library'}
+        </Text>
+      </Pressable>
+      <Text style={styles.hint}>Record the video on your phone, then select it here. Max 5 min.</Text>
 
-      <Text style={styles.fieldLabel}>Thumbnail URL (optional)</Text>
-      <TextInput style={styles.input} value={thumbnailUrl} onChangeText={setThumbnailUrl} placeholder="https://…/thumb.jpg" placeholderTextColor={Brand.muted} autoCapitalize="none" keyboardType="url" />
+      <Text style={styles.fieldLabel}>Thumbnail (optional)</Text>
+      <Pressable style={styles.mediaPickerBtn} onPress={pickThumbnail} disabled={isPending}>
+        <FontAwesome name="image" size={15} color={thumbUri ? Brand.primary : Brand.muted} />
+        <Text style={[styles.mediaPickerText, thumbUri && { color: Brand.primary }]}>
+          {thumbUri ? 'Thumbnail selected ✓' : 'Choose thumbnail image (optional)'}
+        </Text>
+      </Pressable>
+
+      {isPending && (
+        <View style={styles.uploadProgress}>
+          <ActivityIndicator size="small" color={Brand.primary} />
+          <Text style={styles.uploadProgressText}>{uploadStep || 'Uploading…'}</Text>
+        </View>
+      )}
 
       <View style={styles.formActions}>
-        <Pressable style={styles.cancelBtn} onPress={onCancel}>
+        <Pressable style={styles.cancelBtn} onPress={onCancel} disabled={isPending}>
           <Text style={styles.cancelBtnText}>Cancel</Text>
         </Pressable>
-        <Pressable style={[styles.submitBtn, addMut.isPending && styles.btnDisabled]} onPress={onSubmit} disabled={addMut.isPending}>
-          {addMut.isPending ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.submitBtnText}>Add video</Text>}
+        <Pressable style={[styles.submitBtn, isPending && styles.btnDisabled]} onPress={onSubmit} disabled={isPending}>
+          <Text style={styles.submitBtnText}>{isPending ? 'Uploading…' : 'Add video'}</Text>
         </Pressable>
       </View>
     </View>
@@ -252,7 +320,7 @@ const styles = StyleSheet.create({
 
   form: { backgroundColor: Brand.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Brand.border, marginTop: 14 },
   formTitle: { fontSize: 15, fontWeight: '900', color: Brand.navy, marginBottom: 14 },
-  fieldLabel: { fontSize: 12, fontWeight: '700', color: Brand.navy, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 },
+  fieldLabel: { fontSize: 12, fontWeight: '700', color: Brand.navy, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4, marginTop: 4 },
   input: {
     backgroundColor: Brand.pageBg, borderWidth: 1.5, borderColor: Brand.border,
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
@@ -264,7 +332,18 @@ const styles = StyleSheet.create({
   layerBtnActive: { backgroundColor: Brand.primary, borderColor: Brand.primary },
   layerBtnText: { fontSize: 12, fontWeight: '700', color: Brand.muted },
   layerBtnTextActive: { color: '#fff' },
-  formActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+
+  mediaPickerBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: Brand.pageBg, borderWidth: 1.5, borderColor: Brand.border,
+    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 6,
+  },
+  mediaPickerText: { fontSize: 14, fontWeight: '600', color: Brand.muted },
+
+  uploadProgress: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginBottom: 8 },
+  uploadProgressText: { fontSize: 13, color: Brand.primary, fontWeight: '600' },
+
+  formActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: Brand.border, alignItems: 'center' },
   cancelBtnText: { fontSize: 14, fontWeight: '700', color: Brand.muted },
   submitBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: Brand.primary, alignItems: 'center' },

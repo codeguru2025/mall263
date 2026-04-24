@@ -13,12 +13,24 @@ export type AdItem = {
   placement: string;
 };
 
-export async function fetchActiveAd(placement = 'BANNER_TOP'): Promise<AdItem | null> {
+export async function fetchActiveAd(placement = 'BANNER_TOP', role?: string): Promise<AdItem | null> {
   try {
-    const { data } = await api.get<AdItem>('/api/v1/ads/active', { params: { placement } });
-    return data ?? null;
+    const params: Record<string, string> = { placement };
+    if (role) params.role = role;
+    const { data } = await api.get<AdItem[]>('/api/v1/ads/active', { params });
+    const ads = Array.isArray(data) ? data : [data];
+    const ad = ads.find((a) => a?.placement === placement) ?? ads[0] ?? null;
+    return ad ?? null;
   } catch {
     return null;
+  }
+}
+
+export async function recordAdImpression(adId: string): Promise<void> {
+  try {
+    await api.post(`/api/v1/ads/${adId}/impression`);
+  } catch {
+    // non-critical — silently ignore
   }
 }
 

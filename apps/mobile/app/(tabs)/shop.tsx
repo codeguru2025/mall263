@@ -21,7 +21,7 @@ import { useRouter, Redirect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 import { Brand } from '@/constants/brand';
-import { fetchShopFeedPage, fetchActiveAd, formatMoney, type ShopListItem } from '@/lib/shop-feed';
+import { fetchShopFeedPage, fetchActiveAd, recordAdImpression, formatMoney, type ShopListItem } from '@/lib/shop-feed';
 import { fetchCategories } from '@/lib/seller-api';
 import { displayCity, fetchMalls } from '@/lib/stalls-api';
 
@@ -90,8 +90,12 @@ export default function ShopScreen() {
   });
   const mallsQ = useQuery({ queryKey: ['malls'], queryFn: () => fetchMalls(), staleTime: 5 * 60_000, enabled: !blockStaff });
   const adQ = useQuery({
-    queryKey: ['shop-ad'],
-    queryFn: () => fetchActiveAd('BANNER_TOP'),
+    queryKey: ['shop-ad', user?.role],
+    queryFn: async () => {
+      const ad = await fetchActiveAd('BANNER_TOP', user?.role);
+      if (ad?.id) recordAdImpression(ad.id);
+      return ad;
+    },
     staleTime: 60_000,
     retry: false,
     enabled: !blockStaff,

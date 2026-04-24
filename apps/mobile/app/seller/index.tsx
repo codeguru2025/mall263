@@ -41,6 +41,8 @@ function stallWebUrl(stallId: string): string {
   return `${base}/store/${stallId}`;
 }
 
+type BoostTarget = { type: 'stall' | 'product'; id: string; name: string };
+
 export default function SellerHubScreen() {
   const insets = useSafeAreaInsets();
   const [stallIndex, setStallIndex] = useState(0);
@@ -49,6 +51,7 @@ export default function SellerHubScreen() {
   const [onemoneyCode, setOnemoneyCode] = useState('');
   const [savingCodes, setSavingCodes] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  const [boostTarget, setBoostTarget] = useState<BoostTarget | null>(null);
 
   const meQ = useQuery({ queryKey: ['me-profile'], queryFn: fetchMeProfile });
 
@@ -204,9 +207,18 @@ export default function SellerHubScreen() {
             </Text>
           </Text>
           <Text style={styles.stockText}>Stock: {totalStock ?? '—'}</Text>
+          {item.isPromoted && (
+            <Text style={styles.promotedBadge}>⚡ Boosted</Text>
+          )}
         </View>
-        <View style={styles.editHint}>
+        <View style={{ gap: 4, alignItems: 'flex-end' }}>
           <FontAwesome name="chevron-right" size={12} color={Brand.muted} />
+          <Pressable
+            style={styles.boostProductBtn}
+            onPress={() => setBoostTarget({ type: 'product', id: item.id, name: item.name })}
+          >
+            <Text style={styles.boostProductBtnText}>Boost</Text>
+          </Pressable>
         </View>
       </Pressable>
     );
@@ -340,50 +352,33 @@ export default function SellerHubScreen() {
       {/* Boost actions */}
       {stall && (
         <View style={[styles.boostCard, cardShadow]}>
-          <Text style={styles.boostTitle}>
-            <FontAwesome name="bolt" size={14} color={Brand.orange} /> Boost
-          </Text>
-          <Text style={styles.boostHint}>Increase visibility of your stall or products in search results.</Text>
+          <View style={styles.boostTitleRow}>
+            <FontAwesome name="bolt" size={14} color={Brand.orange} />
+            <Text style={styles.boostTitle}> Boost visibility</Text>
+          </View>
+          <Text style={styles.boostHint}>Pay from your wallet to promote your stall or products to the top of search results.</Text>
           <View style={styles.boostRow}>
             <Pressable
               style={styles.boostBtn}
-              onPress={() => {
-                Alert.alert(
-                  'Boost Stall',
-                  `Boost "${stall.name}" to appear at the top of search results?`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Boost',
-                      onPress: async () => {
-                        try {
-                          const { api } = await import('@/lib/api');
-                          await api.post(`/api/v1/stalls/${stall.id}/boost`);
-                          Alert.alert('Boosted!', 'Your stall is now boosted in search results.');
-                        } catch (e: any) {
-                          Alert.alert('Error', e?.response?.data?.message ?? 'Could not boost stall.');
-                        }
-                      },
-                    },
-                  ],
-                );
-              }}
+              onPress={() => setBoostTarget({ type: 'stall', id: stall.id, name: stall.name })}
             >
               <FontAwesome name="rocket" size={13} color="#fff" />
               <Text style={styles.boostBtnText}>Boost Stall</Text>
             </Pressable>
-            <Pressable
-              style={[styles.boostBtn, styles.boostBtnOutline]}
-              onPress={() => Alert.alert(
-                'Boost a Product',
-                'Select a product from the list below to boost it.',
-              )}
-            >
-              <FontAwesome name="star" size={13} color={Brand.orange} />
-              <Text style={[styles.boostBtnText, { color: Brand.orange }]}>Boost Product</Text>
-            </Pressable>
           </View>
+          {/* Per-product boost — tap any product row to boost it */}
+          {stall.isPromoted && stall.promotedUntil && (
+            <Text style={styles.boostActive}>
+              ✓ Stall boosted until {new Date(stall.promotedUntil).toLocaleDateString()}
+            </Text>
+          )}
         </View>
+      )}
+      {boostTarget && (
+        <BoostModal
+          target={boostTarget}
+          onClose={() => setBoostTarget(null)}
+        />
       )}
 
       {/* Shop QR — embedded inline */}
@@ -669,15 +664,117 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff7ed', borderRadius: 16, padding: 16,
     borderWidth: 1.5, borderColor: Brand.orange + '55', marginBottom: 16,
   },
-  boostTitle: { fontSize: 14, fontWeight: '900', color: Brand.navy, marginBottom: 4 },
+  boostTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  boostTitle: { fontSize: 14, fontWeight: '900', color: Brand.navy },
   boostHint: { fontSize: 12, color: Brand.muted, lineHeight: 17, marginBottom: 12 },
+  boostActive: { fontSize: 12, color: Brand.green, fontWeight: '700', marginTop: 8 },
   boostRow: { flexDirection: 'row', gap: 10 },
   boostBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, backgroundColor: Brand.orange, borderRadius: 12, paddingVertical: 12,
   },
-  boostBtnOutline: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: Brand.orange,
-  },
   boostBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  promotedBadge: { fontSize: 10, fontWeight: '800', color: Brand.orange, marginTop: 2 },
+  boostProductBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: Brand.orange + '22', borderWidth: 1, borderColor: Brand.orange + '55' },
+  boostProductBtnText: { fontSize: 10, fontWeight: '800', color: Brand.orange },
+});
+
+// ─── BoostModal ──────────────────────────────────────────────────────────────
+
+function BoostModal({ target, onClose }: { target: BoostTarget; onClose: () => void }) {
+  const [selectedDays, setSelectedDays] = useState<7 | 14 | 30>(7);
+  const [loading, setLoading] = useState(false);
+
+  const pricingQ = useQuery<{ days: number; fee: number }[]>({
+    queryKey: ['boost-pricing', target.type],
+    queryFn: () =>
+      api.get(`/api/v1/${target.type === 'stall' ? 'stalls' : 'products'}/boost/pricing`)
+        .then((r) => r.data),
+    staleTime: 5 * 60_000,
+  });
+
+  const pricing = pricingQ.data ?? [{ days: 7, fee: 1 }, { days: 14, fee: 2 }, { days: 30, fee: 4 }];
+  const selectedPrice = pricing.find((p) => p.days === selectedDays)?.fee ?? 1;
+
+  async function handleBoost() {
+    setLoading(true);
+    try {
+      const endpoint = target.type === 'stall'
+        ? `/api/v1/stalls/${target.id}/boost`
+        : `/api/v1/products/${target.id}/boost`;
+      await api.post(endpoint, { days: selectedDays });
+      Alert.alert('Boosted! 🚀', `"${target.name}" is now promoted for ${selectedDays} days. $${selectedPrice.toFixed(2)} was deducted from your wallet.`);
+      onClose();
+    } catch (e: any) {
+      Alert.alert('Boost failed', e?.response?.data?.message ?? 'Could not apply boost. Check your wallet balance.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <View style={boostStyles.overlay}>
+      <View style={boostStyles.sheet}>
+        <Text style={boostStyles.title}>Boost {target.type === 'stall' ? 'Stall' : 'Product'}</Text>
+        <Text style={boostStyles.name} numberOfLines={1}>{target.name}</Text>
+        <Text style={boostStyles.sub}>Select how long to promote this {target.type} to the top of search results. Payment is deducted from your wallet.</Text>
+
+        <Text style={boostStyles.sectionLabel}>Duration</Text>
+        {pricing.map((p) => (
+          <Pressable
+            key={p.days}
+            style={[boostStyles.option, selectedDays === p.days && boostStyles.optionActive]}
+            onPress={() => setSelectedDays(p.days as 7 | 14 | 30)}
+          >
+            <View>
+              <Text style={[boostStyles.optionDays, selectedDays === p.days && { color: '#fff' }]}>{p.days} days</Text>
+              <Text style={[boostStyles.optionDesc, selectedDays === p.days && { color: 'rgba(255,255,255,0.8)' }]}>
+                {p.days === 7 ? 'Short boost — great for a sale event' : p.days === 14 ? 'Medium boost — steady visibility' : 'Long boost — best value'}
+              </Text>
+            </View>
+            <Text style={[boostStyles.optionPrice, selectedDays === p.days && { color: '#fff' }]}>${p.fee.toFixed(2)}</Text>
+          </Pressable>
+        ))}
+
+        <View style={boostStyles.actions}>
+          <Pressable style={boostStyles.cancelBtn} onPress={onClose} disabled={loading}>
+            <Text style={boostStyles.cancelText}>Cancel</Text>
+          </Pressable>
+          <Pressable style={[boostStyles.boostBtn, loading && { opacity: 0.6 }]} onPress={handleBoost} disabled={loading}>
+            {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={boostStyles.boostText}>Boost for ${selectedPrice.toFixed(2)}</Text>}
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const boostStyles = StyleSheet.create({
+  overlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', zIndex: 999,
+  },
+  sheet: {
+    backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 40,
+  },
+  title: { fontSize: 20, fontWeight: '900', color: Brand.navy, marginBottom: 2 },
+  name: { fontSize: 14, fontWeight: '700', color: Brand.orange, marginBottom: 8 },
+  sub: { fontSize: 13, color: Brand.muted, lineHeight: 18, marginBottom: 20 },
+  sectionLabel: { fontSize: 11, fontWeight: '800', color: Brand.muted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 },
+  option: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 2, borderColor: Brand.border, borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 14, marginBottom: 10,
+    backgroundColor: Brand.pageBg,
+  },
+  optionActive: { backgroundColor: Brand.orange, borderColor: Brand.orange },
+  optionDays: { fontSize: 16, fontWeight: '900', color: Brand.navy },
+  optionDesc: { fontSize: 12, color: Brand.muted, marginTop: 2 },
+  optionPrice: { fontSize: 18, fontWeight: '900', color: Brand.navy },
+  actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  cancelBtn: { flex: 1, paddingVertical: 15, borderRadius: 14, borderWidth: 2, borderColor: Brand.border, alignItems: 'center' },
+  cancelText: { fontSize: 14, fontWeight: '700', color: Brand.navy },
+  boostBtn: { flex: 2, paddingVertical: 15, borderRadius: 14, backgroundColor: Brand.orange, alignItems: 'center' },
+  boostText: { fontSize: 15, fontWeight: '900', color: '#fff' },
 });

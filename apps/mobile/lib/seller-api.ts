@@ -9,6 +9,8 @@ export type Stall = {
   stallNumber?: string | null;
   mallId?: string | null;
   merchantId: string;
+  isPromoted?: boolean;
+  promotedUntil?: string | null;
 };
 
 export type ProductVariant = {
@@ -34,6 +36,8 @@ export type Product = {
   categoryId?: string | null;
   images?: Array<{ url: string; isPrimary?: boolean }>;
   variants?: ProductVariant[];
+  isPromoted?: boolean;
+  promotedUntil?: string | null;
 };
 
 export type ProductsPage = {

@@ -152,6 +152,49 @@ export class UploadService {
     };
   }
 
+  async uploadVideo(
+    file: Express.Multer.File,
+    folder: string = 'videos',
+  ): Promise<UploadResult> {
+    const allowedVideoMimes = [
+      'video/mp4',
+      'video/quicktime',
+      'video/webm',
+      'video/x-msvideo',
+      'video/x-matroska',
+      'video/mpeg',
+      'video/3gpp',
+    ];
+    if (!allowedVideoMimes.includes(file.mimetype)) {
+      throw new BadRequestException('Only MP4, MOV, WebM, and AVI video files are allowed');
+    }
+    if (file.size > 500 * 1024 * 1024) {
+      throw new BadRequestException('Video size must be under 500MB');
+    }
+
+    const ext = file.originalname.split('.').pop()?.toLowerCase() || 'mp4';
+    const key = `${folder}/${uuid()}.${ext}`;
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+        ACL: 'public-read',
+        CacheControl: 'public, max-age=31536000',
+      }),
+    );
+
+    return {
+      key,
+      url: `${this.endpoint}/${this.bucket}/${key}`,
+      cdnUrl: this.cdnUrl ? `${this.cdnUrl}/${key}` : `${this.endpoint}/${this.bucket}/${key}`,
+      size: file.size,
+      mimetype: file.mimetype,
+    };
+  }
+
   async delete(key: string): Promise<void> {
     await this.s3.send(
       new DeleteObjectCommand({

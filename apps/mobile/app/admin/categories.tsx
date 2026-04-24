@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -12,10 +13,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Brand } from '@/constants/brand';
 import { api } from '@/lib/api';
+import { uploadImage } from '@/lib/upload-api';
 
 interface Category {
   id: string;
@@ -203,16 +206,31 @@ export default function AdminCategoriesScreen() {
               </Pressable>
             </View>
 
-            <Text style={styles.label}>Image URL (optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={form.imageUrl}
-              onChangeText={(v: string) => setForm((f) => ({ ...f, imageUrl: v }))}
-              placeholder="https://…"
-              placeholderTextColor={Brand.muted}
-              autoCapitalize="none"
-              keyboardType="url"
-            />
+            <Text style={styles.label}>Category Image (optional)</Text>
+            {form.imageUrl ? (
+              <View style={styles.imgRow}>
+                <Image source={{ uri: form.imageUrl }} style={styles.imgPreview} resizeMode="cover" />
+                <Pressable style={styles.changeImgBtn} onPress={async () => {
+                  const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, allowsEditing: true, aspect: [1, 1] });
+                  if (!r.canceled && r.assets[0]) {
+                    try { const url = await uploadImage(r.assets[0].uri, r.assets[0].mimeType ?? 'image/jpeg'); setForm((f) => ({ ...f, imageUrl: url })); }
+                    catch { Alert.alert('Upload failed', 'Could not upload image.'); }
+                  }
+                }}>
+                  <Text style={styles.changeImgText}>Change image</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.uploadBtn} onPress={async () => {
+                const r = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, allowsEditing: true, aspect: [1, 1] });
+                if (!r.canceled && r.assets[0]) {
+                  try { const url = await uploadImage(r.assets[0].uri, r.assets[0].mimeType ?? 'image/jpeg'); setForm((f) => ({ ...f, imageUrl: url })); }
+                  catch { Alert.alert('Upload failed', 'Could not upload image.'); }
+                }
+              }}>
+                <Text style={styles.uploadBtnText}>📷 Choose category image</Text>
+              </Pressable>
+            )}
           </ScrollView>
           <View style={styles.modalFooter}>
             <Pressable style={styles.cancelBtn} onPress={closeModal}>
@@ -271,4 +289,10 @@ const styles = StyleSheet.create({
   saveBtn: { flex: 1, paddingVertical: 14, backgroundColor: Brand.green, borderRadius: 12, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '900', fontSize: 15 },
   btnDisabled: { opacity: 0.6 },
+  uploadBtn: { borderWidth: 1.5, borderColor: Brand.border, borderRadius: 10, paddingVertical: 13, alignItems: 'center', backgroundColor: Brand.card, marginBottom: 16 },
+  uploadBtnText: { fontSize: 14, color: Brand.navy, fontWeight: '600' },
+  imgRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  imgPreview: { width: 56, height: 56, borderRadius: 10, backgroundColor: Brand.border },
+  changeImgBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: Brand.border },
+  changeImgText: { fontSize: 12, fontWeight: '700', color: Brand.navy },
 });
