@@ -16,15 +16,17 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mall263.mobile",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
-      "associatedDomains": ["applinks:mall263-r99jz.ondigitalocean.app"]
+      "associatedDomains": [
+        "applinks:mall263-r99jz.ondigitalocean.app"
+      ]
     },
     "android": {
       "package": "com.mall263.mobile",
-      "versionCode": 10,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -42,7 +44,10 @@
               "pathPrefix": "/receipts"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
