@@ -18,9 +18,9 @@ const mapProvider = process.env.EXPO_PUBLIC_MAP_PROVIDER ?? 'google';
 export default {
   expo: {
     ...base,
-    owner: 'gustozw',
+    owner: 'augustussiziba19',
     updates: {
-      url: 'https://u.expo.dev/7b563715-3473-46df-8c9b-4ea2564462c0',
+      url: 'https://u.expo.dev/25130720-2f49-4c52-b561-3aacac2d9a18',
     },
     runtimeVersion: {
       policy: 'appVersion',
@@ -44,7 +44,7 @@ export default {
       sentryDsn,
       mapProvider,
       eas: {
-        projectId: '7b563715-3473-46df-8c9b-4ea2564462c0',
+        projectId: '25130720-2f49-4c52-b561-3aacac2d9a18',
       },
     },
   },
