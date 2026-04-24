@@ -55,17 +55,20 @@ async function bootstrap() {
   app.use(compression());
   app.use(makeRequestLogMiddleware());
 
-  const allowedOrigins = [
-    config.get('FRONTEND_URL', 'http://localhost:3000'),
-    // Allow additional origins from CORS_ORIGINS env var (comma-separated)
-    ...(config.get('CORS_ORIGINS', '') as string).split(',').map((s: string) => s.trim()).filter(Boolean),
-  ];
+  const normalizeOrigin = (o: string) => o.replace(/\/$/, '');
+
+  const allowedOrigins = new Set(
+    [
+      config.get('FRONTEND_URL', 'http://localhost:3000'),
+      ...(config.get('CORS_ORIGINS', '') as string).split(',').map((s: string) => s.trim()).filter(Boolean),
+    ].map((o) => normalizeOrigin(o)),
+  );
 
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
       // Allow requests with no origin (mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (allowedOrigins.has(normalizeOrigin(origin))) return callback(null, true);
       return callback(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,
