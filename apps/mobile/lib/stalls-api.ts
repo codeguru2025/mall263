@@ -155,3 +155,11 @@ export async function unfollowStall(stallId: string): Promise<{ following: boole
   const { data } = await api.delete(`/api/v1/stalls/${stallId}/follow`);
   return data;
 }
+
+export async function updateStallLocation(
+  stallId: string,
+  latitude: number,
+  longitude: number,
+): Promise<void> {
+  await api.patch(`/api/v1/stalls/${stallId}`, { latitude, longitude });
+}

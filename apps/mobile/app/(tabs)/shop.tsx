@@ -24,6 +24,7 @@ import { Brand } from '@/constants/brand';
 import { fetchShopFeedPage, fetchActiveAd, recordAdImpression, formatMoney, type ShopListItem } from '@/lib/shop-feed';
 import { fetchCategories } from '@/lib/seller-api';
 import { displayCity, fetchMalls } from '@/lib/stalls-api';
+import { MapPickerModal, type PickedLocation } from '@/components/MapPickerModal';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -54,13 +55,20 @@ export default function ShopScreen() {
   const [showMallFilter, setShowMallFilter] = useState(false);
   const [nearLat, setNearLat] = useState<number | null>(null);
   const [nearLng, setNearLng] = useState<number | null>(null);
-  const [radiusKm, setRadiusKm] = useState(10);
+  const [radiusKm] = useState(10);
   const [geoLoading, setGeoLoading] = useState(false);
+  const [locationLabel, setLocationLabel] = useState<string>('');
+  const [showMapPicker, setShowMapPicker] = useState(false);
+
+  const clearLocation = useCallback(() => {
+    setNearLat(null);
+    setNearLng(null);
+    setLocationLabel('');
+  }, []);
 
   const handleNearMe = useCallback(async () => {
     if (nearLat !== null) {
-      setNearLat(null);
-      setNearLng(null);
+      clearLocation();
       return;
     }
     setGeoLoading(true);
@@ -72,15 +80,35 @@ export default function ShopScreen() {
     }
     try {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setNearLat(loc.coords.latitude);
-      setNearLng(loc.coords.longitude);
+      const lat = loc.coords.latitude;
+      const lng = loc.coords.longitude;
+      setNearLat(lat);
+      setNearLng(lng);
       setSelectedMallId(null);
+      // Reverse geocode for label
+      try {
+        const [place] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+        if (place) {
+          const parts = [place.name, place.street, place.city].filter(Boolean);
+          setLocationLabel(parts.slice(0, 2).join(', ') || `${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        }
+      } catch {
+        setLocationLabel(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      }
     } catch {
       Alert.alert('Location error', 'Could not get your current location.');
     } finally {
       setGeoLoading(false);
     }
-  }, [nearLat]);
+  }, [nearLat, clearLocation]);
+
+  const handleMapPickConfirm = useCallback((loc: PickedLocation) => {
+    setNearLat(loc.latitude);
+    setNearLng(loc.longitude);
+    setSelectedMallId(null);
+    setLocationLabel(loc.address || `${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}`);
+    setShowMapPicker(false);
+  }, []);
 
   const categoriesQ = useQuery({
     queryKey: ['categories'],
@@ -189,13 +217,22 @@ export default function ShopScreen() {
   const malls = mallsQ.data ?? [];
   const selectedMall = malls.find((m) => m.id === selectedMallId);
   const ad = adQ.data;
+  const locationActive = nearLat !== null;
 
-  const header = (
-    <View style={styles.headerBlock}>
-      <View style={[styles.heroBar, { paddingTop: insets.top + 8 }]}>
+  if (staffHome) {
+    return <Redirect href={staffHome as never} />;
+  }
+
+  // Static (non-scrolling) header content
+  const staticHeader = (
+    <View style={[styles.staticHeader, { paddingTop: insets.top }]}>
+      {/* Hero bar */}
+      <View style={styles.heroBar}>
         <Text style={styles.heroTitle}>Shop</Text>
-        <Text style={styles.heroTag}>Same catalogue as the website</Text>
+        <Text style={styles.heroTag}>Zimbabwe's marketplace</Text>
       </View>
+
+      {/* Search */}
       <View style={styles.searchWrap}>
         <TextInput
           style={styles.searchInput}
@@ -238,27 +275,38 @@ export default function ShopScreen() {
         </ScrollView>
       )}
 
-      {/* Mall filter pill + Near me */}
+      {/* Location + Mall filter row */}
       <View style={styles.mallFilterRow}>
-        {/* Near me button */}
+        {/* Near me GPS */}
         <Pressable
-          style={[styles.nearMePill, nearLat !== null && styles.nearMePillActive]}
+          style={[styles.nearMePill, locationActive && styles.nearMePillActive]}
           onPress={handleNearMe}
           disabled={geoLoading}
         >
           {geoLoading
-            ? <ActivityIndicator size={12} color={nearLat !== null ? '#fff' : Brand.orange} />
+            ? <ActivityIndicator size={12} color={locationActive ? '#fff' : Brand.orange} />
             : <Text style={styles.nearMeIcon}>📍</Text>
           }
-          <Text style={[styles.nearMePillText, nearLat !== null && styles.nearMePillTextActive]}>
-            {nearLat !== null ? `Near me (${radiusKm}km) ×` : 'Near me'}
+          <Text style={[styles.nearMePillText, locationActive && styles.nearMePillTextActive]}>
+            {locationActive ? `${radiusKm}km ×` : 'Near me'}
+          </Text>
+        </Pressable>
+
+        {/* Map picker */}
+        <Pressable
+          style={[styles.mapPickBtn, locationActive && styles.mapPickBtnActive]}
+          onPress={() => setShowMapPicker(true)}
+        >
+          <Text style={styles.nearMeIcon}>🗺️</Text>
+          <Text style={[styles.nearMePillText, locationActive && styles.nearMePillTextActive]}>
+            Pick on map
           </Text>
         </Pressable>
 
         <Pressable
           style={[styles.mallPill, !nearLat && selectedMallId && styles.mallPillActive]}
           onPress={() => !nearLat && setShowMallFilter(!showMallFilter)}
-          disabled={nearLat !== null}
+          disabled={locationActive}
         >
           <Text style={[styles.mallPillText, !nearLat && selectedMallId && styles.mallPillTextActive]}>
             {!nearLat && selectedMall ? `🏬 ${selectedMall.name}` : '🏬 All malls'}
@@ -272,7 +320,17 @@ export default function ShopScreen() {
         )}
       </View>
 
-      {/* Mall dropdown */}
+      {/* Selected location label */}
+      {locationActive && locationLabel ? (
+        <View style={styles.locationLabelRow}>
+          <Text style={styles.locationLabelText} numberOfLines={1}>📍 {locationLabel}</Text>
+          <Pressable onPress={clearLocation} hitSlop={10}>
+            <Text style={styles.locationClear}>× Clear</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* Mall dropdown - expands inside the static header */}
       {showMallFilter && malls.length > 0 && (
         <View style={styles.mallDropdown}>
           <Pressable
@@ -284,20 +342,24 @@ export default function ShopScreen() {
           {malls.map((m) => {
             const city = displayCity(m.city);
             return (
-            <Pressable
-              key={m.id}
-              style={[styles.mallOption, selectedMallId === m.id && styles.mallOptionActive]}
-              onPress={() => { setSelectedMallId(m.id); setShowMallFilter(false); }}
-            >
-              <Text style={[styles.mallOptionText, selectedMallId === m.id && styles.mallOptionTextActive]}>
-                {m.name}{city ? ` · ${city}` : ''}
-              </Text>
-            </Pressable>
+              <Pressable
+                key={m.id}
+                style={[styles.mallOption, selectedMallId === m.id && styles.mallOptionActive]}
+                onPress={() => { setSelectedMallId(m.id); setShowMallFilter(false); }}
+              >
+                <Text style={[styles.mallOptionText, selectedMallId === m.id && styles.mallOptionTextActive]}>
+                  {m.name}{city ? ` · ${city}` : ''}
+                </Text>
+              </Pressable>
             );
           })}
         </View>
       )}
+    </View>
+  );
 
+  const listHeader = (
+    <View>
       {/* Ad banner */}
       {ad?.imageUrl && (
         <Pressable
@@ -319,33 +381,22 @@ export default function ShopScreen() {
           ) : null}
         </Pressable>
       )}
-
       {typeof totalLoaded === 'number' && !debouncedQuery.trim() ? (
         <Text style={styles.countLine}>{totalLoaded} listing{totalLoaded === 1 ? '' : 's'}</Text>
       ) : null}
     </View>
   );
 
-  if (staffHome) {
-    return <Redirect href={staffHome as never} />;
-  }
+  return (
+    <View style={styles.page}>
+      {staticHeader}
 
-  if (query.isPending) {
-    return (
-      <View style={styles.page}>
-        {header}
+      {query.isPending ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={Brand.blue} />
           <Text style={styles.muted}>Loading products…</Text>
         </View>
-      </View>
-    );
-  }
-
-  if (query.isError) {
-    return (
-      <View style={styles.page}>
-        {header}
+      ) : query.isError ? (
         <View style={styles.centered}>
           <Text style={styles.errorTitle}>Could not load</Text>
           <Text style={styles.muted}>Pull to retry or check your connection.</Text>
@@ -353,41 +404,46 @@ export default function ShopScreen() {
             <Text style={styles.retryText}>Try again</Text>
           </Pressable>
         </View>
-      </View>
-    );
-  }
+      ) : (
+        <FlatList
+          key="shop-grid-3col"
+          data={items}
+          keyExtractor={(item: { id: string }) => item.id}
+          renderItem={renderItem}
+          numColumns={3}
+          columnWrapperStyle={styles.columnWrapper}
+          ListHeaderComponent={listHeader}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} colors={[Brand.blue]} />
+          }
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.35}
+          contentContainerStyle={styles.listContent}
+          ListFooterComponent={
+            query.isFetchingNextPage ? (
+              <ActivityIndicator style={styles.footerSpinner} color={Brand.blue} />
+            ) : (
+              <View style={styles.footerSpacer} />
+            )
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyTitle}>{debouncedQuery.trim() ? 'No matches' : 'No products yet'}</Text>
+              <Text style={styles.muted}>
+                {debouncedQuery.trim() ? 'Try different keywords or clear search to browse everything.' : 'Check back soon.'}
+              </Text>
+            </View>
+          }
+        />
+      )}
 
-  return (
-    <View style={styles.page}>
-      <FlatList
-        key="shop-grid-3col"
-        data={items}
-        keyExtractor={(item: { id: string }) => item.id}
-        renderItem={renderItem}
-        numColumns={3}
-        columnWrapperStyle={styles.columnWrapper}
-        ListHeaderComponent={header}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} colors={[Brand.blue]} />
-        }
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.35}
-        contentContainerStyle={styles.listContent}
-        ListFooterComponent={
-          query.isFetchingNextPage ? (
-            <ActivityIndicator style={styles.footerSpinner} color={Brand.blue} />
-          ) : (
-            <View style={styles.footerSpacer} />
-          )
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyTitle}>{debouncedQuery.trim() ? 'No matches' : 'No products yet'}</Text>
-            <Text style={styles.muted}>
-              {debouncedQuery.trim() ? 'Try different keywords or clear search to browse everything.' : 'Check back soon.'}
-            </Text>
-          </View>
-        }
+      <MapPickerModal
+        visible={showMapPicker}
+        initialLat={nearLat}
+        initialLng={nearLng}
+        onConfirm={handleMapPickConfirm}
+        onClose={() => setShowMapPicker(false)}
+        title="Pick search area"
       />
     </View>
   );
@@ -395,7 +451,18 @@ export default function ShopScreen() {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: Brand.pageBg },
-  headerBlock: { paddingBottom: 8 },
+
+  // Static header sits above the scrollable list and never scrolls
+  staticHeader: {
+    backgroundColor: Brand.pageBg,
+    zIndex: 10,
+    elevation: 4,
+    // Bottom shadow to separate from list content
+    ...Platform.select({
+      ios: { shadowColor: '#0f172a', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6 },
+      android: {},
+    }),
+  },
   heroBar: {
     backgroundColor: Brand.blue,
     paddingHorizontal: 16,
@@ -417,7 +484,10 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderWidth: 1,
     borderColor: Brand.border,
-    ...cardShadow,
+    ...Platform.select({
+      ios: { shadowColor: '#0f172a', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 10 },
+      android: { elevation: 3 },
+    }),
   },
   searchInput: {
     flex: 1,
@@ -446,15 +516,22 @@ const styles = StyleSheet.create({
 
   mallFilterRow: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14,
-    paddingTop: 8, paddingBottom: 4, gap: 8,
+    paddingTop: 8, paddingBottom: 4, gap: 6, flexWrap: 'wrap',
   },
   nearMePill: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 7,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 7,
     borderRadius: 10, borderWidth: 1.5, borderColor: Brand.orange,
     backgroundColor: '#fff7f0',
   },
   nearMePillActive: { backgroundColor: Brand.orange, borderColor: Brand.orange },
+  mapPickBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 7,
+    borderRadius: 10, borderWidth: 1.5, borderColor: '#7c3aed',
+    backgroundColor: '#f5f0ff',
+  },
+  mapPickBtnActive: { backgroundColor: '#7c3aed', borderColor: '#7c3aed' },
   nearMeIcon: { fontSize: 12 },
   nearMePillText: { fontSize: 12, fontWeight: '700', color: Brand.orange },
   nearMePillTextActive: { color: '#fff' },
@@ -471,11 +548,24 @@ const styles = StyleSheet.create({
   clearMall: { paddingHorizontal: 10, paddingVertical: 7 },
   clearMallText: { fontSize: 12, fontWeight: '700', color: Brand.red },
 
+  locationLabelRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingBottom: 6, gap: 8,
+  },
+  locationLabelText: {
+    flex: 1, fontSize: 12, fontWeight: '600', color: Brand.navy,
+  },
+  locationClear: { fontSize: 12, fontWeight: '700', color: Brand.red },
+
   mallDropdown: {
     marginHorizontal: 14, marginTop: 2,
     backgroundColor: Brand.card, borderRadius: 12,
     borderWidth: 1, borderColor: Brand.border,
-    overflow: 'hidden', ...cardShadow,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: { shadowColor: '#0f172a', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 10 },
+      android: { elevation: 3 },
+    }),
   },
   mallOption: {
     paddingHorizontal: 14, paddingVertical: 12,

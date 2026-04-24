@@ -28,8 +28,13 @@ async function doRefresh(): Promise<string | null> {
     const refresh = data.refreshToken as string;
     await setTokens(access, refresh);
     return access;
-  } catch {
-    await clearTokens();
+  } catch (err: unknown) {
+    // Only invalidate tokens when the server definitively rejects them (4xx).
+    // A network error during refresh must not log the user out.
+    const status = (err as { response?: { status?: number } })?.response?.status;
+    if (status && status >= 400 && status < 500) {
+      await clearTokens();
+    }
     return null;
   } finally {
     refreshPromise = null;

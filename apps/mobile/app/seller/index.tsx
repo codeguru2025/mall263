@@ -22,9 +22,11 @@ import { Brand } from '@/constants/brand';
 import { fetchMeProfile } from '@/lib/me-profile';
 import { fetchStallsByMerchant, fetchProductsByStall, type Product } from '@/lib/seller-api';
 import { fetchPaymentConfig, savePaymentConfig } from '@/lib/merchant-pay-api';
+import { updateStallLocation } from '@/lib/stalls-api';
 import { formatMoney } from '@/lib/products';
 import { getApiBaseUrl } from '@/lib/config';
 import { api } from '@/lib/api';
+import { MapPickerModal, type PickedLocation } from '@/components/MapPickerModal';
 
 // react-native-qrcode-svg ships a class component incompatible with React 19 strict JSX
 const QR = QRCode as unknown as React.FC<{
@@ -52,6 +54,9 @@ export default function SellerHubScreen() {
   const [savingCodes, setSavingCodes] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [boostTarget, setBoostTarget] = useState<BoostTarget | null>(null);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const [stallLocationLabel, setStallLocationLabel] = useState<string | null>(null);
 
   const meQ = useQuery({ queryKey: ['me-profile'], queryFn: fetchMeProfile });
 
@@ -114,6 +119,21 @@ export default function SellerHubScreen() {
       setSavingCodes(false);
     }
   };
+
+  const handleLocationConfirm = useCallback(async (loc: PickedLocation) => {
+    if (!stall) return;
+    setSavingLocation(true);
+    setShowLocationPicker(false);
+    try {
+      await updateStallLocation(stall.id, loc.latitude, loc.longitude);
+      setStallLocationLabel(loc.address || `${loc.latitude.toFixed(5)}, ${loc.longitude.toFixed(5)}`);
+      Alert.alert('Location saved', 'Your stall location has been updated. Customers can now navigate to your stall.');
+    } catch {
+      Alert.alert('Error', 'Could not save location. Please try again.');
+    } finally {
+      setSavingLocation(false);
+    }
+  }, [stall]);
 
   const productsQ = useQuery({
     queryKey: ['stall-products', stall?.id],
@@ -491,6 +511,38 @@ export default function SellerHubScreen() {
         </View>
       )}
 
+      {/* Stall location — lets customers navigate to the physical stall */}
+      {stall && meQ.data?.role === 'STALL_OWNER' && (
+        <View style={[styles.payCard, cardShadow]}>
+          <View style={styles.payCardHeader}>
+            <FontAwesome name="map-marker" size={16} color={Brand.blue} />
+            <Text style={styles.payCardTitle}>Stall Location</Text>
+          </View>
+          <Text style={styles.payCardHint}>
+            Set your stall&apos;s physical location on the map so customers can navigate directly to you after accepting an offer.
+          </Text>
+          {stallLocationLabel ? (
+            <View style={styles.locationSetRow}>
+              <FontAwesome name="check-circle" size={13} color="#43A047" />
+              <Text style={styles.locationSetText} numberOfLines={2}>{stallLocationLabel}</Text>
+            </View>
+          ) : null}
+          <Pressable
+            style={[styles.saveCodesBtn, savingLocation && styles.btnDisabled]}
+            onPress={() => setShowLocationPicker(true)}
+            disabled={savingLocation}
+          >
+            {savingLocation ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.saveCodesBtnText}>
+                {stallLocationLabel ? 'Update location on map' : 'Set location on map'}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+      )}
+
       {/* Products section header with search */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>
@@ -522,27 +574,35 @@ export default function SellerHubScreen() {
   }
 
   return (
-    <FlatList
-      data={filteredProducts}
-      keyExtractor={(item: { id: string }) => item.id}
-      renderItem={renderProduct}
-      ListHeaderComponent={listHeader}
-      contentContainerStyle={[styles.listContent, { paddingTop: insets.top + 16 }]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} />}
-      ListEmptyComponent={
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>{productSearch ? 'No products match your search.' : 'No products yet.'}</Text>
-          {!productSearch && stall && (
-            <Pressable
-              style={styles.addBtnLarge}
-              onPress={() => router.push({ pathname: '/seller/product/new', params: { stallId: stall.id } })}
-            >
-              <Text style={styles.addBtnText}>Add your first product</Text>
-            </Pressable>
-          )}
-        </View>
-      }
-    />
+    <>
+      <FlatList
+        data={filteredProducts}
+        keyExtractor={(item: { id: string }) => item.id}
+        renderItem={renderProduct}
+        ListHeaderComponent={listHeader}
+        contentContainerStyle={[styles.listContent, { paddingTop: insets.top + 16 }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.blue} />}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>{productSearch ? 'No products match your search.' : 'No products yet.'}</Text>
+            {!productSearch && stall && (
+              <Pressable
+                style={styles.addBtnLarge}
+                onPress={() => router.push({ pathname: '/seller/product/new', params: { stallId: stall.id } })}
+              >
+                <Text style={styles.addBtnText}>Add your first product</Text>
+              </Pressable>
+            )}
+          </View>
+        }
+      />
+      <MapPickerModal
+        visible={showLocationPicker}
+        onConfirm={handleLocationConfirm}
+        onClose={() => setShowLocationPicker(false)}
+        title="Set stall location"
+      />
+    </>
   );
 }
 
@@ -659,6 +719,8 @@ const styles = StyleSheet.create({
   saveCodesBtn: { backgroundColor: Brand.blue, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 4 },
   saveCodesBtnText: { color: '#fff', fontWeight: '900', fontSize: 14 },
   btnDisabled: { opacity: 0.6 },
+  locationSetRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 8, marginBottom: 4 },
+  locationSetText: { flex: 1, fontSize: 12, color: '#43A047', fontWeight: '600' },
 
   boostCard: {
     backgroundColor: '#fff7ed', borderRadius: 16, padding: 16,

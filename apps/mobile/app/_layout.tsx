@@ -30,7 +30,7 @@ export {
 } from 'expo-router';
 
 export const unstable_settings = {
-  initialRouteName: 'index',
+  initialRouteName: 'shop',
 };
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.

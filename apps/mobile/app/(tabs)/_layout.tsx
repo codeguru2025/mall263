@@ -58,6 +58,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      initialRouteName="shop"
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown,

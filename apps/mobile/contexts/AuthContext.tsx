@@ -49,9 +49,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { data } = await api.get<MeProfile>('/api/v1/users/me');
       setUser(data);
-    } catch {
-      await clearTokens();
-      setUser(null);
+    } catch (err: unknown) {
+      // Only treat a definitive server auth rejection as session expiry.
+      // Network / 5xx errors must NOT log the user out — a connectivity blip
+      // should never silently clear a valid session.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401 || status === 403) {
+        await clearTokens();
+        setUser(null);
+      }
     }
   }, []);
 

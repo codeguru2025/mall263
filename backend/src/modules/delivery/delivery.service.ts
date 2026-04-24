@@ -356,6 +356,18 @@ export class DeliveryService {
         throw new ForbiddenException('Driver not eligible to accept jobs');
       }
 
+      // When the driver float system is enabled, require a minimum wallet balance
+      // so the platform can deduct its 10% commission on successful delivery.
+      const floatEnabled = await this.getFlag(FLAGS.DRIVER_FLOAT);
+      if (floatEnabled) {
+        const wallet = await tx.wallet.findUnique({ where: { userId: driver.userId } });
+        if (!wallet || wallet.availableBalance.lessThan(1)) {
+          throw new BadRequestException(
+            'Insufficient wallet balance. Top up your wallet (minimum $1.00) to accept delivery jobs — the platform deducts 10% per successful delivery.',
+          );
+        }
+      }
+
       // Prevent driver from holding multiple active jobs simultaneously
       const existingActive = await tx.deliveryJob.findFirst({
         where: {

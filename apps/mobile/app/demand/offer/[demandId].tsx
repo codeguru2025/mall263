@@ -20,6 +20,7 @@ import { fetchDemandById, submitSellerOffer } from '@/lib/demands-api';
 import { fetchStallProductsPage, type StallProductRow } from '@/lib/seller-catalog-api';
 import { fetchStallsByMerchant } from '@/lib/stalls-api';
 import { formatMoney } from '@/lib/products';
+import { api } from '@/lib/api';
 
 const SELLER_ROLES = new Set(['STALL_OWNER', 'ATTENDANT']);
 
@@ -62,6 +63,21 @@ export default function SellerOfferScreen() {
   const demandId = Array.isArray(raw) ? raw[0] : raw;
 
   const canSell = user?.role != null && SELLER_ROLES.has(user.role);
+
+  // Subscription gate: sellers on expired trial cannot submit offers
+  const subStatusQ = useQuery({
+    queryKey: ['subscription-status'],
+    queryFn: async () => {
+      const { data } = await api.get<{ fullyAccess: boolean; status: string }>('/api/v1/subscriptions/status');
+      return data;
+    },
+    enabled: canSell,
+    staleTime: 60_000,
+  });
+  // Fail closed while loading — prevents a brief unsubscribed window
+  const hasSubscriptionAccess = canSell
+    ? (subStatusQ.isSuccess ? (subStatusQ.data?.fullyAccess ?? false) : false)
+    : true; // non-sellers don't need a subscription check
 
   const demandQ = useQuery({
     queryKey: ['demand', demandId],
@@ -162,6 +178,17 @@ export default function SellerOfferScreen() {
       Alert.alert('Seller account required', 'Sign in as a stall owner or attendant to submit offers.');
       return;
     }
+    if (!hasSubscriptionAccess) {
+      Alert.alert(
+        'Subscription required',
+        'Your trial has ended. Subscribe for $5/month to bid on customer demands.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Subscribe', onPress: () => router.push('/subscriptions' as never) },
+        ],
+      );
+      return;
+    }
     if (!stallId) {
       Alert.alert('Stall', 'Select a stall.');
       return;
@@ -192,7 +219,7 @@ export default function SellerOfferScreen() {
       message: message.trim() || undefined,
       items: [{ variantId: selected.variantId, quantity: qty, price: unit }],
     });
-  }, [canSell, demandId, message, qtyStr, selected, stallId, submitMut, unitStr]);
+  }, [canSell, hasSubscriptionAccess, demandId, message, qtyStr, selected, stallId, submitMut, unitStr, router]);
 
   const loadMore = useCallback(() => {
     if (productsQ.hasNextPage && !productsQ.isFetchingNextPage) productsQ.fetchNextPage();
