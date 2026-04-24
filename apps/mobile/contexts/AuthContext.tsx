@@ -6,7 +6,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { api, setOnAuthExpired } from '@/lib/api';
+import { api, resetAuthExpiredGuard, setOnAuthExpired } from '@/lib/api';
 import { clearTokens, getAccessToken, setTokens } from '@/lib/token-storage';
 import { router } from 'expo-router';
 import { registerForPushNotifications, savePushTokenToBackend } from '@/lib/push';
@@ -87,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
     });
     await setTokens(data.accessToken, data.refreshToken);
+    resetAuthExpiredGuard(); // new session — re-arm the expiry guard
     const { data: me } = await api.get<MeProfile>('/api/v1/users/me');
     setUser(me);
     // Register push token now that we have a valid session
@@ -109,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data } = await api.post('/api/v1/auth/register', body);
     if (data?.accessToken) {
       await setTokens(data.accessToken, data.refreshToken);
+      resetAuthExpiredGuard(); // new session — re-arm the expiry guard
       const { data: me } = await api.get<MeProfile>('/api/v1/users/me');
       setUser(me);
       registerForPushNotifications().then((token) => {
