@@ -29,13 +29,14 @@ CREATE INDEX IF NOT EXISTS "agent_commissions_agent_id_idx" ON "agent_commission
 CREATE INDEX IF NOT EXISTS "agent_commissions_merchant_id_idx" ON "agent_commissions"("merchant_id");
 CREATE INDEX IF NOT EXISTS "agent_commissions_status_idx" ON "agent_commissions"("status");
 
-ALTER TABLE "agent_commissions"
-    ADD CONSTRAINT "agent_commissions_agent_id_fkey"
+DO $$ BEGIN
+  ALTER TABLE "agent_commissions" ADD CONSTRAINT "agent_commissions_agent_id_fkey"
     FOREIGN KEY ("agent_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
-ALTER TABLE "agent_commissions"
-    ADD CONSTRAINT "agent_commissions_merchant_id_fkey"
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "agent_commissions" ADD CONSTRAINT "agent_commissions_merchant_id_fkey"
     FOREIGN KEY ("merchant_id") REFERENCES "merchants"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- CreateTable ProductReview
 CREATE TABLE IF NOT EXISTS "product_reviews" (
@@ -56,13 +57,14 @@ CREATE INDEX IF NOT EXISTS "product_reviews_product_id_idx" ON "product_reviews"
 CREATE INDEX IF NOT EXISTS "product_reviews_reviewer_id_idx" ON "product_reviews"("reviewer_id");
 CREATE INDEX IF NOT EXISTS "product_reviews_rating_idx" ON "product_reviews"("rating");
 
-ALTER TABLE "product_reviews"
-    ADD CONSTRAINT "product_reviews_product_id_fkey"
+DO $$ BEGIN
+  ALTER TABLE "product_reviews" ADD CONSTRAINT "product_reviews_product_id_fkey"
     FOREIGN KEY ("product_id") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
-ALTER TABLE "product_reviews"
-    ADD CONSTRAINT "product_reviews_reviewer_id_fkey"
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "product_reviews" ADD CONSTRAINT "product_reviews_reviewer_id_fkey"
     FOREIGN KEY ("reviewer_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- CreateTable UserAddress
 CREATE TABLE IF NOT EXISTS "user_addresses" (
@@ -82,6 +84,7 @@ CREATE TABLE IF NOT EXISTS "user_addresses" (
 
 CREATE INDEX IF NOT EXISTS "user_addresses_user_id_idx" ON "user_addresses"("user_id");
 
-ALTER TABLE "user_addresses"
-    ADD CONSTRAINT "user_addresses_user_id_fkey"
+DO $$ BEGIN
+  ALTER TABLE "user_addresses" ADD CONSTRAINT "user_addresses_user_id_fkey"
     FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

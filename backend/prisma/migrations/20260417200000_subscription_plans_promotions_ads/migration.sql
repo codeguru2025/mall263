@@ -1,7 +1,7 @@
 -- ============================================================
 -- SUBSCRIPTION PLANS
 -- ============================================================
-CREATE TABLE "subscription_plans" (
+CREATE TABLE IF NOT EXISTS "subscription_plans" (
     "id"          UUID         NOT NULL DEFAULT gen_random_uuid(),
     "name"        TEXT         NOT NULL,
     "slug"        TEXT         NOT NULL,
@@ -17,14 +17,15 @@ CREATE TABLE "subscription_plans" (
     CONSTRAINT "subscription_plans_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "subscription_plans_slug_key"       ON "subscription_plans"("slug");
-CREATE INDEX        "subscription_plans_is_active_idx"  ON "subscription_plans"("is_active");
-CREATE INDEX        "subscription_plans_is_default_idx" ON "subscription_plans"("is_default");
+CREATE UNIQUE INDEX IF NOT EXISTS "subscription_plans_slug_key"       ON "subscription_plans"("slug");
+CREATE INDEX IF NOT EXISTS        "subscription_plans_is_active_idx"  ON "subscription_plans"("is_active");
+CREATE INDEX IF NOT EXISTS        "subscription_plans_is_default_idx" ON "subscription_plans"("is_default");
 
--- Seed the default plan so existing billing logic keeps working immediately
+-- Seed the default plan (explicit id for DBs where column default was not applied)
 INSERT INTO "subscription_plans"
-    ("name", "slug", "price_usd", "trial_days", "description", "features", "is_active", "is_default", "sort_order", "updated_at")
+    ("id", "name", "slug", "price_usd", "trial_days", "description", "features", "is_active", "is_default", "sort_order", "created_at", "updated_at")
 VALUES (
+    gen_random_uuid(),
     'Standard',
     'standard',
     5.00,
@@ -34,15 +35,21 @@ VALUES (
     true,
     true,
     0,
+    NOW(),
     NOW()
-);
+)
+ON CONFLICT ("slug") DO NOTHING;
 
 -- ============================================================
 -- PROMOTIONS
 -- ============================================================
-CREATE TYPE "PromoType" AS ENUM ('REFERRAL', 'COUPON', 'DISCOUNT');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'PromoType') THEN
+    CREATE TYPE "PromoType" AS ENUM ('REFERRAL', 'COUPON', 'DISCOUNT');
+  END IF;
+END $$;
 
-CREATE TABLE "promotions" (
+CREATE TABLE IF NOT EXISTS "promotions" (
     "id"              UUID         NOT NULL DEFAULT gen_random_uuid(),
     "code"            TEXT         NOT NULL,
     "type"            "PromoType"  NOT NULL,
@@ -60,16 +67,20 @@ CREATE TABLE "promotions" (
     CONSTRAINT "promotions_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "promotions_code_key"      ON "promotions"("code");
-CREATE INDEX        "promotions_code_idx"      ON "promotions"("code");
-CREATE INDEX        "promotions_is_active_idx" ON "promotions"("is_active");
+CREATE UNIQUE INDEX IF NOT EXISTS "promotions_code_key"      ON "promotions"("code");
+CREATE INDEX IF NOT EXISTS        "promotions_code_idx"      ON "promotions"("code");
+CREATE INDEX IF NOT EXISTS        "promotions_is_active_idx" ON "promotions"("is_active");
 
 -- ============================================================
 -- ADS
 -- ============================================================
-CREATE TYPE "AdPlacement" AS ENUM ('BANNER_TOP', 'BANNER_BOTTOM', 'SIDEBAR', 'INTERSTITIAL');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AdPlacement') THEN
+    CREATE TYPE "AdPlacement" AS ENUM ('BANNER_TOP', 'BANNER_BOTTOM', 'SIDEBAR', 'INTERSTITIAL');
+  END IF;
+END $$;
 
-CREATE TABLE "ads" (
+CREATE TABLE IF NOT EXISTS "ads" (
     "id"              UUID           NOT NULL DEFAULT gen_random_uuid(),
     "title"           TEXT           NOT NULL,
     "image_url"       TEXT,
@@ -86,5 +97,5 @@ CREATE TABLE "ads" (
     CONSTRAINT "ads_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "ads_is_active_idx" ON "ads"("is_active");
-CREATE INDEX "ads_placement_idx" ON "ads"("placement");
+CREATE INDEX IF NOT EXISTS "ads_is_active_idx" ON "ads"("is_active");
+CREATE INDEX IF NOT EXISTS "ads_placement_idx" ON "ads"("placement");

@@ -9,11 +9,15 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { UserRole } from '@prisma/client';
 import { CreateStallDto, UpdateMallDto, UpdatePaymentConfigDto, UpdateStallDto } from './dto/stall.dto';
+import { CitiesService } from '../cities/cities.service';
 
 @ApiTags('Stalls')
 @Controller('stalls')
 export class StallsController {
-  constructor(private stallsService: StallsService) {}
+  constructor(
+    private stallsService: StallsService,
+    private citiesService: CitiesService,
+  ) {}
 
   @Post()
   @ApiBearerAuth()
@@ -29,6 +33,14 @@ export class StallsController {
   @ApiOperation({ summary: 'List active malls (public)' })
   async listMalls(@Query('city') city?: string) {
     return this.stallsService.listMalls(city);
+  }
+
+  /** Must be registered before @Get(':id') — "cities" is not a UUID. Same payload as GET /cities. */
+  @Get('cities')
+  @Public()
+  @ApiOperation({ summary: 'List cities with malls (legacy path; use GET /cities)' })
+  async listCities(@Query('country') country?: string) {
+    return this.citiesService.findAll(country);
   }
 
   // ── Admin mall management ──────────────────────────────────────────────────

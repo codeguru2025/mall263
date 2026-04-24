@@ -1,5 +1,5 @@
--- CreateTable
-CREATE TABLE "service_listings" (
+-- CreateTable (idempotent: table may already exist on drifted DBs)
+CREATE TABLE IF NOT EXISTS "service_listings" (
     "id" UUID NOT NULL,
     "provider_id" UUID NOT NULL,
     "stall_id" UUID,
@@ -19,14 +19,22 @@ CREATE TABLE "service_listings" (
 );
 
 -- CreateIndex
-CREATE INDEX "service_listings_provider_id_idx" ON "service_listings"("provider_id");
-CREATE INDEX "service_listings_stall_id_idx" ON "service_listings"("stall_id");
-CREATE INDEX "service_listings_mall_id_idx" ON "service_listings"("mall_id");
-CREATE INDEX "service_listings_category_id_idx" ON "service_listings"("category_id");
-CREATE INDEX "service_listings_is_active_idx" ON "service_listings"("is_active");
+CREATE INDEX IF NOT EXISTS "service_listings_provider_id_idx" ON "service_listings"("provider_id");
+CREATE INDEX IF NOT EXISTS "service_listings_stall_id_idx" ON "service_listings"("stall_id");
+CREATE INDEX IF NOT EXISTS "service_listings_mall_id_idx" ON "service_listings"("mall_id");
+CREATE INDEX IF NOT EXISTS "service_listings_category_id_idx" ON "service_listings"("category_id");
+CREATE INDEX IF NOT EXISTS "service_listings_is_active_idx" ON "service_listings"("is_active");
 
 -- AddForeignKey
-ALTER TABLE "service_listings" ADD CONSTRAINT "service_listings_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "service_listings" ADD CONSTRAINT "service_listings_stall_id_fkey" FOREIGN KEY ("stall_id") REFERENCES "stalls"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "service_listings" ADD CONSTRAINT "service_listings_mall_id_fkey" FOREIGN KEY ("mall_id") REFERENCES "malls"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "service_listings" ADD CONSTRAINT "service_listings_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "service_listings" ADD CONSTRAINT "service_listings_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "service_listings" ADD CONSTRAINT "service_listings_stall_id_fkey" FOREIGN KEY ("stall_id") REFERENCES "stalls"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "service_listings" ADD CONSTRAINT "service_listings_mall_id_fkey" FOREIGN KEY ("mall_id") REFERENCES "malls"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE "service_listings" ADD CONSTRAINT "service_listings_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
