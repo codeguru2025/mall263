@@ -38,8 +38,7 @@
         "releaseStatus": "draft"
       },
       "ios": {
-        "ascAppId": "6762513699",
-        "autoIncrement": true
+        "ascAppId": "6762513699"
       }
     }
   }
