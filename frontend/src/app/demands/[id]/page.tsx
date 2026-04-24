@@ -10,6 +10,7 @@ import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
 import UrgencyCountdown, { useCountdown, formatCountdown } from '@/components/UrgencyCountdown';
 import OfferExpiryBar from '@/components/OfferExpiryBar';
+import OfferCountdownRing from '@/components/OfferCountdownRing';
 import {
   ArrowLeft, Gavel, Clock, CheckCircle2, ChevronDown, Loader2, AlertCircle,
   MapPin, MessageCircle, Truck, Navigation, Store, PackageCheck, X, Receipt,
@@ -462,76 +463,131 @@ export default function DemandDetailPage() {
                 const isAccepted = offer.status === 'ACCEPTED';
                 const isPending = offer.status === 'PENDING';
                 const isRejected = offer.status === 'REJECTED';
+                const stallName: string = offer.stall?.name || 'Seller';
+                const initials = stallName.split(' ').slice(0, 2).map((w: string) => w[0]).join('').toUpperCase();
+                const AVATAR_COLORS = ['#16a34a','#2563eb','#7c3aed','#db2777','#d97706','#0891b2'];
+                const avatarBg = AVATAR_COLORS[[...offer.id].reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
+                const mallLine = [offer.stall?.mall?.name, offer.stall?.mall?.city?.name ?? offer.stall?.mall?.city].filter(Boolean).join(', ');
+                const items: any[] = offer.items ?? [];
 
                 return (
                   <div
                     key={offer.id}
-                    className={`bg-white rounded-2xl border-2 transition-all ${
-                      isAccepted ? 'border-brand-green shadow-sm' :
-                      isRejected ? 'border-gray-100 opacity-60' :
-                      'border-gray-100'
+                    className={`bg-white rounded-2xl border-2 transition-all overflow-hidden ${
+                      isAccepted ? 'border-green-400 shadow-md' :
+                      isRejected ? 'border-gray-100 opacity-55' :
+                      'border-gray-100 hover:border-gray-200'
                     }`}
                   >
-                    <div className="p-4 flex items-center gap-3">
-                      {/* Seller avatar placeholder */}
-                      <div className="w-10 h-10 bg-gradient-to-br from-brand-blue to-brand-green rounded-full flex items-center justify-center flex-shrink-0">
-                        <Store className="w-5 h-5 text-white" />
-                      </div>
+                    {/* ── Header row ── */}
+                    <div className="p-4 flex items-start gap-3">
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-sm text-navy-700 truncate">
-                            {offer.stall?.name || 'Seller'}
-                          </span>
-                          {isAccepted && (
-                            <span className="text-[10px] font-bold bg-green-100 text-brand-green px-2 py-0.5 rounded-full">Accepted</span>
-                          )}
-                          {isRejected && (
-                            <span className="text-[10px] font-bold bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">Rejected</span>
-                          )}
-                        </div>
-                        {offer.stall?.mall?.name && (
-                          <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                            <MapPin className="w-3 h-3" />
-                            {offer.stall.mall.name}{offer.stall.mall.city ? `, ${offer.stall.mall.city?.name ?? offer.stall.mall.city}` : ''}
+                      {/* LEFT: circular countdown ring (pending) or status icon */}
+                      <div className="flex-shrink-0 flex flex-col items-center gap-1">
+                        {isPending && offer.createdAt && offer.expiresAt ? (
+                          <OfferCountdownRing createdAt={offer.createdAt} expiresAt={offer.expiresAt} />
+                        ) : (
+                          <div className={`w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0 ${isAccepted ? 'bg-green-50' : 'bg-gray-100'}`}>
+                            {isAccepted
+                              ? <CheckCircle2 className="w-7 h-7 text-brand-green" />
+                              : <X className="w-7 h-7 text-gray-300" />
+                            }
                           </div>
                         )}
+                      </div>
+
+                      {/* CENTRE: stall info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          {/* Avatar with initials */}
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+                            style={{ backgroundColor: avatarBg }}
+                          >
+                            {initials}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-black text-sm text-navy-700 truncate">{stallName}</span>
+                              {offer.stall?.stallNumber && (
+                                <span className="text-[10px] font-semibold text-gray-400">#{offer.stall.stallNumber}</span>
+                              )}
+                              {isAccepted && (
+                                <span className="text-[10px] font-black bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Accepted</span>
+                              )}
+                              {isRejected && (
+                                <span className="text-[10px] font-bold bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">Rejected</span>
+                              )}
+                            </div>
+                            {mallLine && (
+                              <div className="flex items-center gap-1 text-[11px] text-gray-400 mt-0.5">
+                                <MapPin className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">{mallLine}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
                         {offer.message && (
-                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{offer.message}</p>
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">{offer.message}</p>
                         )}
                       </div>
 
+                      {/* RIGHT: price + accept */}
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                        <span className="text-xl font-black text-navy-700">
+                        <span className={`text-2xl font-black leading-none tracking-tight ${isAccepted ? 'text-green-600' : 'text-navy-700'}`}>
                           {formatCurrency(parseFloat(offer.totalPrice))}
                         </span>
                         {isBuyer && isPending && isOpen && (
                           <button
                             onClick={() => acceptOffer.mutate(offer.id)}
                             disabled={acceptOffer.isPending}
-                            className="flex items-center gap-1.5 bg-brand-green text-white text-xs font-bold py-2 px-3 rounded-xl hover:bg-green-600 transition-colors"
+                            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-black py-2.5 px-4 rounded-xl transition-colors disabled:opacity-60"
                           >
                             {acceptOffer.isPending
-                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              : <CheckCircle2 className="w-3.5 h-3.5" />}
+                              ? <Loader2 className="w-4 h-4 animate-spin" />
+                              : <CheckCircle2 className="w-4 h-4" />}
                             Accept
-                          </button>
-                        )}
-                        {isAccepted && (
-                          <button
-                            onClick={() => openChat.mutate(offer.id)}
-                            disabled={openChat.isPending}
-                            className="flex items-center gap-1.5 bg-brand-blue text-white text-xs font-bold py-2 px-3 rounded-xl hover:bg-blue-600 transition-colors"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            Chat
                           </button>
                         )}
                       </div>
                     </div>
-                    {isPending && offer.createdAt && offer.expiresAt && (
-                      <div className="px-4 pb-4">
-                        <OfferExpiryBar createdAt={offer.createdAt} expiresAt={offer.expiresAt} />
+
+                    {/* ── Line items ── */}
+                    {items.length > 0 && (
+                      <div className="mx-4 mb-3 bg-gray-50 rounded-xl px-3 py-2.5 space-y-1.5">
+                        {items.map((it: any, i: number) => {
+                          const name = it.variant?.product?.name ?? 'Item';
+                          return (
+                            <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
+                              <div className="w-1.5 h-1.5 rounded-full bg-gray-400 flex-shrink-0" />
+                              <span className="flex-1">{name}</span>
+                              <span className="font-bold text-gray-500">×{it.quantity}</span>
+                              <span className="font-bold text-navy-700">{formatCurrency(parseFloat(it.price))}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* ── Accepted actions ── */}
+                    {isAccepted && (
+                      <div className="flex gap-2 px-4 pb-4">
+                        <button
+                          onClick={() => openChat.mutate(offer.id)}
+                          disabled={openChat.isPending}
+                          className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-brand-blue text-sm font-bold py-2.5 px-4 rounded-xl hover:bg-blue-100 transition-colors disabled:opacity-60"
+                        >
+                          {openChat.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+                          Chat
+                        </button>
+                        <button
+                          onClick={() => setShowDeliveryModal(true)}
+                          className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold py-2.5 px-4 rounded-xl transition-colors"
+                        >
+                          <Truck className="w-4 h-4" />
+                          Arrange Delivery
+                        </button>
                       </div>
                     )}
                   </div>
