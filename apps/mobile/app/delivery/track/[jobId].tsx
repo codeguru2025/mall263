@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,17 +15,18 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Brand } from '@/constants/brand';
 import { buyerConfirmReceipt, cancelJob, getJob, type DeliveryJob } from '@/lib/delivery-api';
+import * as Location from 'expo-location';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const MAP_HEIGHT = 240;
 const USE_GOOGLE = Constants.expoConfig?.extra?.mapProvider === 'google';
 
-// Default region — Bulawayo, Zimbabwe
+// Last-resort view only when the job has no coordinates and the user did not share location
 const DEFAULT_REGION = {
   latitude: -20.1325,
   longitude: 28.6262,
-  latitudeDelta: 0.08,
-  longitudeDelta: 0.08,
+  latitudeDelta: 0.12,
+  longitudeDelta: 0.12,
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -61,6 +62,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 function DeliveryMap({ job }: { job: DeliveryJob }) {
   const mapRef = useRef<any>(null);
+  const [userRegion, setUserRegion] = useState<{ lat: number; lng: number } | null>(null);
 
   const driverLat = job.driver?.currentLat != null ? Number(job.driver.currentLat) : null;
   const driverLng = job.driver?.currentLng != null ? Number(job.driver.currentLng) : null;
@@ -76,10 +78,42 @@ function DeliveryMap({ job }: { job: DeliveryJob }) {
   const deliveryLng = job.deliveryGpsLng != null ? Number(job.deliveryGpsLng) : null;
   const hasDelivery = deliveryLat != null && deliveryLng != null;
 
+  const planDropLat = job.dropLat != null && String(job.dropLat) !== '' ? Number(job.dropLat) : null;
+  const planDropLng = job.dropLng != null && String(job.dropLng) !== '' ? Number(job.dropLng) : null;
+  const hasPlannedDrop = planDropLat != null && !isNaN(planDropLat) && planDropLng != null && !isNaN(planDropLng);
+
+  const needsUserFallback = !hasDriverPos && !hasPickup && !hasDelivery && !hasPlannedDrop;
+
+  useEffect(() => {
+    if (!needsUserFallback) return;
+    let cancelled = false;
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled || status !== 'granted') return;
+      try {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (!cancelled) setUserRegion({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      } catch {
+        // stay on default region
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [needsUserFallback]);
+
+  const atHardcodedDefault = needsUserFallback && !userRegion;
+
   const region = hasDriverPos
     ? { latitude: driverLat!, longitude: driverLng!, latitudeDelta: 0.04, longitudeDelta: 0.04 }
     : hasPickup
     ? { latitude: pickupLat!, longitude: pickupLng!, latitudeDelta: 0.04, longitudeDelta: 0.04 }
+    : hasDelivery
+    ? { latitude: deliveryLat!, longitude: deliveryLng!, latitudeDelta: 0.04, longitudeDelta: 0.04 }
+    : hasPlannedDrop
+    ? { latitude: planDropLat!, longitude: planDropLng!, latitudeDelta: 0.04, longitudeDelta: 0.04 }
+    : userRegion
+    ? { latitude: userRegion.lat, longitude: userRegion.lng, latitudeDelta: 0.04, longitudeDelta: 0.04 }
     : DEFAULT_REGION;
 
   return (
@@ -124,6 +158,16 @@ function DeliveryMap({ job }: { job: DeliveryJob }) {
           />
         )}
 
+        {/* Planned drop (from job creation when GPS was available) */}
+        {hasPlannedDrop && !hasDelivery && (
+          <Marker
+            coordinate={{ latitude: planDropLat!, longitude: planDropLng! }}
+            title="Planned drop-off"
+            description="From your delivery request"
+            pinColor="#1B2A4A"
+          />
+        )}
+
         {/* Delivery confirmation spot */}
         {hasDelivery && (
           <Marker
@@ -149,6 +193,12 @@ function DeliveryMap({ job }: { job: DeliveryJob }) {
             <Text style={styles.legendText}>Pickup</Text>
           </View>
         )}
+        {hasPlannedDrop && !hasDelivery && (
+          <View style={styles.legendRow}>
+            <View style={[styles.legendDot, { backgroundColor: Brand.navy }]} />
+            <Text style={styles.legendText}>Planned drop</Text>
+          </View>
+        )}
         {hasDelivery && (
           <View style={styles.legendRow}>
             <View style={[styles.legendDot, { backgroundColor: Brand.green }]} />
@@ -161,9 +211,22 @@ function DeliveryMap({ job }: { job: DeliveryJob }) {
             <Text style={styles.legendText}>10 km zone</Text>
           </View>
         )}
-        {!hasDriverPos && !hasPickup && !hasDelivery && (
-          <Text style={styles.legendText}>Waiting for driver location…</Text>
+        {atHardcodedDefault && (
+          <Text style={styles.legendText}>
+            No job coordinates yet — showing a default area. Allow location, or return after a driver is assigned.
+          </Text>
         )}
+        {userRegion && !hasDriverPos && !hasPickup && !hasDelivery && !hasPlannedDrop && !atHardcodedDefault && (
+          <Text style={styles.legendText}>Map centered on your current location</Text>
+        )}
+        {!atHardcodedDefault &&
+          !userRegion &&
+          !hasDriverPos &&
+          !hasPickup &&
+          !hasDelivery &&
+          !hasPlannedDrop && (
+            <Text style={styles.legendText}>Waiting for driver location…</Text>
+          )}
       </View>
     </View>
   );

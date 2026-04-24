@@ -16,7 +16,7 @@ import axios from 'axios';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { fetchMalls, submitMerchantSetup, type Mall } from '@/lib/stalls-api';
+import { displayCity, fetchMalls, submitMerchantSetup, type Mall } from '@/lib/stalls-api';
 import { Brand } from '@/constants/brand';
 
 export default function SellerSetupScreen() {
@@ -36,6 +36,11 @@ export default function SellerSetupScreen() {
     queryFn: () => fetchMalls(),
     staleTime: 60_000,
   });
+
+  const selectedMallCity = selectedMall ? displayCity(selectedMall.city) : '';
+  const selectedMallDisplay = selectedMall
+    ? `${selectedMall.name}${selectedMallCity ? ` — ${selectedMallCity}` : ''}`
+    : null;
 
   const onSubmit = async () => {
     if (!businessName.trim()) return Alert.alert('Missing business name', 'Enter your business name.');
@@ -139,7 +144,7 @@ export default function SellerSetupScreen() {
             disabled={submitting || mallsQ.isLoading}
           >
             <Text style={[styles.pickerText, !selectedMall && styles.pickerPlaceholder]}>
-              {selectedMall ? `${selectedMall.name}${selectedMall.city ? ` — ${selectedMall.city}` : ''}` : 'Select a mall'}
+              {selectedMallDisplay ?? 'Select a mall'}
             </Text>
             <FontAwesome name="chevron-down" size={12} color={Brand.muted} />
           </Pressable>
@@ -206,7 +211,9 @@ export default function SellerSetupScreen() {
                 <Text style={styles.mallRowText}>No mall / independent</Text>
                 {!selectedMall ? <FontAwesome name="check" size={14} color={Brand.blue} /> : null}
               </Pressable>
-              {(mallsQ.data ?? []).map((m) => (
+              {(mallsQ.data ?? []).map((m) => {
+                const cityLabel = displayCity(m.city);
+                return (
                 <Pressable
                   key={m.id}
                   style={styles.mallRow}
@@ -217,11 +224,12 @@ export default function SellerSetupScreen() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.mallRowText}>{m.name}</Text>
-                    {m.city ? <Text style={styles.mallRowSub}>{m.city}</Text> : null}
+                    {cityLabel ? <Text style={styles.mallRowSub}>{cityLabel}</Text> : null}
                   </View>
                   {selectedMall?.id === m.id ? <FontAwesome name="check" size={14} color={Brand.blue} /> : null}
                 </Pressable>
-              ))}
+                );
+              })}
             </ScrollView>
             <Pressable style={styles.closeBtn} onPress={() => setMallPickerOpen(false)}>
               <Text style={styles.closeBtnText}>Close</Text>

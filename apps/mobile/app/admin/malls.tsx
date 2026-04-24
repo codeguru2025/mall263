@@ -18,7 +18,7 @@ import { Brand } from '@/constants/brand';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 
-const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS'];
+const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'MALL_MANAGER'];
 
 type Mall = {
   id: string;
@@ -147,6 +147,8 @@ export default function AdminMallsScreen() {
     );
   }
 
+  const canMutateMalls = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN_OPS';
+
   const renderMall = ({ item }: { item: Mall }) => (
     <View style={[styles.card, cardShadow]}>
       <View style={styles.cardTop}>
@@ -162,6 +164,7 @@ export default function AdminMallsScreen() {
           </Text>
         </View>
       </View>
+      {canMutateMalls ? (
       <View style={styles.actions}>
         <Pressable style={[styles.actionBtn, styles.editBtn]} onPress={() => openEdit(item)}>
           <Text style={styles.editBtnText}>✏ Edit</Text>
@@ -173,6 +176,7 @@ export default function AdminMallsScreen() {
           <Text style={styles.actionBtnText}>{item.isActive ? 'Deactivate' : 'Activate'}</Text>
         </Pressable>
       </View>
+      ) : null}
     </View>
   );
 
@@ -219,7 +223,7 @@ export default function AdminMallsScreen() {
           </View>
         )}
 
-        {!showForm && (
+        {canMutateMalls && !showForm && (
           <View style={styles.topBar}>
             <Pressable style={styles.addBtn} onPress={openCreate}>
               <Text style={styles.addBtnText}>+ New Mall</Text>

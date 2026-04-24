@@ -12,6 +12,8 @@ export default function GlobalError({
 }) {
   const router = useRouter();
 
+  const isProd = process.env.NODE_ENV === 'production';
+
   useEffect(() => {
     console.error('[GlobalError]', error);
   }, [error]);
@@ -22,7 +24,9 @@ export default function GlobalError({
         <p className="text-4xl">⚠️</p>
         <h2 className="text-xl font-black text-navy-700">Something went wrong</h2>
         <p className="text-sm text-gray-500">
-          {error?.message || 'An unexpected error occurred. Please try again.'}
+          {isProd
+            ? 'An unexpected error occurred. Please try again.'
+            : error?.message || 'An unexpected error occurred. Please try again.'}
         </p>
         <div className="flex gap-3 justify-center pt-2">
           <button

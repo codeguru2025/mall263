@@ -1,6 +1,7 @@
 import { ScrollView, StyleSheet, View, Text, Platform, Pressable, FlatList, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -82,13 +83,20 @@ const QUICK_LINKS: QuickLink[] = [
 export default function HomeScreen() {
   const { user, isAuthenticated } = useAuth();
   const router = useRouter();
+  const isStaff = isAuthenticated && isStaffAdminRole(user?.role);
+  const staffHome = isStaff ? getStaffHomePath(user?.role) : null;
 
   const featuredQ = useQuery({
     queryKey: ['home-featured'],
     queryFn: () => fetchBrowsePage(1, 10),
     staleTime: 5 * 60_000,
+    enabled: !isStaff,
   });
   const featuredItems = featuredQ.data?.data ?? [];
+
+  if (staffHome) {
+    return <Redirect href={staffHome as never} />;
+  }
 
   if (!isAuthenticated) {
     return (

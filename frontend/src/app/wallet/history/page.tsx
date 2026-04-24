@@ -10,6 +10,7 @@ import { formatCurrency } from '@/lib/utils';
 import { ArrowLeft, ArrowDownLeft, ArrowUpRight, RefreshCw, Loader2, Lock } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useAuthStore } from '@/lib/store';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 
 /** Tailwind colour classes — labels come from `@mall263/shared` for parity with mobile. */
 const TYPE_COLORS: Record<string, string> = {
@@ -54,10 +55,18 @@ export default function WalletHistoryPage() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
+  const user = useAuthStore((s) => s.user);
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
   }, [authLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || !user) return;
+    if (isStaffAdminRole(user.role)) {
+      router.replace(getStaffHomePath(user.role) ?? '/admin');
+    }
+  }, [authLoading, isAuthenticated, user, router]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['wallet-transactions'],
@@ -72,6 +81,7 @@ export default function WalletHistoryPage() {
   const transactions: any[] = data?.data ?? [];
 
   if (authLoading) return null;
+  if (user && isStaffAdminRole(user.role)) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">

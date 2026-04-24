@@ -157,6 +157,7 @@ function RootLayoutNav() {
             <Stack.Screen name="seller/attendants" options={{ title: 'Stall attendants' }} />
             <Stack.Screen name="seller/qr" options={{ title: 'Shop QR Code' }} />
             <Stack.Screen name="admin/index" options={{ title: 'Admin' }} />
+            <Stack.Screen name="admin/reports" options={{ title: 'Platform reports' }} />
             <Stack.Screen name="admin/users" options={{ title: 'Users' }} />
             <Stack.Screen name="admin/stalls" options={{ title: 'Stalls' }} />
             <Stack.Screen name="admin/subscriptions" options={{ title: 'Subscriptions' }} />

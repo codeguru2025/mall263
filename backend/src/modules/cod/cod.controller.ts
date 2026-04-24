@@ -26,9 +26,7 @@ export class CodController {
     @Param('jobId') jobId: string,
     @CurrentUser('id') userId: string,
   ) {
-    const prisma = this.cod['prisma'] as any;
-    const driver = await prisma.driver.findUnique({ where: { userId } });
-    return this.cod.confirmCashCollected(jobId, driver?.id ?? '');
+    return this.cod.confirmCashCollected(jobId, userId);
   }
 
   @Post(':jobId/remit')
@@ -38,9 +36,7 @@ export class CodController {
     @CurrentUser('id') userId: string,
     @Body() body: { remittanceRef: string },
   ) {
-    const prisma = this.cod['prisma'] as any;
-    const driver = await prisma.driver.findUnique({ where: { userId } });
-    return this.cod.remitCash(jobId, driver?.id ?? '', body.remittanceRef);
+    return this.cod.remitCash(jobId, userId, body.remittanceRef);
   }
 
   @Post('flag-overdue')

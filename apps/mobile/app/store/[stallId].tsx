@@ -16,6 +16,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Brand } from '@/constants/brand';
 import {
+  displayCity,
   fetchStallById,
   fetchStallBrowsePage,
   followStall,
@@ -139,7 +140,7 @@ export default function StoreScreen() {
   const logo = stall?.logoUrl ?? stall?.merchant?.logoUrl ?? null;
   const storeName = stall?.name || stall?.merchant?.businessName || 'Store';
   const mallLine = stall?.mall
-    ? [stall.mall.name, stall.mall.city].filter(Boolean).join(' · ')
+    ? [stall.mall.name, displayCity(stall.mall.city)].filter(Boolean).join(' · ')
     : '';
 
   const header = (

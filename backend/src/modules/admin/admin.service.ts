@@ -318,6 +318,7 @@ export class AdminService {
     // Expose all configurable keys with their defaults so the admin panel shows them even when not yet overridden
     return {
       delivery_rate_per_km: '0.50',
+      delivery_default_quote_km: '5',
       platform_commission_rate: '0.025',
       delivery_platform_fee_rate: '0.03',
       delivery_reserve_rate: '0.02',

@@ -583,7 +583,7 @@ export default function DemandDetailPage() {
               </div>
 
               <p className="text-xs text-gray-400 text-center">
-                A 2.5% platform commission will be charged from your wallet.
+                You need at least $5.00 in your wallet to record this sale (no % commission on demand sales).
               </p>
 
               <button

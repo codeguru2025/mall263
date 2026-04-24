@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards, HttpCode } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { SubscriptionsService } from './subscriptions.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -76,7 +76,7 @@ export class SubscriptionsController {
 
   @Post('webhook')
   @Public()
-  @SkipThrottle()
+  @Throttle({ default: { limit: 400, ttl: 60_000 } })
   @HttpCode(200)
   @ApiOperation({ summary: 'Paynow webhook for subscription payments' })
   async webhook(@Body() body: Record<string, string>) {

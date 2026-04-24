@@ -19,18 +19,26 @@ import { fetchWalletBalance, requestWalletWithdrawal } from '@/lib/wallet-api';
 import { formatMoney } from '@/lib/products';
 import { Brand } from '@/constants/brand';
 import { useAuth } from '@/contexts/AuthContext';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 
 export default function WithdrawScreen() {
   const qc = useQueryClient();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   useEffect(() => {
     if (!isAuthenticated) router.replace('/login');
-  }, [isAuthenticated]);
+    else if (user && isStaffAdminRole(user.role)) {
+      router.replace((getStaffHomePath(user.role) ?? '/admin') as never);
+    }
+  }, [isAuthenticated, user]);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
 
-  const balanceQ = useQuery({ queryKey: ['wallet-balance'], queryFn: fetchWalletBalance });
+  const balanceQ = useQuery({
+    queryKey: ['wallet-balance'],
+    queryFn: fetchWalletBalance,
+    enabled: isAuthenticated && !isStaffAdminRole(user?.role),
+  });
 
   const mutation = useMutation({
     mutationFn: () => {

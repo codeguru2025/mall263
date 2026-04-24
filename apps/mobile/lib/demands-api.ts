@@ -72,6 +72,29 @@ export async function acceptOffer(offerId: string): Promise<{ accepted?: boolean
   return data;
 }
 
+export type OfferDeliveryQuote = {
+  distanceKm: number;
+  deliveryFee: number;
+  ratePerKm: number;
+  estimateOnly: boolean;
+  pickupLat: number;
+  pickupLng: number;
+  dropLat: number | null;
+  dropLng: number | null;
+};
+
+/** Per-km fee for an accepted offer, aligned with `requestDelivery` / delivery job creation. */
+export async function fetchOfferDeliveryQuote(
+  offerId: string,
+  opts?: { lat?: number; lng?: number },
+): Promise<OfferDeliveryQuote> {
+  const { data } = await api.get<OfferDeliveryQuote>(
+    `/api/v1/demands/offers/${offerId}/delivery-quote`,
+    { params: opts?.lat != null && opts?.lng != null ? { lat: opts.lat, lng: opts.lng } : {} },
+  );
+  return data;
+}
+
 export type OpenDemandRow = {
   id: string;
   title: string;

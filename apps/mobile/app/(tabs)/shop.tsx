@@ -16,11 +16,13 @@ import {
 import * as Location from 'expo-location';
 import { Image } from 'expo-image';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 import { Brand } from '@/constants/brand';
 import { fetchShopFeedPage, fetchActiveAd, formatMoney, type ShopListItem } from '@/lib/shop-feed';
 import { fetchCategories } from '@/lib/seller-api';
-import { fetchMalls } from '@/lib/stalls-api';
+import { displayCity, fetchMalls } from '@/lib/stalls-api';
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -38,6 +40,10 @@ const cardShadow =
 
 export default function ShopScreen() {
   const router = useRouter();
+  const { user, isAuthenticated } = useAuth();
+  const staffHome = isAuthenticated && isStaffAdminRole(user?.role) ? getStaffHomePath(user?.role) : null;
+  const blockStaff = !!staffHome;
+
   const [draftQuery, setDraftQuery] = useState('');
   const debouncedQuery = useDebouncedValue(draftQuery, 400);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,9 +80,20 @@ export default function ShopScreen() {
     }
   }, [nearLat]);
 
-  const categoriesQ = useQuery({ queryKey: ['categories'], queryFn: fetchCategories, staleTime: 5 * 60_000 });
-  const mallsQ = useQuery({ queryKey: ['malls'], queryFn: () => fetchMalls(), staleTime: 5 * 60_000 });
-  const adQ = useQuery({ queryKey: ['shop-ad'], queryFn: () => fetchActiveAd('BANNER_TOP'), staleTime: 60_000, retry: false });
+  const categoriesQ = useQuery({
+    queryKey: ['categories'],
+    queryFn: fetchCategories,
+    staleTime: 5 * 60_000,
+    enabled: !blockStaff,
+  });
+  const mallsQ = useQuery({ queryKey: ['malls'], queryFn: () => fetchMalls(), staleTime: 5 * 60_000, enabled: !blockStaff });
+  const adQ = useQuery({
+    queryKey: ['shop-ad'],
+    queryFn: () => fetchActiveAd('BANNER_TOP'),
+    staleTime: 60_000,
+    retry: false,
+    enabled: !blockStaff,
+  });
 
   const feedKey = useMemo(
     () => `${debouncedQuery.trim()}|${selectedCategoryId ?? ''}|${selectedMallId ?? ''}|${nearLat ?? ''}|${nearLng ?? ''}|${radiusKm}`,
@@ -95,6 +112,7 @@ export default function ShopScreen() {
         radiusKm: nearLat ? radiusKm : undefined,
       }),
     getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
+    enabled: !blockStaff,
   });
 
   const items = query.data?.pages.flatMap((p) => p.rows) ?? [];
@@ -257,17 +275,20 @@ export default function ShopScreen() {
           >
             <Text style={[styles.mallOptionText, !selectedMallId && styles.mallOptionTextActive]}>All malls</Text>
           </Pressable>
-          {malls.map((m) => (
+          {malls.map((m) => {
+            const city = displayCity(m.city);
+            return (
             <Pressable
               key={m.id}
               style={[styles.mallOption, selectedMallId === m.id && styles.mallOptionActive]}
               onPress={() => { setSelectedMallId(m.id); setShowMallFilter(false); }}
             >
               <Text style={[styles.mallOptionText, selectedMallId === m.id && styles.mallOptionTextActive]}>
-                {m.name}{m.city ? ` · ${m.city}` : ''}
+                {m.name}{city ? ` · ${city}` : ''}
               </Text>
             </Pressable>
-          ))}
+            );
+          })}
         </View>
       )}
 
@@ -298,6 +319,10 @@ export default function ShopScreen() {
       ) : null}
     </View>
   );
+
+  if (staffHome) {
+    return <Redirect href={staffHome as never} />;
+  }
 
   if (query.isPending) {
     return (

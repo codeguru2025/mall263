@@ -13,7 +13,7 @@ import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useQuery } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { fetchMalls, type Mall } from '@/lib/stalls-api';
+import { displayCity, fetchMalls, type Mall } from '@/lib/stalls-api';
 import { Brand } from '@/constants/brand';
 
 export default function MallsScreen() {
@@ -39,7 +39,7 @@ export default function MallsScreen() {
     const needle = q.trim().toLowerCase();
     return (
       (m.name ?? '').toLowerCase().includes(needle) ||
-      (m.city ?? '').toLowerCase().includes(needle) ||
+      displayCity(m.city).toLowerCase().includes(needle) ||
       (m.address ?? '').toLowerCase().includes(needle)
     );
   });
@@ -84,7 +84,7 @@ export default function MallsScreen() {
 }
 
 function MallCard({ mall }: { mall: Mall }) {
-  const location = [mall.city, mall.address].filter(Boolean).join(' · ');
+  const location = [displayCity(mall.city) || null, mall.address].filter(Boolean).join(' · ');
   const stallCount = mall._count?.stalls;
   return (
     <Pressable

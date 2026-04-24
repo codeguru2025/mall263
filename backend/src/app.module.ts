@@ -5,6 +5,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
+import { RedisService } from './redis/redis.service';
+import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { MerchantsModule } from './modules/merchants/merchants.module';
@@ -44,16 +46,24 @@ import { DiscountsModule } from './modules/discounts/discounts.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot({
-      throttlers: [
-        // Broad baseline — 120 req/min per IP (keeps crawlers/scrapers from hammering)
-        { name: 'global', ttl: 60_000, limit: 120 },
-        // Burst allowance — up to 20 req/sec to handle legitimate mobile burst on app open
-        { name: 'burst', ttl: 1_000, limit: 20 },
-      ],
-    }),
     PrismaModule,
     RedisModule,
+    // Throttler uses Redis/Valkey so all API instances share counters
+    // (memory storage would let an attacker bypass limits by spraying IPs
+    // across instances). Falls back to in-memory if Redis is unreachable.
+    ThrottlerModule.forRootAsync({
+      imports: [RedisModule],
+      inject: [RedisService],
+      useFactory: (redis: RedisService) => ({
+        throttlers: [
+          // Broad baseline — 120 req/min per IP (keeps crawlers/scrapers from hammering)
+          { name: 'global', ttl: 60_000, limit: 120 },
+          // Burst allowance — up to 20 req/sec to handle legitimate mobile burst on app open
+          { name: 'burst', ttl: 1_000, limit: 20 },
+        ],
+        storage: new RedisThrottlerStorage(redis),
+      }),
+    }),
     AuthModule,
     UsersModule,
     MerchantsModule,

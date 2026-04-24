@@ -10,6 +10,7 @@ import { Logo } from '@/components/Logo';
 import { ArrowLeft, Smartphone, CreditCard, Loader2, CheckCircle2, XCircle, Wallet } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/lib/store';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 
 type Method = 'ecocash' | 'onemoney' | 'telecash' | 'web';
 
@@ -37,10 +38,18 @@ export default function DepositPage() {
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
+  const user = useAuthStore((s) => s.user);
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
   }, [authLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || !user) return;
+    if (isStaffAdminRole(user.role)) {
+      router.replace(getStaffHomePath(user.role) ?? '/admin');
+    }
+  }, [authLoading, isAuthenticated, user, router]);
 
   const isMobile = method !== 'web';
 
@@ -165,6 +174,7 @@ export default function DepositPage() {
   };
 
   if (authLoading) return null;
+  if (user && isStaffAdminRole(user.role)) return null;
 
   // ── Success screen ─────────────────────────────────────────────────────────
   if (stage === 'success') {

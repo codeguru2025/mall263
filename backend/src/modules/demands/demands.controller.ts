@@ -107,6 +107,25 @@ export class DemandsController {
     return this.demandsService.getDeliveryRate();
   }
 
+  @Get('offers/:offerId/delivery-quote')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Quote delivery distance/fee for an accepted offer (buyer) — use before creating a delivery job',
+  })
+  async quoteOfferDelivery(
+    @CurrentUser('id') buyerId: string,
+    @Param('offerId') offerId: string,
+    @Query('lat') lat?: string,
+    @Query('lng') lng?: string,
+  ) {
+    const latN = lat != null && lat !== '' ? Number(lat) : undefined;
+    const lngN = lng != null && lng !== '' ? Number(lng) : undefined;
+    const gps =
+      latN != null && lngN != null && !isNaN(latN) && !isNaN(lngN) ? { lat: latN, lng: lngN } : undefined;
+    return this.demandsService.quoteOfferDelivery(buyerId, offerId, gps);
+  }
+
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)

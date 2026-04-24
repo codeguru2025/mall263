@@ -9,8 +9,7 @@ import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/Logo';
 import { ArrowLeft, BarChart3, DollarSign, TrendingUp, Users, Store, Gavel, Loader2 } from 'lucide-react';
-
-const ADMIN_DASHBOARD_ROLES = new Set(['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN']);
+import { isAdminConsoleDashboardRole } from '@mall263/shared';
 
 export default function ReportsPage() {
   const router = useRouter();
@@ -18,12 +17,12 @@ export default function ReportsPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
 
-  const isAdmin = isAuthenticated && user && ADMIN_DASHBOARD_ROLES.has(user.role);
+  const isAdmin = isAuthenticated && user && isAdminConsoleDashboardRole(user.role);
 
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) { router.push('/auth/login'); return; }
-    if (user && !ADMIN_DASHBOARD_ROLES.has(user.role)) router.push('/dashboard');
+    if (user && !isAdminConsoleDashboardRole(user.role)) router.push('/dashboard');
   }, [authLoading, isAuthenticated, user, router]);
 
   const { data: stats, isLoading } = useQuery({

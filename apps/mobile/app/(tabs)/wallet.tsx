@@ -12,7 +12,7 @@ import {
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { router, Redirect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { isWalletTxCredit, walletTxTypeLabel } from '@mall263/shared';
+import { getStaffHomePath, isStaffAdminRole, isWalletTxCredit, walletTxTypeLabel } from '@mall263/shared';
 import { Brand } from '@/constants/brand';
 import { fetchWalletBalance, fetchWalletTransactionsPage, type WalletTxRow } from '@/lib/wallet-api';
 import { formatMoney } from '@/lib/products';
@@ -36,12 +36,15 @@ function fmtWhen(iso: string): string {
 }
 
 export default function WalletScreen() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
+  const staffBlock = isAuthenticated && isStaffAdminRole(user?.role);
+  const staffPath = staffBlock ? getStaffHomePath(user?.role) : null;
 
   const balanceQ = useQuery({
     queryKey: ['wallet-balance'],
     queryFn: fetchWalletBalance,
+    enabled: isAuthenticated && !staffBlock,
   });
 
   const txQ = useInfiniteQuery({
@@ -49,6 +52,7 @@ export default function WalletScreen() {
     initialPageParam: 1,
     queryFn: ({ pageParam }) => fetchWalletTransactionsPage(pageParam as number, 25),
     getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
+    enabled: isAuthenticated && !staffBlock,
   });
 
   const rows = txQ.data?.pages.flatMap((p) => p.data) ?? [];
@@ -160,6 +164,7 @@ export default function WalletScreen() {
   }
 
   if (!isAuthenticated) return <Redirect href="/login" />;
+  if (staffPath) return <Redirect href={staffPath as never} />;
 
   return (
     <FlatList

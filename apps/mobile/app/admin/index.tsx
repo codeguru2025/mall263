@@ -15,8 +15,7 @@ import { Brand } from '@/constants/brand';
 import { fetchDashboard } from '@/lib/admin-api';
 import { formatMoney } from '@/lib/products';
 import { useAuth } from '@/contexts/AuthContext';
-
-const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN', 'SUPPORT_ADMIN'];
+import { isAdminConsoleDashboardRole } from '@mall263/shared';
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -31,10 +30,17 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!isAuthenticated) { router.replace('/login'); return; }
-    if (user && !ADMIN_ROLES.includes(user.role)) router.replace('/(tabs)');
+    if (!user) return;
+    if (user.role === 'SUPPORT_ADMIN') { router.replace('/admin/support'); return; }
+    if (user.role === 'MALL_MANAGER') { router.replace('/admin/malls'); return; }
+    if (!isAdminConsoleDashboardRole(user.role)) router.replace('/(tabs)');
   }, [isAuthenticated, user]);
 
-  const statsQ = useQuery({ queryKey: ['admin-dashboard'], queryFn: fetchDashboard, enabled: isAuthenticated });
+  const statsQ = useQuery({
+    queryKey: ['admin-dashboard'],
+    queryFn: fetchDashboard,
+    enabled: isAuthenticated && isAdminConsoleDashboardRole(user?.role),
+  });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -43,16 +49,25 @@ export default function AdminDashboard() {
 
   const s = statsQ.data;
 
+  if (user && !isAdminConsoleDashboardRole(user.role)) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={Brand.blue} />
+      </View>
+    );
+  }
+
   const tiles: StatTile[] = [
-    { label: 'Users', value: s?.totalUsers ?? '—', color: Brand.blue },
-    { label: 'Active stalls', value: s?.activeStalls ?? '—', color: Brand.green },
-    { label: 'Pending stalls', value: s?.pendingStalls ?? '—', color: Brand.orange },
-    { label: 'Products', value: s?.totalProducts ?? '—', color: Brand.navy },
-    { label: 'Sales', value: s?.totalSales ?? '—', color: '#7C3AED' },
-    { label: 'Revenue', value: s ? formatMoney(s.totalRevenue, 'USD') : '—', color: Brand.green },
+    { label: 'Users', value: s?.users ?? '—', color: Brand.blue },
+    { label: 'Merchants', value: s?.merchants ?? '—', color: Brand.green },
+    { label: 'Products', value: s?.products ?? '—', color: Brand.navy },
+    { label: 'Sales', value: s?.sales ?? '—', color: '#7C3AED' },
+    { label: 'Commission', value: s ? formatMoney(s.totalCommissionRevenue, 'USD') : '—', color: Brand.green },
+    { label: 'Open demands', value: s?.openDemands ?? '—', color: Brand.orange },
   ];
 
   const navItems = [
+    { label: 'Reports', icon: '📈', route: '/admin/reports' as const },
     { label: 'Users', icon: '👤', route: '/admin/users' as const },
     { label: 'Stalls', icon: '🏪', route: '/admin/stalls' as const },
     { label: 'Merchants', icon: '🏬', route: '/admin/merchants' as const },

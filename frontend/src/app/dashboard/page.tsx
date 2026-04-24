@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 import { useAuthStore } from '@/lib/store';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -142,6 +143,13 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!isAuthenticated) router.push('/auth/login');
   }, [isAuthenticated, router]);
+
+  useEffect(() => {
+    if (user && isStaffAdminRole(user.role)) {
+      const p = getStaffHomePath(user.role);
+      if (p) router.replace(p);
+    }
+  }, [user, router]);
 
   const { data: wallet } = useQuery({
     queryKey: ['wallet'],

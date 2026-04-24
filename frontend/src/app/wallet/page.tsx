@@ -10,6 +10,7 @@ import { formatCurrency } from '@/lib/utils';
 import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Loader2, Lock, List, Wallet } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useAuthStore } from '@/lib/store';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 
 function txIcon(type: string) {
   if (isWalletTxCredit(type)) return <ArrowDownLeft className="w-4 h-4 text-brand-green" />;
@@ -25,11 +26,19 @@ export default function WalletOverviewPage() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
+  const user = useAuthStore((s) => s.user);
 
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) router.push('/auth/login');
   }, [authLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (authLoading || !isAuthenticated || !user) return;
+    if (isStaffAdminRole(user.role)) {
+      router.replace(getStaffHomePath(user.role) ?? '/admin');
+    }
+  }, [authLoading, isAuthenticated, user, router]);
 
   const { data: balance, isLoading: balLoading } = useQuery({
     queryKey: ['wallet'],
@@ -46,6 +55,7 @@ export default function WalletOverviewPage() {
   const preview: any[] = txData?.data ?? [];
 
   if (authLoading) return null;
+  if (user && isStaffAdminRole(user.role)) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">

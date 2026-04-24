@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Gavel, LogOut, User, MapPin } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 import { useAuthStore } from '@/lib/store';
 import LocationFilterBar from '@/components/home/LocationFilterBar';
 import CategoryGrid from '@/components/home/CategoryGrid';
@@ -14,6 +15,7 @@ import DemandCTA from '@/components/home/DemandCTA';
 import InfiniteProductFeed from '@/components/home/InfiniteProductFeed';
 
 export default function HomePage() {
+  const router = useRouter();
   const [selectedMallId, setSelectedMallId] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -21,6 +23,13 @@ export default function HomePage() {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const logout = useAuthStore((s) => s.logout);
+
+  useEffect(() => {
+    if (isAuthenticated && user && isStaffAdminRole(user.role)) {
+      const p = getStaffHomePath(user.role);
+      if (p) router.replace(p);
+    }
+  }, [isAuthenticated, user, router]);
 
   // Close account dropdown on outside click
   useEffect(() => {

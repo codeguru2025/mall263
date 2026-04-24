@@ -26,6 +26,7 @@ import { isWishlisted, toggleWishlist } from '@/lib/wishlist';
 import { recordView } from '@/lib/recently-viewed';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWalletBalance } from '@/lib/wallet-api';
+import { displayCity } from '@/lib/stalls-api';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -240,7 +241,7 @@ export default function ProductDetailScreen() {
   const storeName = stall?.name || stall?.merchant?.businessName || 'Store';
   const storeLogo = stall?.logoUrl || stall?.merchant?.logoUrl || null;
   const mallLine = stall?.mall
-    ? [stall.mall.name, stall.mall.city].filter(Boolean).join(' · ')
+    ? [stall.mall.name, displayCity(stall.mall.city)].filter(Boolean).join(' · ')
     : '';
   const storeLocked = (typeof storeName === 'string' && storeName.includes('Fund wallet')) || !!buyerGated;
 

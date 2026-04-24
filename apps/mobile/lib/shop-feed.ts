@@ -1,6 +1,7 @@
 import { api } from '@/lib/api';
 import { fetchBrowsePage, type BrowseProduct } from '@/lib/products';
 import { fetchSearchPage, type SearchHit } from '@/lib/search';
+import { displayCity } from '@/lib/stalls-api';
 
 export { formatMoney } from '@/lib/products';
 
@@ -33,7 +34,8 @@ export type ShopListItem = {
 
 function fromBrowse(p: BrowseProduct): ShopListItem {
   const imageUrl = p.images?.[0]?.url ?? null;
-  const subtitle = [p.category?.name, p.stall?.mall?.city].filter(Boolean).join(' · ') || null;
+  const subtitle =
+    [p.category?.name, displayCity(p.stall?.mall?.city)].filter(Boolean).join(' · ') || null;
   return {
     id: p.id,
     name: p.name,

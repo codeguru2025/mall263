@@ -15,6 +15,7 @@ import { Link, useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiBaseUrl } from '@/lib/config';
 import { Brand } from '@/constants/brand';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -30,8 +31,11 @@ export default function LoginScreen() {
     }
     setSubmitting(true);
     try {
-      await login(phone, password);
-      router.replace('/(tabs)');
+      const me = await login(phone, password);
+      const next = isStaffAdminRole(me.role)
+        ? (getStaffHomePath(me.role) ?? '/admin')
+        : '/(tabs)';
+      router.replace(next as never);
     } catch (err: unknown) {
       let msg: string | undefined;
       if (axios.isAxiosError(err)) {

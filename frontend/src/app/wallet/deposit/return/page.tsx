@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { useAuthStore } from '@/lib/store';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 import { Logo } from '@/components/Logo';
 import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -16,6 +18,16 @@ type ReturnState = 'checking' | 'success' | 'failed' | 'uncertain';
 function ReturnPageContent() {
   const params = useSearchParams();
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const authLoading = useAuthStore((s) => s.isLoading);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (user && isStaffAdminRole(user.role)) {
+      router.replace(getStaffHomePath(user.role) ?? '/admin');
+    }
+  }, [authLoading, user, router]);
+
   const reference =
     params.get('reference') ||
     params.get('ref') ||
@@ -84,6 +96,10 @@ function ReturnPageContent() {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [reference, paynowStatus]);
+
+  if (!authLoading && user && isStaffAdminRole(user.role)) {
+    return null;
+  }
 
   if (status === 'checking') {
     return (

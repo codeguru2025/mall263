@@ -7,7 +7,7 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import * as express from 'express';
 import { AppModule } from './app.module';
-import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 const requestLogger = new Logger('HTTP');
 
@@ -43,10 +43,17 @@ async function bootstrap() {
   app.use(express.urlencoded({ limit: '512kb', extended: true }));
 
   // ── Security headers ────────────────────────────────────────────────────────
-  app.use(helmet({
-    crossOriginEmbedderPolicy: false, // needed for OSM iframes in web app
-    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
-  }));
+  const isProd = process.env.NODE_ENV === 'production';
+  app.use(
+    helmet({
+      crossOriginEmbedderPolicy: false, // needed for OSM iframes in web app
+      contentSecurityPolicy: isProd ? undefined : false,
+      hidePoweredBy: true,
+      hsts: isProd
+        ? { maxAge: 31_536_000, includeSubDomains: true, preload: true }
+        : false,
+    }),
+  );
 
   // Trust the first reverse proxy (DigitalOcean App Platform), so that
   // req.ip returns the real client IP for rate limiting and audit logs.
@@ -89,7 +96,8 @@ async function bootstrap() {
     }),
   );
 
-  app.useGlobalFilters(new PrismaExceptionFilter());
+  app.useGlobalFilters(new GlobalExceptionFilter());
+  app.enableShutdownHooks();
 
   // Only expose API docs in non-production environments
   if (process.env.NODE_ENV !== 'production') {
@@ -111,4 +119,17 @@ async function bootstrap() {
   console.log(`Swagger docs: http://localhost:${port}/docs`);
 }
 
-bootstrap();
+if (process.env.NODE_ENV === 'production') {
+  process.on('uncaughtException', (err) => {
+    console.error('[fatal] uncaughtException', err);
+    process.exit(1);
+  });
+}
+process.on('unhandledRejection', (reason) => {
+  console.error('[error] unhandledRejection', reason);
+});
+
+void bootstrap().catch((err) => {
+  console.error('Fatal: HTTP server failed to start', err);
+  process.exit(1);
+});

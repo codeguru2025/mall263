@@ -14,13 +14,16 @@ export type DeliveryJobStatus =
 export interface CreateJobDto {
   orderId: string;
   orderType: 'OFFER' | 'POS_SALE';
-  sellerId: string;
-  buyerId: string;
   mode: DeliveryMode;
   pickupZone: string;
   dropZone: string;
   pickupAddress?: string;
   dropAddress?: string;
+  pickupLat?: number;
+  pickupLng?: number;
+  dropLat?: number;
+  dropLng?: number;
+  distanceKm?: number;
   itemAmount: number;
   deliveryFee: number;
 }
@@ -45,6 +48,9 @@ export interface DeliveryJob {
   pickupPhotoUrl?: string;
   pickupGpsLat?: number | string | null;
   pickupGpsLng?: number | string | null;
+  /** Planned drop from job creation (before driver proof) */
+  dropLat?: number | string | null;
+  dropLng?: number | string | null;
   deliveryPhotoUrl?: string;
   deliveryGpsLat?: number | string | null;
   deliveryGpsLng?: number | string | null;

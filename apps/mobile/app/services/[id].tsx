@@ -11,6 +11,7 @@ import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { displayCity } from '@/lib/stalls-api';
 import { fetchServiceListing } from '@/lib/services-api';
 import { Brand } from '@/constants/brand';
 
@@ -60,7 +61,7 @@ export default function ServiceDetailScreen() {
   const providerName = s.provider
     ? `${s.provider.firstName ?? ''} ${s.provider.lastName ?? ''}`.trim()
     : '';
-  const mallLine = s.mall ? [s.mall.name, s.mall.city].filter(Boolean).join(' · ') : null;
+  const mallLine = s.mall ? [s.mall.name, displayCity(s.mall.city)].filter(Boolean).join(' · ') : null;
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>

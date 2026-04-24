@@ -15,6 +15,8 @@ import { useNavigation } from '@react-navigation/native';
 import { Brand } from '@/constants/brand';
 import { openOfferChatRoom } from '@/lib/chat-api';
 import { acceptOffer, fetchDemandById, type DemandOfferDetail } from '@/lib/demands-api';
+import { displayCity } from '@/lib/stalls-api';
+import { fetchWalletBalance } from '@/lib/wallet-api';
 import { getApiErrorMessage } from '@/lib/api-errors';
 import { formatMoney } from '@/lib/products';
 import { OfferExpiryBar } from '@/components/OfferExpiryBar';
@@ -50,6 +52,11 @@ export default function DemandDetailScreen() {
     queryKey: ['demand', id],
     queryFn: () => fetchDemandById(id!),
     enabled: !!id,
+  });
+
+  const walletQ = useQuery({
+    queryKey: ['wallet-balance'],
+    queryFn: fetchWalletBalance,
   });
 
   const acceptMut = useMutation({
@@ -93,16 +100,33 @@ export default function DemandDetailScreen() {
     (offer: DemandOfferDetail) => {
       const stall = offer.stall?.name ?? 'Seller';
       const price = formatMoney(offer.totalPrice, currency);
-      Alert.alert('Accept this offer?', `${stall} — ${price}\n\nYou can only accept one offer.`, [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Accept',
-          style: 'default',
-          onPress: () => acceptMut.mutate(offer.id),
-        },
-      ]);
+      const minRequired = 1;
+      const available = walletQ.data != null ? Number(walletQ.data.available) : null;
+      if (available != null && !isNaN(available) && available + 1e-9 < minRequired) {
+        Alert.alert(
+          'Add funds first',
+          `You need at least ${formatMoney(minRequired, currency)} in your wallet to accept an offer. Your available balance is ${formatMoney(available, currency)}.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Fund wallet', onPress: () => router.push('/deposit') },
+          ],
+        );
+        return;
+      }
+      Alert.alert(
+        'Accept this offer?',
+        `${stall} — ${price}\n\nYou need at least ${formatMoney(minRequired, currency)} in your wallet (no percentage fee on accept). You can only accept one offer.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Accept',
+            style: 'default',
+            onPress: () => acceptMut.mutate(offer.id),
+          },
+        ],
+      );
     },
-    [acceptMut, currency],
+    [acceptMut, currency, router, walletQ.data],
   );
 
   if (!id) {
@@ -185,7 +209,7 @@ export default function DemandDetailScreen() {
                 <Text style={styles.chatBtnText}>{openChatMut.isPending ? 'Opening…' : 'Open chat'}</Text>
               </Pressable>
             ) : null}
-            {offer.status === 'ACCEPTED' && offer.stall?.merchant?.userId && d.buyer?.id ? (
+            {offer.status === 'ACCEPTED' ? (
               <Pressable
                 style={styles.deliveryBtn}
                 onPress={() =>
@@ -194,13 +218,14 @@ export default function DemandDetailScreen() {
                     params: {
                       orderId: offer.id,
                       orderType: 'OFFER',
-                      sellerId: offer.stall!.merchant!.userId,
-                      buyerId: d.buyer!.id,
-                      pickupZone: offer.stall?.mall?.city ?? offer.stall?.name ?? 'Pickup',
-                      dropZone: 'Customer',
+                      pickupZone:
+                        displayCity(offer.stall?.mall?.city) || offer.stall?.name || 'Pickup',
+                      dropZone: d.deliveryLocation?.trim() ? d.deliveryLocation.slice(0, 80) : 'Customer',
                       pickupAddress: offer.stall?.mall?.address ?? '',
+                      dropAddress:
+                        d.deliveryLocation?.trim() ||
+                        'Add delivery address in demand details (not set)',
                       itemAmount: String(offer.totalPrice),
-                      deliveryFee: '5',
                     },
                   })
                 }

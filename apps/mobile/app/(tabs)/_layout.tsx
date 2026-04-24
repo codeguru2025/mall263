@@ -10,6 +10,7 @@ import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/Logo';
 import { fetchNotificationsPage } from '@/lib/notifications-api';
+import { isStaffAdminRole } from '@mall263/shared';
 
 const SELLER_ROLES = new Set(['STALL_OWNER', 'ATTENDANT']);
 const AGENT_ROLES = new Set(['FIELD_AGENT']);
@@ -44,18 +45,22 @@ export default function TabLayout() {
     retry: 2,
   });
   const unreadCount = notifPage?.unreadCount ?? 0;
+  // Must not follow `if (!isReady) return` — hooks must run every render in the same order.
+  const headerShown = useClientOnlyValue(false, true);
 
   if (!isReady) return null;
 
   const role = user?.role ?? '';
   const isSeller = SELLER_ROLES.has(role);
   const isAgent = AGENT_ROLES.has(role);
+  const isStaff = isStaffAdminRole(role);
+  const showConsumerMoneyTabs = !isAuthenticated || !isStaff;
 
   return (
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: useClientOnlyValue(false, true),
+        headerShown,
         ...SHARED_HEADER,
       }}
     >
@@ -73,6 +78,7 @@ export default function TabLayout() {
         options={{
           title: 'Shop',
           headerShown: false,
+          href: showConsumerMoneyTabs ? undefined : null,
           tabBarIcon: ({ color }) => <TabBarIcon name="shopping-cart" color={color} />,
         }}
       />
@@ -80,6 +86,7 @@ export default function TabLayout() {
         name="demands"
         options={{
           title: 'Demands',
+          href: showConsumerMoneyTabs ? undefined : null,
           tabBarIcon: ({ color }) => <TabBarIcon name="list" color={color} />,
         }}
       />
@@ -95,6 +102,7 @@ export default function TabLayout() {
         name="wallet"
         options={{
           title: 'Wallet',
+          href: showConsumerMoneyTabs ? undefined : null,
           tabBarIcon: ({ color }) => <TabBarIcon name="money" color={color} />,
         }}
       />

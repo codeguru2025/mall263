@@ -15,6 +15,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { Brand } from '@/constants/brand';
 import { useAuth } from '@/contexts/AuthContext';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 import {
   initiateMobilePayment,
   initiateWebPayment,
@@ -39,11 +40,15 @@ const cardShadow =
 
 export default function DepositScreen() {
   const qc = useQueryClient();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   useEffect(() => {
     if (!isAuthenticated) router.replace('/login');
-  }, [isAuthenticated]);
+    else if (user && isStaffAdminRole(user.role)) {
+      const p = getStaffHomePath(user.role) ?? '/admin';
+      router.replace(p as never);
+    }
+  }, [isAuthenticated, user]);
 
   const [mode, setMode] = useState<Mode>('mobile');
   const [step, setStep] = useState<Step>('form');

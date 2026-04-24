@@ -17,14 +17,18 @@ import {
   UserRole,
 } from '@prisma/client';
 
-const BUYER_FEE_RATE = 0.025; // 2.5% platform fee charged to buyer on purchase
-const BID_LOCK_HOURS = 1;     // BID lock released after 1 hour if demand not matched
+/** Minimum available balance (USD) to accept a demand offer — no percentage fee. */
+const BUYER_MIN_WALLET_USD = 1;
+/** Minimum seller wallet (USD) to record a demand-facilitated sale (no commission on that flow). */
+const SELLER_MIN_WALLET_USD = 5;
+const BID_LOCK_HOURS = 1; // BID lock released after 1 hour if demand not matched
 const BUYER_TRIAL_DAYS = 7;
 
 /**
- * Ops roles: skip buyer-side wallet rules for demands (support / QA).
+ * Ops roles: skip buyer/seller wallet minimums for demands (support / QA).
  * - Posting: no 10% bid lock.
- * - Accepting an offer: no 2.5% buyer platform fee (real buyers still pay the fee).
+ * - Accepting an offer: no $1 minimum for staff.
+ * - Completing a demand sale: no $5 seller minimum for staff.
  */
 const DEMAND_WALLET_EXEMPT_ROLES: ReadonlySet<UserRole> = new Set([
   UserRole.SUPER_ADMIN,
@@ -261,6 +265,68 @@ export class DemandsService {
     return { ratePerKm: parseFloat(setting?.value ?? '0.50') };
   }
 
+  /**
+   * Price an accepted-offer delivery job the same way as requestDelivery
+   * (per-km from settings), for use before creating a {@link DeliveryJob}.
+   * When buyer GPS is missing, uses default km from `delivery_default_quote_km` (default 5).
+   */
+  async quoteOfferDelivery(
+    buyerId: string,
+    offerId: string,
+    buyerGps?: { lat: number; lng: number },
+  ) {
+    const offer = await this.prisma.sellerOffer.findUnique({
+      where: { id: offerId },
+      include: {
+        demand: { select: { buyerId: true, status: true } },
+        stall: { select: { latitude: true, longitude: true, mall: { select: { latitude: true, longitude: true } } } },
+      },
+    });
+    if (!offer) throw new NotFoundException('Offer not found');
+    if (offer.demand.buyerId !== buyerId) throw new ForbiddenException('Not your offer');
+    if (offer.status !== OfferStatus.ACCEPTED) {
+      throw new BadRequestException('Offer must be accepted before arranging delivery');
+    }
+    if (offer.demand.status !== DemandStatus.MATCHED) {
+      throw new BadRequestException('Demand is not in a state for delivery on this offer');
+    }
+
+    const stallLat = offer.stall.latitude ?? offer.stall.mall?.latitude;
+    const stallLng = offer.stall.longitude ?? offer.stall.mall?.longitude;
+    if (stallLat == null || stallLng == null) {
+      throw new BadRequestException('Stall location not available for delivery pricing');
+    }
+
+    const rateSetting = await this.prisma.appSetting.findUnique({ where: { key: 'delivery_rate_per_km' } });
+    const ratePerKm = parseFloat(rateSetting?.value ?? '0.50');
+    const defaultKmSetting = await this.prisma.appSetting.findUnique({
+      where: { key: 'delivery_default_quote_km' },
+    });
+    const defaultKm = Math.max(0.5, parseFloat(defaultKmSetting?.value ?? '5'));
+
+    const hasGps =
+      buyerGps != null &&
+      Number.isFinite(buyerGps.lat) &&
+      Number.isFinite(buyerGps.lng) &&
+      Math.abs(buyerGps.lat) <= 90 &&
+      Math.abs(buyerGps.lng) <= 180;
+
+    const distanceKm = hasGps
+      ? this.haversine(buyerGps!.lat, buyerGps!.lng, Number(stallLat), Number(stallLng))
+      : defaultKm;
+    const feeAmount = Math.ceil(distanceKm * ratePerKm * 100) / 100;
+    return {
+      distanceKm: Number(distanceKm.toFixed(2)),
+      deliveryFee: feeAmount,
+      ratePerKm,
+      estimateOnly: !hasGps,
+      pickupLat: Number(stallLat),
+      pickupLng: Number(stallLng),
+      dropLat: hasGps ? buyerGps!.lat : null,
+      dropLng: hasGps ? buyerGps!.lng : null,
+    };
+  }
+
   async requestDelivery(offerId: string, buyerId: string, data: {
     buyerLat: number;
     buyerLng: number;
@@ -421,7 +487,7 @@ export class DemandsService {
         if (offer.demand.status !== DemandStatus.OPEN) throw new BadRequestException('Demand is no longer open');
 
         const buyerUser = await tx.user.findUnique({ where: { id: buyerId }, select: { role: true } });
-        const skipBuyerPlatformFee =
+        const skipBuyerBalanceRules =
           buyerUser?.role != null && DEMAND_WALLET_EXEMPT_ROLES.has(buyerUser.role);
 
         // Release the buyer's BID lock — demand is matched, funds no longer need to be held
@@ -461,42 +527,16 @@ export class DemandsService {
           }
         }
 
-        let feeCharged = 0;
-        if (!skipBuyerPlatformFee) {
-          // Deduct 2.5% platform fee from buyer wallet on purchase
-          const offerPrice = new Prisma.Decimal(offer.totalPrice.toString());
-          const feeDec = offerPrice.mul(BUYER_FEE_RATE.toString());
+        if (!skipBuyerBalanceRules) {
           const buyerWalletFresh = await tx.wallet.findUnique({ where: { userId: buyerId } });
-          if (!buyerWalletFresh) throw new NotFoundException('Buyer wallet not found');
-
-          if (buyerWalletFresh.availableBalance.lessThan(feeDec)) {
+          if (!buyerWalletFresh) throw new NotFoundException('Wallet not found');
+          const minBal = new Prisma.Decimal(BUYER_MIN_WALLET_USD);
+          if (buyerWalletFresh.availableBalance.lt(minBal)) {
             throw new BadRequestException(
-              `Insufficient wallet balance for platform fee. ` +
-              `Fee: $${feeDec.toFixed(2)} (2.5% of $${offerPrice.toFixed(2)}). ` +
-              `Available: $${buyerWalletFresh.availableBalance.toFixed(2)}. Please fund your wallet.`,
+              `You need at least $${BUYER_MIN_WALLET_USD.toFixed(2)} available in your wallet to accept an offer. ` +
+                `Current: $${buyerWalletFresh.availableBalance.toFixed(2)}. Please add funds.`,
             );
           }
-
-          const buyerNewBalance = buyerWalletFresh.availableBalance.sub(feeDec);
-          await tx.wallet.update({
-            where: { id: buyerWalletFresh.id },
-            data: { availableBalance: buyerNewBalance, lastActivityAt: now },
-          });
-          await tx.walletTransaction.create({
-            data: {
-              walletId: buyerWalletFresh.id,
-              type: WalletTransactionType.COMMISSION_DEDUCTION,
-              amount: feeDec,
-              balanceBefore: buyerWalletFresh.availableBalance,
-              balanceAfter: buyerNewBalance,
-              status: WalletTransactionStatus.COMPLETED,
-              description: `Platform fee (2.5%) for accepted offer ${offerId}`,
-              referenceId: offerId,
-              referenceType: 'seller_offer',
-              completedAt: now,
-            },
-          });
-          feeCharged = feeDec.toNumber();
         }
 
         // Accept this offer
@@ -517,7 +557,7 @@ export class DemandsService {
           data: { status: DemandStatus.MATCHED },
         });
 
-        return { accepted: true, offerId, feeCharged };
+        return { accepted: true, offerId, feeCharged: 0 };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -548,9 +588,9 @@ export class DemandsService {
    * Seller completes a demand sale after physically meeting the buyer.
    * This atomically:
    *   1. Validates the demand is MATCHED and this stall won
-   *   2. Deducts inventory for any offer items with known variants
-   *   3. Creates a full POS sale record with receipt number
-   *   4. Charges 2.5% commission from seller wallet
+   *   2. Requires seller wallet >= $5 for this feature — no percent commission on demand sales
+   *   3. Deducts inventory for any offer items with known variants
+   *   4. Creates a full POS sale record with receipt number (0% platform commission on demand-facilitated sales)
    *   5. Marks demand as FULFILLED
    *   6. Notifies the buyer
    */
@@ -585,17 +625,23 @@ export class DemandsService {
       if (!stall) throw new NotFoundException('Stall not found');
 
       const totalAmount = new Prisma.Decimal(offer.totalPrice);
-      const commissionRate = new Prisma.Decimal(0.025);
-      const commissionAmount = totalAmount.mul(commissionRate);
+      const commissionRate = new Prisma.Decimal(0);
+      const commissionAmount = new Prisma.Decimal(0);
 
-      // Check seller commission balance
+      const sellerUser = stall.merchant.user;
+      const skipSellerBalanceRules =
+        sellerUser?.role != null && DEMAND_WALLET_EXEMPT_ROLES.has(sellerUser.role as UserRole);
+
       const sellerWallet = await tx.wallet.findUnique({ where: { userId: stall.merchant.userId } });
       if (!sellerWallet) throw new NotFoundException('Seller wallet not found');
-      if (sellerWallet.availableBalance.lessThan(commissionAmount)) {
-        throw new BadRequestException(
-          `Insufficient commission balance. Requires $${commissionAmount.toFixed(2)}. ` +
-          `Available: $${sellerWallet.availableBalance.toFixed(2)}. Please top up your wallet.`,
-        );
+      if (!skipSellerBalanceRules) {
+        const minSeller = new Prisma.Decimal(SELLER_MIN_WALLET_USD);
+        if (sellerWallet.availableBalance.lt(minSeller)) {
+          throw new BadRequestException(
+            `Wallet balance must be at least $${SELLER_MIN_WALLET_USD.toFixed(2)} to complete a demand sale. ` +
+              `Current: $${sellerWallet.availableBalance.toFixed(2)}. Please top up.`,
+          );
+        }
       }
 
       // Build sale items — use offer items if present, otherwise a single aggregated line
@@ -741,27 +787,6 @@ export class DemandsService {
           },
         },
         include: { items: true, receipt: true },
-      });
-
-      // Deduct commission
-      const sellerNewBalance = sellerWallet.availableBalance.sub(commissionAmount);
-      await tx.wallet.update({
-        where: { id: sellerWallet.id },
-        data: { availableBalance: sellerNewBalance, lastActivityAt: now },
-      });
-      await tx.walletTransaction.create({
-        data: {
-          walletId: sellerWallet.id,
-          type: WalletTransactionType.COMMISSION_DEDUCTION,
-          amount: commissionAmount,
-          balanceBefore: sellerWallet.availableBalance,
-          balanceAfter: sellerNewBalance,
-          status: WalletTransactionStatus.COMPLETED,
-          description: `Commission for demand sale (${demand.title})`,
-          referenceId: sale.id,
-          referenceType: 'pos_sale',
-          completedAt: now,
-        },
       });
 
       // Mark demand as FULFILLED

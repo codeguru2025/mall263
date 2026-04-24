@@ -44,6 +44,7 @@ export class PaymentsService {
    */
   async initiateWebPayment(userId: string, amount: number) {
     if (amount < 1) throw new BadRequestException('Minimum deposit is $1.00');
+    if (amount > 10_000) throw new BadRequestException('Maximum single deposit is $10,000');
 
     const reference = `M263-${userId.slice(0, 8)}-${Date.now()}`;
     const payment = this.paynow.createPayment(reference, this.merchantEmail);
@@ -84,6 +85,7 @@ export class PaymentsService {
     method: 'ecocash' | 'onemoney' | 'telecash' | 'omari',
   ) {
     if (amount < 1) throw new BadRequestException('Minimum deposit is $1.00');
+    if (amount > 10_000) throw new BadRequestException('Maximum single deposit is $10,000');
 
     const normalised = this.normalisePhone(phone);
     const reference = `M263-${userId.slice(0, 8)}-${Date.now()}`;

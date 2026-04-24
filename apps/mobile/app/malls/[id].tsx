@@ -13,7 +13,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { fetchMallProducts, fetchMalls, type StallProductBrowseItem } from '@/lib/stalls-api';
+import { displayCity, fetchMallProducts, fetchMalls, type StallProductBrowseItem } from '@/lib/stalls-api';
 import { formatMoney } from '@/lib/products';
 import { Brand } from '@/constants/brand';
 
@@ -85,11 +85,11 @@ export default function MallDetailScreen() {
               <View style={styles.heroOverlay} />
               <View style={styles.heroText}>
                 <Text style={styles.heroTitle}>{mall?.name ?? 'Mall'}</Text>
-                {mall?.city ? (
+                {displayCity(mall?.city) || mall?.address ? (
                   <View style={styles.heroMetaRow}>
                     <FontAwesome name="map-marker" size={12} color="#ffffffcc" />
                     <Text style={styles.heroMeta}>
-                      {[mall.city, mall.address].filter(Boolean).join(' · ')}
+                      {[displayCity(mall?.city) || null, mall?.address].filter(Boolean).join(' · ')}
                     </Text>
                   </View>
                 ) : null}

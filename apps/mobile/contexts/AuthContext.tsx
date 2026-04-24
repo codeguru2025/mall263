@@ -28,7 +28,7 @@ type AuthContextValue = {
   isReady: boolean;
   isAuthenticated: boolean;
   user: AuthUser | null;
-  login: (phone: string, password: string) => Promise<void>;
+  login: (phone: string, password: string) => Promise<MeProfile>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
   reloadUser: () => Promise<void>;
@@ -87,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     registerForPushNotifications().then((token) => {
       if (token) savePushTokenToBackend(token);
     });
+    return me;
   }, []);
 
   const register = useCallback(async (payload: RegisterPayload) => {

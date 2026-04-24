@@ -13,13 +13,21 @@ export class CodService {
 
   // ─── Driver confirms cash collected from buyer ────────────────────────────
 
-  async confirmCashCollected(jobId: string, driverId: string) {
+  private async requireDriverForUser(userId: string) {
+    const driver = await this.prisma.driver.findUnique({ where: { userId } });
+    if (!driver) throw new ForbiddenException('Driver profile required');
+    return driver;
+  }
+
+  async confirmCashCollected(jobId: string, userId: string) {
+    const driver = await this.requireDriverForUser(userId);
     const cod = await this.prisma.cODTransaction.findUnique({
       where: { jobId },
       include: { driver: true, job: true },
     });
     if (!cod) throw new NotFoundException('COD transaction not found');
-    if (cod.driverId !== driverId) throw new ForbiddenException();
+    if (cod.driverId !== driver.id) throw new ForbiddenException();
+    const driverId = driver.id;
     if (cod.job.status !== DeliveryJobStatus.DELIVERED) {
       throw new BadRequestException('Delivery must be confirmed first');
     }
@@ -42,13 +50,15 @@ export class CodService {
 
   // ─── Driver remits cash ───────────────────────────────────────────────────
 
-  async remitCash(jobId: string, driverId: string, remittanceRef: string) {
+  async remitCash(jobId: string, userId: string, remittanceRef: string) {
+    const driver = await this.requireDriverForUser(userId);
     const cod = await this.prisma.cODTransaction.findUnique({
       where: { jobId },
       include: { driver: true, job: { include: { seller: true } } },
     });
     if (!cod) throw new NotFoundException('COD transaction not found');
-    if (cod.driverId !== driverId) throw new ForbiddenException();
+    if (cod.driverId !== driver.id) throw new ForbiddenException();
+    const driverId = driver.id;
 
     return this.prisma.$transaction(
       async (tx) => {

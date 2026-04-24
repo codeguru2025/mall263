@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 import { useAuthStore } from '@/lib/store';
 import toast from 'react-hot-toast';
 import { Logo } from '@/components/Logo';
@@ -21,7 +22,9 @@ export default function LoginPage() {
     try {
       await login(phone.trim(), password);
       toast.success('Welcome back!');
-      router.push('/dashboard');
+      const u = useAuthStore.getState().user;
+      const staffPath = u && isStaffAdminRole(u.role) ? getStaffHomePath(u.role) : null;
+      router.push(staffPath || '/dashboard');
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Login failed');
     } finally {

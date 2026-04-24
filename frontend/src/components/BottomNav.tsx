@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
 import { useAuthStore } from '@/lib/store';
 import { useHaptic } from '@/lib/hooks/useHaptic';
 import { Home, Search, Gavel, Wallet, LayoutDashboard, Store, Package, BarChart3, Shield, Users, Settings, Sparkles, MapPin } from 'lucide-react';
@@ -25,13 +26,16 @@ const SELLER_TABS = [
   { href: '/seller/reports', icon: BarChart3,       label: 'Reports' },
 ];
 
-const ADMIN_TABS = [
-  { href: '/admin',          icon: Shield,          label: 'Console' },
-  { href: '/admin/users',    icon: Users,           label: 'Users' },
-  { href: '/admin/merchants',icon: Store,           label: 'Merchants' },
-  { href: '/reports',        icon: BarChart3,       label: 'Reports' },
-  { href: '/admin/settings', icon: Settings,        label: 'Settings' },
-];
+function adminTabsForUser(role: string | undefined) {
+  const consoleHref = role && isStaffAdminRole(role) ? (getStaffHomePath(role) ?? '/admin') : '/admin';
+  return [
+    { href: consoleHref,         icon: Shield,          label: 'Console' },
+    { href: '/admin/users',     icon: Users,            label: 'Users' },
+    { href: '/admin/merchants', icon: Store,            label: 'Merchants' },
+    { href: '/reports',         icon: BarChart3,        label: 'Reports' },
+    { href: '/admin/settings',  icon: Settings,         label: 'Settings' },
+  ];
+}
 
 /** Field agents: core workflows without seller POS/inventory. */
 const AGENT_TABS = [
@@ -51,9 +55,15 @@ export default function BottomNav() {
   if (hide) return null;
 
   const isSeller = user ? ['STALL_OWNER', 'ATTENDANT'].includes(user.role) : false;
-  const isAdmin = user ? ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN'].includes(user.role) : false;
+  const isAdminConsole = user ? isStaffAdminRole(user.role) : false;
   const isFieldAgent = user?.role === 'FIELD_AGENT';
-  const TABS = isAdmin ? ADMIN_TABS : isSeller ? SELLER_TABS : isFieldAgent ? AGENT_TABS : CUSTOMER_TABS;
+  const TABS = isAdminConsole
+    ? adminTabsForUser(user?.role)
+    : isSeller
+      ? SELLER_TABS
+      : isFieldAgent
+        ? AGENT_TABS
+        : CUSTOMER_TABS;
   const WALLET_HREF = '/wallet';
 
   return (
@@ -61,7 +71,7 @@ export default function BottomNav() {
       <div className="flex items-stretch">
         {TABS.map(({ href, icon: Icon, label }) => {
           const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
-          const isWalletTab = href === WALLET_HREF && !isAdmin;
+          const isWalletTab = href === WALLET_HREF && !isAdminConsole;
 
           if (isWalletTab) {
             return (

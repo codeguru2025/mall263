@@ -48,7 +48,7 @@ export class StallsController {
   @Get('admin/malls')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS, UserRole.MALL_MANAGER)
   @ApiOperation({ summary: 'Admin: list all malls including inactive' })
   async adminListMalls() {
     return this.stallsService.listAllMalls();

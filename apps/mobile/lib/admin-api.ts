@@ -1,12 +1,14 @@
 import { api } from '@/lib/api';
 
+/** Matches `GET /api/v1/admin/dashboard` (backend getDashboardStats). */
 export type DashboardStats = {
-  totalUsers: number;
-  activeStalls: number;
-  totalRevenue: unknown;
-  pendingStalls: number;
-  totalProducts: number;
-  totalSales: number;
+  users: number;
+  merchants: number;
+  stalls: number;
+  products: number;
+  sales: number;
+  openDemands: number;
+  totalCommissionRevenue: unknown;
 };
 
 export type AdminUser = {

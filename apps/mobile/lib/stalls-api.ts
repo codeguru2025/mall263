@@ -4,7 +4,7 @@ export type StallRow = {
   id: string;
   name: string;
   stallNumber?: string | null;
-  mall?: { name: string; city: string } | null;
+  mall?: { name: string; city?: string | { name: string } | null } | null;
 };
 
 export type StallDetail = {
@@ -20,7 +20,7 @@ export type StallDetail = {
   mall?: {
     id: string;
     name: string;
-    city?: string | null;
+    city?: string | { name: string } | null;
     address?: string | null;
   } | null;
   merchant?: {
@@ -80,10 +80,21 @@ export async function recordStallVisit(stallId: string): Promise<void> {
   }
 }
 
+/** Backend returns Prisma `city` relation `{ name }` or legacy string — never render raw in <Text>. */
+export function displayCity(city: unknown): string {
+  if (city == null || city === '') return '';
+  if (typeof city === 'string') return city;
+  if (typeof city === 'object' && city !== null && 'name' in city) {
+    const n = (city as { name: unknown }).name;
+    return typeof n === 'string' ? n : '';
+  }
+  return '';
+}
+
 export type Mall = {
   id: string;
   name: string;
-  city?: string | null;
+  city?: string | { name: string } | null;
   address?: string | null;
   imageUrl?: string | null;
   latitude?: number | null;

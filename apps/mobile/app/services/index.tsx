@@ -14,6 +14,7 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { displayCity } from '@/lib/stalls-api';
 import { browseServices, type ServiceListing } from '@/lib/services-api';
 import { Brand } from '@/constants/brand';
 
@@ -118,7 +119,9 @@ export default function ServicesBrowseScreen() {
 
 function ListingCard({ item }: { item: ServiceListing }) {
   const priceLine = formatFrom(item.priceFrom, item.currency);
-  const mallLine = item.mall ? [item.mall.name, item.mall.city].filter(Boolean).join(' · ') : null;
+  const mallLine = item.mall
+    ? [item.mall.name, displayCity(item.mall.city)].filter(Boolean).join(' · ')
+    : null;
   const providerName = item.provider
     ? `${item.provider.firstName ?? ''} ${item.provider.lastName ?? ''}`.trim()
     : '';

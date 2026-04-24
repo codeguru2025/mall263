@@ -5,7 +5,26 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { WalletService } from '../wallet/wallet.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { RedisService } from '../../redis/redis.service';
-import { POSSaleStatus, PaymentMethod, Prisma, WalletTransactionType, WalletTransactionStatus, NotificationType, DiscountType, DiscountReason } from '@prisma/client';
+import {
+  POSSaleStatus,
+  PaymentMethod,
+  Prisma,
+  WalletTransactionType,
+  WalletTransactionStatus,
+  NotificationType,
+  DiscountType,
+  DiscountReason,
+  UserRole,
+} from '@prisma/client';
+
+/** Merchant accounts in these roles are not charged POS commission (ops / admin). */
+const STAFF_ADMIN_MERCHANT_ROLES: ReadonlySet<UserRole> = new Set([
+  UserRole.SUPER_ADMIN,
+  UserRole.ADMIN_OPS,
+  UserRole.FINANCE_ADMIN,
+  UserRole.SUPPORT_ADMIN,
+  UserRole.MALL_MANAGER,
+]);
 
 type SaleWithItems = Prisma.POSSaleGetPayload<{ include: { items: true } }>;
 
@@ -201,15 +220,18 @@ export class POSService {
         // 4. Calculate totals
         const saleDiscount = new Prisma.Decimal(data.discountAmount || 0);
         const totalAmount = subtotal.sub(saleDiscount);
-        const commissionRate = new Prisma.Decimal(0.025);
-        const commissionAmount = totalAmount.mul(commissionRate);
+        const merchantUserRole = stall.merchant.user.role as UserRole;
+        const skipPosCommission = STAFF_ADMIN_MERCHANT_ROLES.has(merchantUserRole);
+        const platformRate = new Prisma.Decimal(0.025);
+        const commissionRate = skipPosCommission ? new Prisma.Decimal(0) : platformRate;
+        const commissionAmount = skipPosCommission ? new Prisma.Decimal(0) : totalAmount.mul(commissionRate);
 
-        // 5. CRITICAL: Check seller commission balance inside the transaction
+        // 5. CRITICAL: Check seller commission balance inside the transaction (retail sellers only)
         const sellerUserId = stall.merchant.userId;
         const sellerWallet = await tx.wallet.findUnique({ where: { userId: sellerUserId } });
         if (!sellerWallet) throw new NotFoundException('Seller wallet not found');
 
-        if (sellerWallet.availableBalance.lessThan(commissionAmount)) {
+        if (!skipPosCommission && sellerWallet.availableBalance.lessThan(commissionAmount)) {
           throw new BadRequestException(
             `Sale blocked: Insufficient commission balance. ` +
             `Sale of $${totalAmount.toFixed(2)} requires $${commissionAmount.toFixed(2)} commission. ` +
@@ -290,26 +312,28 @@ export class POSService {
           include: { items: true, receipt: true },
         });
 
-        // 8. Deduct commission from seller wallet atomically inside this transaction
-        const sellerNewBalance = sellerWallet.availableBalance.sub(commissionAmount);
-        await tx.wallet.update({
-          where: { id: sellerWallet.id },
-          data: { availableBalance: sellerNewBalance, lastActivityAt: new Date() },
-        });
-        await tx.walletTransaction.create({
-          data: {
-            walletId: sellerWallet.id,
-            type: WalletTransactionType.COMMISSION_DEDUCTION,
-            amount: commissionAmount,
-            balanceBefore: sellerWallet.availableBalance,
-            balanceAfter: sellerNewBalance,
-            status: WalletTransactionStatus.COMPLETED,
-            description: `Commission for sale ${sale.id} (2.5% of $${totalAmount.toFixed(2)})`,
-            referenceId: sale.id,
-            referenceType: 'pos_sale',
-            completedAt: new Date(),
-          },
-        });
+        // 8. Deduct commission from seller wallet (skipped for staff merchant accounts)
+        if (!skipPosCommission) {
+          const sellerNewBalance = sellerWallet.availableBalance.sub(commissionAmount);
+          await tx.wallet.update({
+            where: { id: sellerWallet.id },
+            data: { availableBalance: sellerNewBalance, lastActivityAt: new Date() },
+          });
+          await tx.walletTransaction.create({
+            data: {
+              walletId: sellerWallet.id,
+              type: WalletTransactionType.COMMISSION_DEDUCTION,
+              amount: commissionAmount,
+              balanceBefore: sellerWallet.availableBalance,
+              balanceAfter: sellerNewBalance,
+              status: WalletTransactionStatus.COMPLETED,
+              description: `Commission for sale ${sale.id} (2.5% of $${totalAmount.toFixed(2)})`,
+              referenceId: sale.id,
+              referenceType: 'pos_sale',
+              completedAt: new Date(),
+            },
+          });
+        }
 
         return {
           sale,

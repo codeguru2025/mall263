@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
-import { SkipThrottle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -12,6 +12,7 @@ export class PaymentsController {
   constructor(private paymentsService: PaymentsService) {}
 
   @Post('initiate/web')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Initiate a web (card/Zipit) payment — returns redirectUrl' })
@@ -23,6 +24,7 @@ export class PaymentsController {
   }
 
   @Post('initiate/mobile')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Initiate a mobile money payment (EcoCash / OneMoney / Telecash)' })
@@ -39,6 +41,7 @@ export class PaymentsController {
   }
 
   @Get('status/:reference')
+  @Throttle({ default: { limit: 90, ttl: 60_000 } })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Poll payment status by reference' })
@@ -55,7 +58,7 @@ export class PaymentsController {
    */
   @Post('webhook')
   @Public()
-  @SkipThrottle()
+  @Throttle({ default: { limit: 400, ttl: 60_000 } })
   @ApiOperation({ summary: 'Paynow payment result webhook (called by Paynow, not the frontend)' })
   async webhook(@Body() body: Record<string, string>) {
     return this.paymentsService.handleWebhook(body);

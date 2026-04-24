@@ -9,8 +9,8 @@ import { useAuthStore } from '@/lib/store';
 import { formatCurrency } from '@/lib/utils';
 import { Users, Store, Package, DollarSign, TrendingUp, Gavel, ChevronRight, BarChart3, Shield, Tag, Settings, Building2, LifeBuoy, CreditCard, Megaphone, Ticket, Truck, AlertTriangle } from 'lucide-react';
 import { Logo } from '@/components/Logo';
+import { isAdminConsoleDashboardRole } from '@mall263/shared';
 
-const ADMIN_DASHBOARD_ROLES = new Set(['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN']);
 const SUPPORT_ADMIN_ROLE = 'SUPPORT_ADMIN';
 
 export default function AdminPage() {
@@ -19,7 +19,7 @@ export default function AdminPage() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const authLoading = useAuthStore((s) => s.isLoading);
 
-  const isAdmin = isAuthenticated && user != null && ADMIN_DASHBOARD_ROLES.has(user.role);
+  const isAdmin = isAuthenticated && user != null && isAdminConsoleDashboardRole(user.role);
 
   useEffect(() => {
     if (authLoading) return;
@@ -31,7 +31,7 @@ export default function AdminPage() {
       router.replace('/admin/support');
       return;
     }
-    if (user && !ADMIN_DASHBOARD_ROLES.has(user.role)) router.push('/dashboard');
+    if (user && !isAdminConsoleDashboardRole(user.role)) router.push('/dashboard');
   }, [authLoading, isAuthenticated, user, router]);
 
   const { data: stats, isLoading, isError } = useQuery({

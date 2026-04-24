@@ -69,7 +69,8 @@ export default function SellerHubScreen() {
     enabled: !!merchantId,
   });
 
-  const stall = stallsQ.data?.[stallIndex];
+  const stalls = stallsQ.data ?? [];
+  const stall = stalls[stallIndex] ?? undefined;
 
   const payConfigQ = useQuery({
     queryKey: ['stall-pay-config', stall?.id],
@@ -136,6 +137,16 @@ export default function SellerHubScreen() {
     } catch { /* cancelled */ }
   }, [shopUrl, stall]);
 
+  // Must run every render, before any early return — not after `meQ.isPending` / `!merchantId` branches.
+  const allProducts = productsQ.data?.data ?? [];
+  const filteredProducts = useMemo(() => {
+    if (!productSearch.trim()) return allProducts;
+    const q = productSearch.toLowerCase();
+    return allProducts.filter(
+      (p) => (p.name ?? '').toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q),
+    );
+  }, [allProducts, productSearch]);
+
   if (meQ.isPending) {
     return <View style={styles.centered}><ActivityIndicator size="large" color={Brand.blue} /></View>;
   }
@@ -156,17 +167,6 @@ export default function SellerHubScreen() {
       </View>
     );
   }
-
-  const stalls = stallsQ.data ?? [];
-  const allProducts = productsQ.data?.data ?? [];
-
-  const filteredProducts = useMemo(() => {
-    if (!productSearch.trim()) return allProducts;
-    const q = productSearch.toLowerCase();
-    return allProducts.filter(
-      (p) => (p.name ?? '').toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q),
-    );
-  }, [allProducts, productSearch]);
 
   const renderProduct = ({ item }: { item: Product }) => {
     if (!stall) return null;

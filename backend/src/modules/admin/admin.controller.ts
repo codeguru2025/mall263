@@ -11,22 +11,32 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { UserRole, PromoType, AdPlacement } from '@prisma/client';
 
+/** Platform operators only: user lifecycle, app config, catalog/pricing, ads/promos. */
+const R_CORE: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS];
+/** All staff admin consoles: overview, read lists, support actions. */
+const R_STAFF: UserRole[] = [
+  UserRole.SUPER_ADMIN,
+  UserRole.ADMIN_OPS,
+  UserRole.FINANCE_ADMIN,
+  UserRole.SUPPORT_ADMIN,
+];
 @ApiTags('Admin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS)
 @Controller('admin')
 export class AdminController {
   constructor(private adminService: AdminService) {}
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
 
+  @Roles(...R_STAFF)
   @Get('dashboard')
   @ApiOperation({ summary: 'Get admin dashboard stats' })
   async getDashboard() {
     return this.adminService.getDashboardStats();
   }
 
+  @Roles(...R_STAFF)
   @Get('activity')
   @ApiOperation({ summary: 'Get recent activity' })
   async getActivity(@Query('limit') limit?: number) {
@@ -35,6 +45,7 @@ export class AdminController {
 
   // ── Users ─────────────────────────────────────────────────────────────────
 
+  @Roles(...R_CORE)
   @Post('users')
   @ApiOperation({ summary: 'Admin: create a user account' })
   async createUser(
@@ -50,6 +61,7 @@ export class AdminController {
     return this.adminService.createUser(actorId, body);
   }
 
+  @Roles(...R_STAFF)
   @Get('users')
   @ApiOperation({ summary: 'List all users' })
   async listUsers(
@@ -60,6 +72,7 @@ export class AdminController {
     return this.adminService.listUsers({ search, page, limit });
   }
 
+  @Roles(...R_STAFF)
   @Patch('users/:id')
   @ApiOperation({ summary: 'Update a user (name, phone, avatar, optional password)' })
   async updateUser(
@@ -78,12 +91,14 @@ export class AdminController {
     return this.adminService.updateUser(actorId, actorRole, id, body);
   }
 
+  @Roles(...R_CORE)
   @Delete('users/:id')
   @ApiOperation({ summary: 'Deactivate a user and revoke sessions (soft delete)' })
   async deleteUser(@CurrentUser('id') actorId: string, @CurrentUser('role') actorRole: UserRole, @Param('id') id: string) {
     return this.adminService.softDeleteUser(actorId, actorRole, id);
   }
 
+  @Roles(...R_CORE)
   @Patch('users/:id/role')
   @ApiOperation({ summary: 'Change a user role (super admin role requires super admin)' })
   async changeUserRole(
@@ -95,12 +110,14 @@ export class AdminController {
     return this.adminService.changeUserRole(actorId, actorRole, id, role);
   }
 
+  @Roles(...R_STAFF)
   @Patch('users/:id/suspend')
   @ApiOperation({ summary: 'Suspend a user' })
   async suspendUser(@Param('id') id: string) {
     return this.adminService.suspendUser(id);
   }
 
+  @Roles(...R_STAFF)
   @Patch('users/:id/activate')
   @ApiOperation({ summary: 'Activate a user' })
   async activateUser(@Param('id') id: string) {
@@ -109,6 +126,7 @@ export class AdminController {
 
   // ── Stalls ────────────────────────────────────────────────────────────────
 
+  @Roles(...R_STAFF)
   @Get('stalls')
   @ApiOperation({ summary: 'List all stalls (admin)' })
   async listStalls(
@@ -119,24 +137,28 @@ export class AdminController {
     return this.adminService.listStalls({ search, page, limit });
   }
 
+  @Roles(...R_STAFF)
   @Patch('stalls/:id/suspend')
   @ApiOperation({ summary: 'Suspend a stall' })
   async suspendStall(@Param('id') id: string) {
     return this.adminService.suspendStall(id);
   }
 
+  @Roles(...R_STAFF)
   @Patch('stalls/:id/activate')
   @ApiOperation({ summary: 'Reactivate a suspended stall' })
   async activateStall(@Param('id') id: string) {
     return this.adminService.activateStall(id);
   }
 
+  @Roles(...R_STAFF)
   @Patch('stalls/:id/approve')
   @ApiOperation({ summary: 'Approve a pending stall (set to ACTIVE)' })
   async approveStall(@Param('id') id: string) {
     return this.adminService.activateStall(id);
   }
 
+  @Roles(...R_STAFF)
   @Patch('products/:id/suspend')
   @ApiOperation({ summary: 'Suspend a product' })
   async suspendProduct(@Param('id') id: string) {
@@ -145,18 +167,21 @@ export class AdminController {
 
   // ── Categories ────────────────────────────────────────────────────────────
 
+  @Roles(...R_STAFF)
   @Get('categories')
   @ApiOperation({ summary: 'List all categories' })
   async listCategories() {
     return this.adminService.listCategories();
   }
 
+  @Roles(...R_CORE)
   @Post('categories')
   @ApiOperation({ summary: 'Create a new category' })
   async createCategory(@Body() data: { name: string; parentId?: string; imageUrl?: string }) {
     return this.adminService.createCategory(data);
   }
 
+  @Roles(...R_CORE)
   @Patch('categories/:id')
   @ApiOperation({ summary: 'Update a category' })
   async updateCategory(
@@ -166,6 +191,7 @@ export class AdminController {
     return this.adminService.updateCategory(id, data);
   }
 
+  @Roles(...R_CORE)
   @Delete('categories/:id')
   @ApiOperation({ summary: 'Delete a category' })
   async deleteCategory(@Param('id') id: string) {
@@ -174,12 +200,14 @@ export class AdminController {
 
   // ── App Settings ──────────────────────────────────────────────────────────
 
+  @Roles(...R_STAFF)
   @Get('settings')
   @ApiOperation({ summary: 'Get all app settings' })
   async getSettings() {
     return this.adminService.getSettings();
   }
 
+  @Roles(...R_CORE)
   @Post('settings/:key')
   @ApiOperation({ summary: 'Set an app setting value' })
   async setSetting(@Param('key') key: string, @Body('value') value: string) {
@@ -188,6 +216,7 @@ export class AdminController {
 
   // ── Subscription Management ───────────────────────────────────────────────
 
+  @Roles(...R_STAFF)
   @Get('subscriptions')
   @ApiOperation({ summary: 'List all user subscriptions with status and summary counts' })
   async listSubscriptions(
@@ -199,12 +228,14 @@ export class AdminController {
     return this.adminService.listSubscriptions({ status: status as any, page, limit, search });
   }
 
+  @Roles(...R_STAFF)
   @Patch('subscriptions/:userId/extend-trial')
   @ApiOperation({ summary: 'Extend the trial period for a user by N days' })
   async extendTrial(@Param('userId') userId: string, @Body('days') days: number) {
     return this.adminService.extendTrial(userId, days ?? 7);
   }
 
+  @Roles(...R_STAFF)
   @Patch('subscriptions/:userId/grant-month')
   @ApiOperation({ summary: 'Grant a user 1 free month of active subscription' })
   async grantFreeMonth(@Param('userId') userId: string) {
@@ -213,12 +244,14 @@ export class AdminController {
 
   // ── Subscription Plans ────────────────────────────────────────────────────
 
+  @Roles(...R_STAFF)
   @Get('subscription-plans')
   @ApiOperation({ summary: 'List all subscription plans' })
   async listSubscriptionPlans() {
     return this.adminService.listSubscriptionPlans();
   }
 
+  @Roles(...R_CORE)
   @Post('subscription-plans')
   @ApiOperation({ summary: 'Create a subscription plan' })
   async createSubscriptionPlan(
@@ -237,6 +270,7 @@ export class AdminController {
     return this.adminService.createSubscriptionPlan(data);
   }
 
+  @Roles(...R_CORE)
   @Patch('subscription-plans/:id')
   @ApiOperation({ summary: 'Update a subscription plan' })
   async updateSubscriptionPlan(
@@ -256,6 +290,7 @@ export class AdminController {
     return this.adminService.updateSubscriptionPlan(id, data);
   }
 
+  @Roles(...R_CORE)
   @Delete('subscription-plans/:id')
   @ApiOperation({ summary: 'Delete a subscription plan' })
   async deleteSubscriptionPlan(@Param('id') id: string) {
@@ -264,12 +299,14 @@ export class AdminController {
 
   // ── Promotions ────────────────────────────────────────────────────────────
 
+  @Roles(...R_STAFF)
   @Get('promotions')
   @ApiOperation({ summary: 'List all promotions / referral codes' })
   async listPromotions() {
     return this.adminService.listPromotions();
   }
 
+  @Roles(...R_CORE)
   @Post('promotions')
   @ApiOperation({ summary: 'Create a promotion / referral code' })
   async createPromotion(
@@ -288,6 +325,7 @@ export class AdminController {
     return this.adminService.createPromotion(adminId, data);
   }
 
+  @Roles(...R_CORE)
   @Patch('promotions/:id')
   @ApiOperation({ summary: 'Update a promotion' })
   async updatePromotion(
@@ -304,6 +342,7 @@ export class AdminController {
     return this.adminService.updatePromotion(id, data);
   }
 
+  @Roles(...R_CORE)
   @Delete('promotions/:id')
   @ApiOperation({ summary: 'Delete a promotion' })
   async deletePromotion(@Param('id') id: string) {
@@ -312,12 +351,14 @@ export class AdminController {
 
   // ── Ads ───────────────────────────────────────────────────────────────────
 
+  @Roles(...R_STAFF)
   @Get('ads')
   @ApiOperation({ summary: 'List all ads (admin view, includes inactive)' })
   async listAds() {
     return this.adminService.listAds();
   }
 
+  @Roles(...R_CORE)
   @Post('ads')
   @ApiOperation({ summary: 'Create an ad' })
   async createAd(
@@ -335,6 +376,7 @@ export class AdminController {
     return this.adminService.createAd(adminId, data);
   }
 
+  @Roles(...R_CORE)
   @Patch('ads/:id')
   @ApiOperation({ summary: 'Update an ad' })
   async updateAd(
@@ -353,6 +395,7 @@ export class AdminController {
     return this.adminService.updateAd(id, data);
   }
 
+  @Roles(...R_CORE)
   @Delete('ads/:id')
   @ApiOperation({ summary: 'Delete an ad' })
   async deleteAd(@Param('id') id: string) {

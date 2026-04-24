@@ -16,6 +16,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { Brand } from '@/constants/brand';
 import { fetchMeProfile, patchMeProfile, type MeProfile } from '@/lib/me-profile';
+import { isStaffAdminRole } from '@mall263/shared';
 
 function fmtBalance(v: unknown, currency: string): string {
   if (v === null || v === undefined) return '—';
@@ -96,13 +97,15 @@ export default function ProfileScreen() {
     );
   }
 
+  const isStaff = isStaffAdminRole(q.data?.role);
+
   return (
     <KeyboardAvoidingView
       style={styles.page}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <ProfileBody data={q.data} firstName={firstName} lastName={lastName} setFirstName={setFirstName} setLastName={setLastName} />
+        <ProfileBody data={q.data} firstName={firstName} lastName={lastName} setFirstName={setFirstName} setLastName={setLastName} isStaff={isStaff} />
         <Pressable
           style={[styles.primaryBtn, saveMutation.isPending && styles.btnDisabled]}
           onPress={onSave}
@@ -114,17 +117,22 @@ export default function ProfileScreen() {
             <Text style={styles.primaryBtnText}>Save changes</Text>
           )}
         </Pressable>
-        {['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN', 'SUPPORT_ADMIN'].includes(q.data?.role ?? '') && (
-          <Pressable style={styles.adminBtn} onPress={() => router.push('/admin')}>
-            <Text style={styles.adminBtnText}>⚙️  Admin Panel</Text>
+        {isStaff && q.data?.role === 'MALL_MANAGER' && (
+          <Pressable style={styles.adminBtn} onPress={() => router.push('/admin/malls' as any)}>
+            <Text style={styles.adminBtnText}>🏬  Mall management</Text>
           </Pressable>
         )}
-        {q.data?.role === 'FIELD_AGENT' && (
+        {isStaff && q.data?.role !== 'MALL_MANAGER' && (
+          <Pressable style={styles.adminBtn} onPress={() => router.push('/admin')}>
+            <Text style={styles.adminBtnText}>⚙️  Admin</Text>
+          </Pressable>
+        )}
+        {!isStaff && q.data?.role === 'FIELD_AGENT' && (
           <Pressable style={styles.agentBtn} onPress={() => router.push('/agent')}>
             <Text style={styles.agentBtnText}>🗂  Field Agent</Text>
           </Pressable>
         )}
-        {q.data?.role === 'DRIVER' && (
+        {!isStaff && q.data?.role === 'DRIVER' && (
           <>
             <Pressable style={styles.driverBtn} onPress={() => router.push('/(driver)/jobs')}>
               <Text style={styles.driverBtnText}>🚗  Driver Hub</Text>
@@ -134,17 +142,18 @@ export default function ProfileScreen() {
             </Pressable>
           </>
         )}
-        {(q.data?.merchant || (q.data?.attendantStall ?? []).length > 0) && (
+        {!isStaff && (q.data?.merchant || (q.data?.attendantStall ?? []).length > 0) && (
           <Pressable style={styles.posBtn} onPress={() => router.push('/pos')}>
             <Text style={styles.posBtnText}>🧾  POS Register</Text>
           </Pressable>
         )}
-        {q.data?.merchant && (
+        {!isStaff && q.data?.merchant && (
           <Pressable style={styles.sellerBtn} onPress={() => router.push('/seller')}>
             <Text style={styles.sellerBtnText}>🏪  Seller Hub</Text>
           </Pressable>
         )}
 
+        {!isStaff && (
         <View style={styles.linksCard}>
           <Pressable style={styles.linkRow} onPress={() => router.push('/wishlist' as any)}>
             <Text style={styles.linkText}>❤️  Wishlist</Text>
@@ -163,8 +172,11 @@ export default function ProfileScreen() {
             <Text style={styles.linkChevron}>›</Text>
           </Pressable>
         </View>
+        )}
 
         <View style={[styles.linksCard, { marginTop: 14 }]}>
+          {!isStaff && (
+            <>
           <Pressable style={styles.linkRow} onPress={() => router.push('/malls')}>
             <Text style={styles.linkText}>🏬  Browse malls</Text>
             <Text style={styles.linkChevron}>›</Text>
@@ -181,6 +193,8 @@ export default function ProfileScreen() {
             <Text style={styles.linkText}>⚖️  My disputes</Text>
             <Text style={styles.linkChevron}>›</Text>
           </Pressable>
+            </>
+          )}
           <Pressable style={styles.linkRow} onPress={() => router.push('/support')}>
             <Text style={styles.linkText}>💬  Help &amp; support</Text>
             <Text style={styles.linkChevron}>›</Text>
@@ -189,11 +203,17 @@ export default function ProfileScreen() {
             <Text style={styles.linkText}>❓  FAQ</Text>
             <Text style={styles.linkChevron}>›</Text>
           </Pressable>
-          <Pressable style={styles.linkRow} onPress={() => router.push('/help/terms')}>
+          <Pressable
+            style={[
+              styles.linkRow,
+              isStaff || q.data?.role === 'DRIVER' ? styles.linkRowLast : null,
+            ]}
+            onPress={() => router.push('/help/terms')}
+          >
             <Text style={styles.linkText}>📄  Terms of service</Text>
             <Text style={styles.linkChevron}>›</Text>
           </Pressable>
-          {q.data?.role !== 'DRIVER' && (
+          {!isStaff && q.data?.role !== 'DRIVER' && (
             <Pressable style={[styles.linkRow, styles.linkRowLast]} onPress={() => router.push('/driver/register')}>
               <Text style={styles.linkText}>🚗  Become a driver</Text>
               <Text style={styles.linkChevron}>›</Text>
@@ -215,12 +235,14 @@ function ProfileBody({
   lastName,
   setFirstName,
   setLastName,
+  isStaff,
 }: {
   data: MeProfile;
   firstName: string;
   lastName: string;
   setFirstName: (s: string) => void;
   setLastName: (s: string) => void;
+  isStaff: boolean;
 }) {
   const w = data.wallet;
   const currency = w?.currency || 'USD';
@@ -229,7 +251,7 @@ function ProfileBody({
     <>
       <View style={styles.hero}>
         <Text style={styles.heroTitle}>Profile</Text>
-        <Text style={styles.heroSub}>Account & wallet summary</Text>
+        <Text style={styles.heroSub}>{isStaff ? 'Staff account' : 'Account & wallet summary'}</Text>
       </View>
 
       <View style={styles.card}>
@@ -266,7 +288,7 @@ function ProfileBody({
         />
       </View>
 
-      {w ? (
+      {w && !isStaff ? (
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>Wallet</Text>
           <View style={styles.walletRow}>
@@ -288,7 +310,7 @@ function ProfileBody({
         </View>
       ) : null}
 
-      {data.merchant ? (
+      {data.merchant && !isStaff ? (
         <View style={styles.card}>
           <Text style={styles.sectionLabel}>Business</Text>
           <Text style={styles.bizName}>{data.merchant.businessName}</Text>
