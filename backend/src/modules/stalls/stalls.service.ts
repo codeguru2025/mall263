@@ -472,7 +472,7 @@ export class StallsService {
   async getStallBoostPricing() {
     const durations = [7, 14, 30];
     const prices = await Promise.all(durations.map((d) => this.getStallBoostPrice(d)));
-    return durations.map((d, i) => ({ days: d, priceUsd: prices[i] }));
+    return durations.map((d, i) => ({ days: d, fee: prices[i] }));
   }
 
   async boostStall(userId: string, stallId: string, days: number) {

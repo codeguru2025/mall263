@@ -802,7 +802,7 @@ function BoostModal({ target, onClose }: { target: BoostTarget; onClose: () => v
                 {p.days === 7 ? 'Short boost — great for a sale event' : p.days === 14 ? 'Medium boost — steady visibility' : 'Long boost — best value'}
               </Text>
             </View>
-            <Text style={[boostStyles.optionPrice, selectedDays === p.days && { color: '#fff' }]}>${p.fee.toFixed(2)}</Text>
+            <Text style={[boostStyles.optionPrice, selectedDays === p.days && { color: '#fff' }]}>${(p.fee ?? 0).toFixed(2)}</Text>
           </Pressable>
         ))}
 
