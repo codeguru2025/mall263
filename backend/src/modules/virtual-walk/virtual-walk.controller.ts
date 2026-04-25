@@ -6,8 +6,6 @@ import { UpdateVideoDto } from './dto/update-video.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { FeatureFlagsGuard } from '../../common/guards/feature-flags.guard';
-import { FeatureFlags, FeatureFlag } from '../../common/decorators/feature-flags.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '@prisma/client';
 
@@ -16,15 +14,12 @@ export class VirtualWalkController {
   constructor(private readonly virtualWalkService: VirtualWalkService) {}
 
   // ── Public read endpoints (customer-facing Virtual Store Walk) ─────────────
-  // These must be public so customers can browse without logging in.
-  // Feature flag is checked at the service level for the actual data.
 
   @Get('videos/:stallId')
   getVideosByStall(@Param('stallId') stallId: string) {
     return this.virtualWalkService.getVideosByStall(stallId);
   }
 
-  /** Alias matching the spec: GET /virtual-walk/shop/:id */
   @Get('shop/:stallId')
   getShopWalk(@Param('stallId') stallId: string) {
     return this.virtualWalkService.getVideosByStall(stallId);
@@ -35,11 +30,10 @@ export class VirtualWalkController {
     return this.virtualWalkService.getHotspotsByVideo(videoId);
   }
 
-  // ── Merchant-only mutations (require JWT + VIRTUAL_STORE_WALK flag) ────────
+  // ── Merchant-only mutations ────────────────────────────────────────────────
 
   @Post('videos/:stallId')
-  @UseGuards(JwtAuthGuard, RolesGuard, FeatureFlagsGuard)
-  @FeatureFlags(FeatureFlag.VIRTUAL_STORE_WALK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.ADMIN_OPS)
   createVideo(
     @Param('stallId') stallId: string,
@@ -50,8 +44,7 @@ export class VirtualWalkController {
   }
 
   @Post('hotspots/:videoId')
-  @UseGuards(JwtAuthGuard, RolesGuard, FeatureFlagsGuard)
-  @FeatureFlags(FeatureFlag.VIRTUAL_STORE_WALK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.ADMIN_OPS)
   createHotspot(
     @Param('videoId') videoId: string,
@@ -62,8 +55,7 @@ export class VirtualWalkController {
   }
 
   @Patch('videos/:videoId')
-  @UseGuards(JwtAuthGuard, RolesGuard, FeatureFlagsGuard)
-  @FeatureFlags(FeatureFlag.VIRTUAL_STORE_WALK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.ADMIN_OPS)
   updateVideo(
     @Param('videoId') videoId: string,
@@ -74,8 +66,7 @@ export class VirtualWalkController {
   }
 
   @Delete('videos/:videoId')
-  @UseGuards(JwtAuthGuard, RolesGuard, FeatureFlagsGuard)
-  @FeatureFlags(FeatureFlag.VIRTUAL_STORE_WALK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.ADMIN_OPS)
   deleteVideo(
     @Param('videoId') videoId: string,
@@ -85,8 +76,7 @@ export class VirtualWalkController {
   }
 
   @Delete('hotspots/:hotspotId')
-  @UseGuards(JwtAuthGuard, RolesGuard, FeatureFlagsGuard)
-  @FeatureFlags(FeatureFlag.VIRTUAL_STORE_WALK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.STALL_OWNER, UserRole.ADMIN_OPS)
   deleteHotspot(
     @Param('hotspotId') hotspotId: string,
