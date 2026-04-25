@@ -86,15 +86,19 @@ export function MapPickerModal({
     onConfirm({ ...pickedCoord, address });
   }, [pickedCoord, address, onConfirm]);
 
-  // On open: if no initial coord, try GPS
+  // On open: always try to centre on GPS first (unless explicit initial coords were given)
   useEffect(() => {
     if (!visible) return;
-    if (pickedCoord) {
-      reverseGeocode(pickedCoord.latitude, pickedCoord.longitude);
+    if (hasInitial) {
+      reverseGeocode(initialLat!, initialLng!);
       return;
     }
     (async () => {
-      const { status } = await Location.getForegroundPermissionsAsync();
+      let { status } = await Location.getForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        const req = await Location.requestForegroundPermissionsAsync();
+        status = req.status;
+      }
       if (status === 'granted') {
         try {
           const loc = await Location.getCurrentPositionAsync({
@@ -104,8 +108,10 @@ export function MapPickerModal({
           setPickedCoord(coord);
           reverseGeocode(coord.latitude, coord.longitude);
         } catch {
-          /* leave at Harare default */
+          if (pickedCoord) reverseGeocode(pickedCoord.latitude, pickedCoord.longitude);
         }
+      } else if (pickedCoord) {
+        reverseGeocode(pickedCoord.latitude, pickedCoord.longitude);
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -3,6 +3,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { CreateHotspotDto } from './dto/create-hotspot.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
+import { UserRole } from '@prisma/client';
+
+type CallerCtx = { id: string; role: UserRole };
+const isAdmin = (ctx: CallerCtx) =>
+  ctx.role === UserRole.ADMIN_OPS || ctx.role === UserRole.SUPER_ADMIN;
 
 export interface AisleGroup {
   aisleName: string;
@@ -22,7 +27,7 @@ export interface AisleGroup {
 export class VirtualWalkService {
   constructor(private prisma: PrismaService) {}
 
-  async createVideo(stallId: string, createVideoDto: CreateVideoDto, currentUserId: string) {
+  async createVideo(stallId: string, createVideoDto: CreateVideoDto, caller: CallerCtx) {
     const stall = await this.prisma.stall.findUnique({
       where: { id: stallId },
       include: { merchant: { select: { userId: true } } },
@@ -32,7 +37,7 @@ export class VirtualWalkService {
       throw new NotFoundException(`Stall with ID "${stallId}" not found`);
     }
 
-    if (stall.merchant.userId !== currentUserId) {
+    if (!isAdmin(caller) && stall.merchant.userId !== caller.id) {
       throw new ForbiddenException('You do not have permission to add videos to this stall');
     }
 
@@ -123,7 +128,7 @@ export class VirtualWalkService {
     return Object.values(grouped);
   }
 
-  async createHotspot(videoId: string, createHotspotDto: CreateHotspotDto, currentUserId: string) {
+  async createHotspot(videoId: string, createHotspotDto: CreateHotspotDto, caller: CallerCtx) {
     const video = await this.prisma.shopVirtualWalkVideo.findUnique({
       where: { id: videoId },
       include: {
@@ -135,7 +140,7 @@ export class VirtualWalkService {
       throw new NotFoundException(`Video with ID "${videoId}" not found`);
     }
 
-    if (video.shop.merchant.userId !== currentUserId) {
+    if (!isAdmin(caller) && video.shop.merchant.userId !== caller.id) {
       throw new ForbiddenException('You do not have permission to add hotspots to this video');
     }
 
@@ -228,7 +233,7 @@ export class VirtualWalkService {
     });
   }
 
-  async updateVideo(videoId: string, updateVideoDto: UpdateVideoDto, currentUserId: string) {
+  async updateVideo(videoId: string, updateVideoDto: UpdateVideoDto, caller: CallerCtx) {
     const video = await this.prisma.shopVirtualWalkVideo.findUnique({
       where: { id: videoId },
       include: {
@@ -240,7 +245,7 @@ export class VirtualWalkService {
       throw new NotFoundException(`Video with ID "${videoId}" not found`);
     }
 
-    if (video.shop.merchant.userId !== currentUserId) {
+    if (!isAdmin(caller) && video.shop.merchant.userId !== caller.id) {
       throw new ForbiddenException('You do not have permission to update this video');
     }
 
@@ -255,7 +260,7 @@ export class VirtualWalkService {
     });
   }
 
-  async deleteVideo(videoId: string, currentUserId: string) {
+  async deleteVideo(videoId: string, caller: CallerCtx) {
     const video = await this.prisma.shopVirtualWalkVideo.findUnique({
       where: { id: videoId },
       include: {
@@ -267,7 +272,7 @@ export class VirtualWalkService {
       throw new NotFoundException(`Video with ID "${videoId}" not found`);
     }
 
-    if (video.shop.merchant.userId !== currentUserId) {
+    if (!isAdmin(caller) && video.shop.merchant.userId !== caller.id) {
       throw new ForbiddenException('You do not have permission to delete this video');
     }
 
@@ -277,7 +282,7 @@ export class VirtualWalkService {
     });
   }
 
-  async deleteHotspot(hotspotId: string, currentUserId: string) {
+  async deleteHotspot(hotspotId: string, caller: CallerCtx) {
     const hotspot = await this.prisma.videoHotspot.findUnique({
       where: { id: hotspotId },
       include: {
@@ -293,7 +298,7 @@ export class VirtualWalkService {
       throw new NotFoundException(`Hotspot with ID "${hotspotId}" not found`);
     }
 
-    if (hotspot.video.shop.merchant.userId !== currentUserId) {
+    if (!isAdmin(caller) && hotspot.video.shop.merchant.userId !== caller.id) {
       throw new ForbiddenException('You do not have permission to delete this hotspot');
     }
 
@@ -303,7 +308,7 @@ export class VirtualWalkService {
     });
   }
 
-  async getShopProductsForHotspots(stallId: string, currentUserId: string) {
+  async getShopProductsForHotspots(stallId: string, caller: CallerCtx) {
     const stall = await this.prisma.stall.findUnique({
       where: { id: stallId },
       include: { merchant: { select: { userId: true } } },
@@ -313,7 +318,7 @@ export class VirtualWalkService {
       throw new NotFoundException(`Stall with ID "${stallId}" not found`);
     }
 
-    if (stall.merchant.userId !== currentUserId) {
+    if (!isAdmin(caller) && stall.merchant.userId !== caller.id) {
       throw new ForbiddenException('You do not have permission to view products for this stall');
     }
 

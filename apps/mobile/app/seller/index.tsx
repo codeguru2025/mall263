@@ -4,6 +4,7 @@ import {
   Alert,
   FlatList,
   Image,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -394,13 +395,6 @@ export default function SellerHubScreen() {
           )}
         </View>
       )}
-      {boostTarget && (
-        <BoostModal
-          target={boostTarget}
-          onClose={() => setBoostTarget(null)}
-        />
-      )}
-
       {/* Shop QR — embedded inline */}
       {shopUrl ? (
         <View style={[styles.qrCard, cardShadow]}>
@@ -602,6 +596,20 @@ export default function SellerHubScreen() {
         onClose={() => setShowLocationPicker(false)}
         title="Set stall location"
       />
+      <Modal
+        visible={!!boostTarget}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setBoostTarget(null)}
+      >
+        {boostTarget && (
+          <BoostModal
+            target={boostTarget}
+            onClose={() => setBoostTarget(null)}
+          />
+        )}
+      </Modal>
     </>
   );
 }

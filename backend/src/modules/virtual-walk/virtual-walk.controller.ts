@@ -38,9 +38,9 @@ export class VirtualWalkController {
   createVideo(
     @Param('stallId') stallId: string,
     @Body() createVideoDto: CreateVideoDto,
-    @CurrentUser('id') currentUserId: string,
+    @CurrentUser() currentUser: { id: string; role: UserRole },
   ) {
-    return this.virtualWalkService.createVideo(stallId, createVideoDto, currentUserId);
+    return this.virtualWalkService.createVideo(stallId, createVideoDto, currentUser);
   }
 
   @Post('hotspots/:videoId')
@@ -49,9 +49,9 @@ export class VirtualWalkController {
   createHotspot(
     @Param('videoId') videoId: string,
     @Body() createHotspotDto: CreateHotspotDto,
-    @CurrentUser('id') currentUserId: string,
+    @CurrentUser() currentUser: { id: string; role: UserRole },
   ) {
-    return this.virtualWalkService.createHotspot(videoId, createHotspotDto, currentUserId);
+    return this.virtualWalkService.createHotspot(videoId, createHotspotDto, currentUser);
   }
 
   @Patch('videos/:videoId')
@@ -60,9 +60,9 @@ export class VirtualWalkController {
   updateVideo(
     @Param('videoId') videoId: string,
     @Body() updateVideoDto: UpdateVideoDto,
-    @CurrentUser('id') currentUserId: string,
+    @CurrentUser() currentUser: { id: string; role: UserRole },
   ) {
-    return this.virtualWalkService.updateVideo(videoId, updateVideoDto, currentUserId);
+    return this.virtualWalkService.updateVideo(videoId, updateVideoDto, currentUser);
   }
 
   @Delete('videos/:videoId')
@@ -70,9 +70,9 @@ export class VirtualWalkController {
   @Roles(UserRole.STALL_OWNER, UserRole.ADMIN_OPS)
   deleteVideo(
     @Param('videoId') videoId: string,
-    @CurrentUser('id') currentUserId: string,
+    @CurrentUser() currentUser: { id: string; role: UserRole },
   ) {
-    return this.virtualWalkService.deleteVideo(videoId, currentUserId);
+    return this.virtualWalkService.deleteVideo(videoId, currentUser);
   }
 
   @Delete('hotspots/:hotspotId')
@@ -80,9 +80,9 @@ export class VirtualWalkController {
   @Roles(UserRole.STALL_OWNER, UserRole.ADMIN_OPS)
   deleteHotspot(
     @Param('hotspotId') hotspotId: string,
-    @CurrentUser('id') currentUserId: string,
+    @CurrentUser() currentUser: { id: string; role: UserRole },
   ) {
-    return this.virtualWalkService.deleteHotspot(hotspotId, currentUserId);
+    return this.virtualWalkService.deleteHotspot(hotspotId, currentUser);
   }
 
   @Get('products/:stallId')
@@ -90,8 +90,8 @@ export class VirtualWalkController {
   @Roles(UserRole.STALL_OWNER, UserRole.ADMIN_OPS)
   getShopProductsForHotspots(
     @Param('stallId') stallId: string,
-    @CurrentUser('id') currentUserId: string,
+    @CurrentUser() currentUser: { id: string; role: UserRole },
   ) {
-    return this.virtualWalkService.getShopProductsForHotspots(stallId, currentUserId);
+    return this.virtualWalkService.getShopProductsForHotspots(stallId, currentUser);
   }
 }
