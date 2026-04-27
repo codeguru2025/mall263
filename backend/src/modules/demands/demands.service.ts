@@ -153,7 +153,7 @@ export class DemandsService {
             status: WalletLockStatus.ACTIVE,
             referenceId: demand.id,
             referenceType: 'buyer_demand',
-            expiresAt: new Date(Date.now() + BID_LOCK_MINUTES * 60 * 1000),
+            expiresAt: new Date(Date.now() + BID_LOCK_HOURS * 60 * 60 * 1000),
           },
         });
 
@@ -455,7 +455,7 @@ export class DemandsService {
             totalPrice: data.totalPrice,
             currency: 'USD',
             status: OfferStatus.PENDING,
-            expiresAt: new Date(Date.now() + BID_LOCK_MINUTES * 60 * 1000),
+            expiresAt: new Date(Date.now() + BID_LOCK_HOURS * 60 * 60 * 1000),
             items: {
               create: data.items.map(item => ({
                 variantId: item.variantId,
