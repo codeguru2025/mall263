@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CODRemittanceStatus, DeliveryJobStatus, Prisma } from '@prisma/client';
+import { CODRemittanceStatus, DeliveryJobStatus, Prisma, WalletTransactionType, WalletTransactionStatus } from '@prisma/client';
 
 @Injectable()
 export class CodService {
@@ -99,7 +99,7 @@ export class CodService {
         });
         if (sellerWallet) {
           const balBefore = sellerWallet.availableBalance;
-          const balAfter = new Prisma.Decimal(Number(balBefore) + Number(cod.cashAmount));
+          const balAfter = balBefore.add(cod.cashAmount);
           await tx.wallet.update({
             where: { userId: cod.job.sellerId },
             data: { availableBalance: balAfter },
@@ -107,14 +107,15 @@ export class CodService {
           await tx.walletTransaction.create({
             data: {
               walletId: sellerWallet.id,
-              type: 'COD_REMITTED',
+              type: WalletTransactionType.COD_REMITTED,
               amount: cod.cashAmount,
-              status: 'COMPLETED',
+              status: WalletTransactionStatus.COMPLETED,
               balanceBefore: balBefore,
               balanceAfter: balAfter,
               description: `COD remittance for delivery job ${jobId}`,
               referenceId: jobId,
               referenceType: 'delivery_job',
+              completedAt: new Date(),
             },
           });
         }

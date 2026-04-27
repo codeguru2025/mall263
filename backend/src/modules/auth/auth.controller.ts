@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Res, Req } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, HttpCode, HttpStatus, Res, Req, UnauthorizedException } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -57,6 +57,7 @@ export class AuthController {
   ) {
     // Prefer the httpOnly cookie; fall back to body (mobile clients)
     const token = (req.cookies?.[REFRESH_COOKIE] as string | undefined) || dto.refreshToken;
+    if (!token) throw new UnauthorizedException('Refresh token required');
     const result = await this.authService.refreshToken(token);
     res.cookie(REFRESH_COOKIE, result.refreshToken, COOKIE_OPTS);
     return result;

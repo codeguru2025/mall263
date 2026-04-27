@@ -21,17 +21,24 @@ export class SearchController {
     @Query('mallId') mallId?: string,
     @Query('mall') mallLegacy?: string,
     @Query('city') city?: string,
-    @Query('minPrice') minPrice?: number,
-    @Query('maxPrice') maxPrice?: number,
+    @Query('minPrice') minPriceStr?: string,
+    @Query('maxPrice') maxPriceStr?: string,
     @Query('inStock') inStock?: boolean,
     @Query('sortBy') sortBy?: string,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-    @Query('nearLat') nearLat?: number,
-    @Query('nearLng') nearLng?: number,
-    @Query('radiusKm') radiusKm?: number,
+    @Query('page') pageStr?: string,
+    @Query('limit') limitStr?: string,
+    @Query('nearLat') nearLatStr?: string,
+    @Query('nearLng') nearLngStr?: string,
+    @Query('radiusKm') radiusKmStr?: string,
   ) {
     const resolvedMall = mallId || mallLegacy;
+    const minPrice = minPriceStr !== undefined ? Math.max(0, parseFloat(minPriceStr) || 0) : undefined;
+    const maxPrice = maxPriceStr !== undefined ? Math.min(1_000_000, parseFloat(maxPriceStr) || 1_000_000) : undefined;
+    const page = pageStr !== undefined ? Math.max(1, Math.min(1000, parseInt(pageStr, 10) || 1)) : undefined;
+    const limit = limitStr !== undefined ? Math.max(1, Math.min(100, parseInt(limitStr, 10) || 20)) : undefined;
+    const nearLat = nearLatStr !== undefined ? parseFloat(nearLatStr) : undefined;
+    const nearLng = nearLngStr !== undefined ? parseFloat(nearLngStr) : undefined;
+    const radiusKm = radiusKmStr !== undefined ? Math.max(0.1, Math.min(500, parseFloat(radiusKmStr) || 10)) : undefined;
     return this.searchService.search(query || '', { categoryId, mallId: resolvedMall, city, minPrice, maxPrice, inStock, sortBy, page, limit, nearLat, nearLng, radiusKm });
   }
 

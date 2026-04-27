@@ -13,6 +13,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:deploy:pooled": "node scripts/prisma-migrate-deploy-pooled.mjs",
     "db:seed": "ts-node prisma/seed.ts",
+    "db:seed:cities": "ts-node prisma/seed-cities.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",

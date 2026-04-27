@@ -19,6 +19,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Brand } from '@/constants/brand';
 import { api } from '@/lib/api';
 import { uploadImage } from '@/lib/upload-api';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Category {
   id: string;
@@ -34,6 +35,7 @@ interface Category {
 const BLANK = { name: '', parentId: '', imageUrl: '' };
 
 export default function AdminCategoriesScreen() {
+  const { isAuthenticated } = useAuth();
   const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
@@ -42,6 +44,7 @@ export default function AdminCategoriesScreen() {
   const { data: categories = [], isLoading } = useQuery<Category[]>({
     queryKey: ['admin-categories'],
     queryFn: () => api.get('/api/v1/admin/categories').then((r) => r.data),
+    enabled: isAuthenticated,
   });
 
   const createMut = useMutation({

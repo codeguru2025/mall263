@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mall263.mobile",
-      "buildNumber": "11",
+      "buildNumber": "14",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -26,7 +26,7 @@
     },
     "android": {
       "package": "com.mall263.mobile",
-      "versionCode": 11,
+      "versionCode": 13,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -59,7 +59,12 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-image-picker",
+      [
+        "expo-image-picker",
+        {
+          "microphonePermission": "Allow Mall263 to record audio when capturing virtual walk videos."
+        }
+      ],
       [
         "expo-notifications",
         {

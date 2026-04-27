@@ -11,11 +11,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router, Redirect } from 'expo-router';
+import { router } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { Brand } from '@/constants/brand';
 import { fetchMeProfile, patchMeProfile, type MeProfile } from '@/lib/me-profile';
+import { GuestSignInPrompt } from '@/components/GuestSignInPrompt';
 import { isStaffAdminRole } from '@mall263/shared';
 
 function fmtBalance(v: unknown, currency: string): string {
@@ -75,7 +76,7 @@ export default function ProfileScreen() {
     saveMutation.mutate();
   }, [firstName, lastName, saveMutation]);
 
-  if (!isAuthenticated) return <Redirect href="/login" />;
+  if (!isAuthenticated) return <GuestSignInPrompt title="Your profile" description="Sign in to view your account, manage settings, and access your wallet." />;
 
   if (q.isPending) {
     return (

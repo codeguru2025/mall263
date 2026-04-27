@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
@@ -90,13 +91,13 @@ export default function SellerVirtualWalkScreen() {
     <View style={styles.page}>
       <FlatList
         data={videos}
-        keyExtractor={(v) => v.id}
+        keyExtractor={(v: ShelfVideo) => v.id}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Brand.primary} />}
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={styles.heading}>Virtual Walk Videos</Text>
             <Text style={styles.sub}>
-              Record and upload aisle walk videos so buyers can browse your stall virtually.
+              Record or upload aisle walk videos so buyers can browse your stall virtually.
             </Text>
             <Pressable style={styles.addBtn} onPress={() => setShowAdd(true)}>
               <FontAwesome name="plus" size={13} color="#fff" />
@@ -118,11 +119,11 @@ export default function SellerVirtualWalkScreen() {
             <View style={styles.centered}>
               <FontAwesome name="video-camera" size={40} color={Brand.border} />
               <Text style={styles.emptyText}>No walk videos yet.</Text>
-              <Text style={styles.muted}>Tap "Add video" to record and upload your first aisle walk.</Text>
+              <Text style={styles.muted}>Tap "Add video" to record or upload your first aisle walk.</Text>
             </View>
           )
         }
-        renderItem={({ item }) => (
+        renderItem={({ item }: { item: ShelfVideo }) => (
           <VideoCard
             video={item}
             stallId={resolved!}
@@ -167,6 +168,15 @@ function VideoCard({ video, onDelete, onManageHotspots }: { video: ShelfVideo; s
   );
 }
 
+async function extractThumbnail(videoUri: string): Promise<string | null> {
+  try {
+    const { uri } = await VideoThumbnails.getThumbnailAsync(videoUri, { time: 0 });
+    return uri;
+  } catch {
+    return null;
+  }
+}
+
 function AddVideoForm({ stallId, onDone, onCancel }: { stallId: string; onDone: () => void; onCancel: () => void }) {
   const [aisleName, setAisleName] = useState('');
   const [shelfLayer, setShelfLayer] = useState<ShelfLayerOption>('MIDDLE');
@@ -183,31 +193,50 @@ function AddVideoForm({ stallId, onDone, onCancel }: { stallId: string; onDone: 
   });
 
   async function pickVideo() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Allow photo library access to pick videos from your library.');
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['videos'],
       quality: 1,
       videoMaxDuration: 300,
     });
     if (!result.canceled && result.assets[0]) {
-      setVideoUri(result.assets[0].uri);
+      const uri = result.assets[0].uri;
+      setVideoUri(uri);
+      setUploadStep('Extracting thumbnail…');
+      const thumb = await extractThumbnail(uri);
+      setThumbUri(thumb);
+      setUploadStep('');
     }
   }
 
-  async function pickThumbnail() {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.85,
-      allowsEditing: true,
-      aspect: [16, 9],
+  async function recordVideo() {
+    const { status: camStatus } = await ImagePicker.requestCameraPermissionsAsync();
+    if (camStatus !== 'granted') {
+      Alert.alert('Permission needed', 'Allow camera access to record aisle walk videos.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['videos'],
+      quality: 1,
+      videoMaxDuration: 300,
     });
     if (!result.canceled && result.assets[0]) {
-      setThumbUri(result.assets[0].uri);
+      const uri = result.assets[0].uri;
+      setVideoUri(uri);
+      setUploadStep('Extracting thumbnail…');
+      const thumb = await extractThumbnail(uri);
+      setThumbUri(thumb);
+      setUploadStep('');
     }
   }
 
   async function onSubmit() {
     if (!aisleName.trim()) { Alert.alert('Required', 'Enter an aisle name (e.g. "Electronics")'); return; }
-    if (!videoUri) { Alert.alert('Required', 'Please select a video to upload.'); return; }
+    if (!videoUri) { Alert.alert('Required', 'Please record or select a video to upload.'); return; }
 
     setUploading(true);
     try {
@@ -255,21 +284,29 @@ function AddVideoForm({ stallId, onDone, onCancel }: { stallId: string; onDone: 
       </View>
 
       <Text style={styles.fieldLabel}>Walk video</Text>
-      <Pressable style={styles.mediaPickerBtn} onPress={pickVideo} disabled={isPending}>
-        <FontAwesome name="video-camera" size={15} color={videoUri ? Brand.primary : Brand.muted} />
-        <Text style={[styles.mediaPickerText, videoUri && { color: Brand.primary }]}>
-          {videoUri ? 'Video selected ✓' : 'Choose video from library'}
-        </Text>
-      </Pressable>
-      <Text style={styles.hint}>Record the video on your phone, then select it here. Max 5 min.</Text>
+      <View style={styles.videoBtnsRow}>
+        <Pressable style={[styles.mediaPickerBtn, { flex: 1 }]} onPress={recordVideo} disabled={isPending}>
+          <FontAwesome name="video-camera" size={15} color={Brand.primary} />
+          <Text style={[styles.mediaPickerText, { color: Brand.primary }]}>Record video</Text>
+        </Pressable>
+        <Pressable style={[styles.mediaPickerBtn, { flex: 1 }]} onPress={pickVideo} disabled={isPending}>
+          <FontAwesome name="folder-open" size={15} color={videoUri ? Brand.primary : Brand.muted} />
+          <Text style={[styles.mediaPickerText, videoUri && { color: Brand.primary }]}>
+            {videoUri ? 'Video ready ✓' : 'Pick from library'}
+          </Text>
+        </Pressable>
+      </View>
+      <Text style={styles.hint}>Max 5 min. Thumbnail is auto-extracted from the first frame.</Text>
 
-      <Text style={styles.fieldLabel}>Thumbnail (optional)</Text>
-      <Pressable style={styles.mediaPickerBtn} onPress={pickThumbnail} disabled={isPending}>
-        <FontAwesome name="image" size={15} color={thumbUri ? Brand.primary : Brand.muted} />
-        <Text style={[styles.mediaPickerText, thumbUri && { color: Brand.primary }]}>
-          {thumbUri ? 'Thumbnail selected ✓' : 'Choose thumbnail image (optional)'}
-        </Text>
-      </Pressable>
+      {/* Thumbnail preview */}
+      {thumbUri ? (
+        <View style={styles.thumbPreviewRow}>
+          <Image source={{ uri: thumbUri }} style={styles.thumbPreview} contentFit="cover" />
+          <Text style={styles.thumbPreviewLabel}>Thumbnail extracted ✓</Text>
+        </View>
+      ) : videoUri ? (
+        <Text style={styles.thumbExtractingNote}>No thumbnail extracted — video will play without preview.</Text>
+      ) : null}
 
       {isPending && (
         <View style={styles.uploadProgress}>
@@ -326,19 +363,25 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
     fontSize: 14, color: Brand.text, marginBottom: 12,
   },
-  hint: { fontSize: 11, color: Brand.muted, marginTop: -8, marginBottom: 12 },
+  hint: { fontSize: 11, color: Brand.muted, marginTop: -4, marginBottom: 12 },
   layerRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   layerBtn: { flex: 1, paddingVertical: 9, borderRadius: 10, borderWidth: 1.5, borderColor: Brand.border, backgroundColor: Brand.pageBg, alignItems: 'center' },
   layerBtnActive: { backgroundColor: Brand.primary, borderColor: Brand.primary },
   layerBtnText: { fontSize: 12, fontWeight: '700', color: Brand.muted },
   layerBtnTextActive: { color: '#fff' },
 
+  videoBtnsRow: { flexDirection: 'row', gap: 8, marginBottom: 6 },
   mediaPickerBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Brand.pageBg, borderWidth: 1.5, borderColor: Brand.border,
-    borderRadius: 10, paddingHorizontal: 14, paddingVertical: 13, marginBottom: 6,
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12,
   },
-  mediaPickerText: { fontSize: 14, fontWeight: '600', color: Brand.muted },
+  mediaPickerText: { fontSize: 13, fontWeight: '600', color: Brand.muted },
+
+  thumbPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  thumbPreview: { width: 60, height: 44, borderRadius: 8, backgroundColor: Brand.border },
+  thumbPreviewLabel: { fontSize: 12, color: Brand.green, fontWeight: '700' },
+  thumbExtractingNote: { fontSize: 11, color: Brand.muted, marginBottom: 12 },
 
   uploadProgress: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, marginBottom: 8 },
   uploadProgressText: { fontSize: 13, color: Brand.primary, fontWeight: '600' },

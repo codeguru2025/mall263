@@ -10,9 +10,9 @@ import {
   View,
 } from 'react-native';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Redirect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Brand } from '@/constants/brand';
+import { GuestSignInPrompt } from '@/components/GuestSignInPrompt';
 import {
   fetchNotificationsPage,
   markAllNotificationsRead,
@@ -167,7 +167,7 @@ export default function NotificationsScreen() {
     );
   }
 
-  if (!isAuthenticated) return <Redirect href="/login" />;
+  if (!isAuthenticated) return <GuestSignInPrompt title="Notifications" description="Sign in to receive alerts about offers, demands, and order updates." />;
 
   return (
     <FlatList

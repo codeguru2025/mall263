@@ -33,6 +33,7 @@ import { ExpensesModule } from './modules/expenses/expenses.module';
 import { SupportModule } from './modules/support/support.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { DriversModule } from './modules/drivers/drivers.module';
+import { RunsModule } from './modules/runs/runs.module';
 import { CodModule } from './modules/cod/cod.module';
 import { DisputesModule } from './modules/disputes/disputes.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
@@ -41,6 +42,8 @@ import { CitiesModule } from './modules/cities/cities.module';
 import { MallsModule } from './modules/malls/malls.module';
 import { VirtualWalkModule } from './modules/virtual-walk/virtual-walk.module';
 import { DiscountsModule } from './modules/discounts/discounts.module';
+import { DriverDocumentsModule } from './modules/driver-documents/driver-documents.module';
+import { PickupPointsModule } from './modules/pickup-points/pickup-points.module';
 
 @Module({
   imports: [
@@ -90,6 +93,7 @@ import { DiscountsModule } from './modules/discounts/discounts.module';
     SupportModule,
     DeliveryModule,
     DriversModule,
+    RunsModule,
     CodModule,
     DisputesModule,
     ReviewsModule,
@@ -98,6 +102,8 @@ import { DiscountsModule } from './modules/discounts/discounts.module';
     MallsModule,
     VirtualWalkModule,
     DiscountsModule,
+    DriverDocumentsModule,
+    PickupPointsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

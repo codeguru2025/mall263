@@ -39,7 +39,8 @@ export class AdminController {
   @Roles(...R_STAFF)
   @Get('activity')
   @ApiOperation({ summary: 'Get recent activity' })
-  async getActivity(@Query('limit') limit?: number) {
+  async getActivity(@Query('limit') limitStr?: string) {
+    const limit = limitStr !== undefined ? Math.max(1, Math.min(100, parseInt(limitStr, 10) || 20)) : undefined;
     return this.adminService.getRecentActivity(limit);
   }
 
@@ -156,6 +157,13 @@ export class AdminController {
   @ApiOperation({ summary: 'Approve a pending stall (set to ACTIVE)' })
   async approveStall(@Param('id') id: string) {
     return this.adminService.activateStall(id);
+  }
+
+  @Roles(...R_CORE)
+  @Patch('stalls/:id/location')
+  @ApiOperation({ summary: 'Admin: set stall GPS coordinates' })
+  async updateStallLocation(@Param('id') id: string, @Body() body: { latitude: number; longitude: number }) {
+    return this.adminService.updateStallLocation(id, body.latitude, body.longitude);
   }
 
   @Roles(...R_STAFF)

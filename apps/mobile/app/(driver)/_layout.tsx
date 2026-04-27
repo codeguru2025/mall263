@@ -10,6 +10,13 @@ export default function DriverLayout() {
   return (
     <Tabs screenOptions={{ tabBarActiveTintColor: Brand.blue }}>
       <Tabs.Screen
+        name="onboarding"
+        options={{
+          title: 'Documents',
+          tabBarIcon: ({ color }) => <TabIcon name="file-text" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="jobs"
         options={{
           title: 'Available',
@@ -28,6 +35,13 @@ export default function DriverLayout() {
         options={{
           title: 'Earnings',
           tabBarIcon: ({ color }) => <TabIcon name="dollar" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="runs"
+        options={{
+          title: 'Multi-Runs',
+          tabBarIcon: ({ color }) => <TabIcon name="sitemap" color={color} />,
         }}
       />
     </Tabs>

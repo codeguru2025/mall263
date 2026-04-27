@@ -14,9 +14,11 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { RunCartProvider } from '@/contexts/RunCartContext';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query-client';
 import { registerForPushNotifications, resolveNotificationRoute, savePushTokenToBackend } from '@/lib/push';
+import { getAccessToken } from '@/lib/token-storage';
 
 Sentry.init({
   dsn: (Constants.expoConfig?.extra as { sentryDsn?: string } | undefined)?.sentryDsn,
@@ -77,11 +79,17 @@ function RootLayoutNav() {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     });
 
-    // User tapped a notification → deep-link into the app
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+    // User tapped a notification → deep-link into the app (only if authenticated)
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(async (response) => {
       const { data, type } = response.notification.request.content.data as any;
       const route = resolveNotificationRoute(data, type ?? '');
-      if (route) router.push(route as any);
+      if (!route) return;
+      const token = await getAccessToken();
+      if (token) {
+        router.push(route as any);
+      } else {
+        router.replace('/(tabs)/shop');
+      }
     });
 
     return () => {
@@ -93,6 +101,7 @@ function RootLayoutNav() {
   return (
     <SafeAreaProvider>
     <StatusBar style="auto" />
+    <RunCartProvider>
     <AuthProvider>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -180,6 +189,12 @@ function RootLayoutNav() {
             <Stack.Screen name="admin/settings" options={{ title: 'App Settings' }} />
             <Stack.Screen name="admin/cities" options={{ title: 'Cities' }} />
             <Stack.Screen name="delivery/track/[jobId]" options={{ title: 'Track Delivery' }} />
+            <Stack.Screen name="(driver)/active-run" options={{ title: 'Active Run' }} />
+            <Stack.Screen name="runs/cart" options={{ title: 'Run Cart' }} />
+            <Stack.Screen name="runs/new" options={{ title: 'Post a Run' }} />
+            <Stack.Screen name="runs/[runId]" options={{ title: 'Run' }} />
+            <Stack.Screen name="runs/track/[runId]" options={{ title: 'Track Run' }} />
+            <Stack.Screen name="seller/run-pins" options={{ title: 'Pickup PINs' }} />
             <Stack.Screen name="delivery/checkout" options={{ title: 'Arrange Delivery' }} />
             <Stack.Screen name="driver/register" options={{ title: 'Become a driver' }} />
             <Stack.Screen name="driver/cod" options={{ title: 'Cash on Delivery' }} />
@@ -193,6 +208,7 @@ function RootLayoutNav() {
         </ThemeProvider>
       </QueryClientProvider>
     </AuthProvider>
+    </RunCartProvider>
     </SafeAreaProvider>
   );
 }

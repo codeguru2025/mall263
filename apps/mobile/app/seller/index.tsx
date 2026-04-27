@@ -334,6 +334,10 @@ export default function SellerHubScreen() {
         </Pressable>
       </View>
       <View style={styles.opsRow}>
+        <Pressable style={styles.opsCard} onPress={() => router.push('/seller/run-pins' as any)}>
+          <Text style={styles.opsCardIcon}>📍</Text>
+          <Text style={styles.opsCardText}>Pickup PINs</Text>
+        </Pressable>
         <Pressable style={styles.opsCard} onPress={() => router.push('/seller/attendants' as any)}>
           <Text style={styles.opsCardIcon}>👥</Text>
           <Text style={styles.opsCardText}>Attendants</Text>

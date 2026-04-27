@@ -13,6 +13,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { router, Redirect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { getStaffHomePath, isStaffAdminRole, isWalletTxCredit, walletTxTypeLabel } from '@mall263/shared';
+import { GuestSignInPrompt } from '@/components/GuestSignInPrompt';
 import { Brand } from '@/constants/brand';
 import { fetchWalletBalance, fetchWalletTransactionsPage, type WalletTxRow } from '@/lib/wallet-api';
 import { formatMoney } from '@/lib/products';
@@ -163,7 +164,7 @@ export default function WalletScreen() {
     );
   }
 
-  if (!isAuthenticated) return <Redirect href="/login" />;
+  if (!isAuthenticated) return <GuestSignInPrompt title="Your wallet" description="Sign in to view your balance, deposit funds, and see your transaction history." />;
   if (staffPath) return <Redirect href={staffPath as never} />;
 
   return (

@@ -19,8 +19,10 @@ import {
   approveStall,
   suspendStall,
   activateStall,
+  adminUpdateStallLocation,
   type AdminStall,
 } from '@/lib/admin-api';
+import { MapPickerModal, type PickedLocation } from '@/components/MapPickerModal';
 import { useAuth } from '@/contexts/AuthContext';
 
 const ADMIN_ROLES = ['SUPER_ADMIN', 'ADMIN_OPS', 'FINANCE_ADMIN', 'SUPPORT_ADMIN'];
@@ -45,6 +47,10 @@ export default function AdminStallsScreen() {
   const [page, setPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
   const [actioning, setActioning] = useState<string | null>(null);
+  const [locationStall, setLocationStall] = useState<AdminStall | null>(null);
+  const [savingLocation, setSavingLocation] = useState(false);
+
+  const canEditLocation = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN_OPS';
 
   useEffect(() => {
     if (!isAuthenticated) { router.replace('/login'); return; }
@@ -84,6 +90,20 @@ export default function AdminStallsScreen() {
         },
       },
     ]);
+  };
+
+  const handleLocationConfirm = async (loc: PickedLocation) => {
+    if (!locationStall) return;
+    setSavingLocation(true);
+    try {
+      await adminUpdateStallLocation(locationStall.id, loc.latitude, loc.longitude);
+      Alert.alert('Location saved', `Location set for "${locationStall.name}".`);
+    } catch (err: any) {
+      Alert.alert('Error', err?.response?.data?.message || 'Could not save location.');
+    } finally {
+      setSavingLocation(false);
+      setLocationStall(null);
+    }
   };
 
   const renderStall = ({ item }: { item: AdminStall }) => (
@@ -137,6 +157,14 @@ export default function AdminStallsScreen() {
               : <Text style={styles.actionBtnText}>Reactivate</Text>}
           </Pressable>
         )}
+        {canEditLocation && (
+          <Pressable
+            style={[styles.actionBtn, styles.locationBtn]}
+            onPress={() => setLocationStall(item)}
+          >
+            <Text style={styles.actionBtnText}>📍 Location</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -188,6 +216,13 @@ export default function AdminStallsScreen() {
           ListEmptyComponent={<Text style={styles.empty}>No stalls found.</Text>}
         />
       )}
+
+      <MapPickerModal
+        visible={!!locationStall}
+        onConfirm={handleLocationConfirm}
+        onClose={() => setLocationStall(null)}
+        title={locationStall ? `Set location: ${locationStall.name}` : 'Set location'}
+      />
     </View>
   );
 }
@@ -219,10 +254,11 @@ const styles = StyleSheet.create({
   meta: { fontSize: 11, color: Brand.muted, marginTop: 2 },
   pill: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start' },
   pillText: { fontSize: 11, fontWeight: '800' },
-  actions: { flexDirection: 'row', gap: 8 },
-  actionBtn: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
+  actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  actionBtn: { paddingVertical: 9, paddingHorizontal: 14, borderRadius: 9, alignItems: 'center' },
   dangerBtn: { backgroundColor: Brand.red },
   successBtn: { backgroundColor: Brand.green },
+  locationBtn: { backgroundColor: Brand.blue },
   actionBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
   btnDisabled: { opacity: 0.5 },
 

@@ -156,6 +156,17 @@ export async function unfollowStall(stallId: string): Promise<{ following: boole
   return data;
 }
 
+export type City = { id: string; name: string; country?: string | null; isActive?: boolean };
+
+export async function fetchCities(): Promise<City[]> {
+  try {
+    const { data } = await api.get<City[]>('/api/v1/cities');
+    return Array.isArray(data) ? data.filter((c) => c.isActive !== false) : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function updateStallLocation(
   stallId: string,
   latitude: number,

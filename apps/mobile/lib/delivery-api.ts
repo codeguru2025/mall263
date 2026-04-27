@@ -77,6 +77,8 @@ export interface DeliveryJob {
     currentLng?: number | string | null;
     user: { firstName: string; lastName: string; phone: string };
   };
+  distFromDriverKm?: number | null;
+  radiusKm?: number | null;
 }
 
 export async function createDeliveryJob(dto: CreateJobDto): Promise<DeliveryJob> {

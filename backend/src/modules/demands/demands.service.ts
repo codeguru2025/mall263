@@ -21,7 +21,7 @@ import {
 const BUYER_MIN_WALLET_USD = 1;
 /** Minimum seller wallet (USD) to record a demand-facilitated sale (no commission on that flow). */
 const SELLER_MIN_WALLET_USD = 5;
-const BID_LOCK_HOURS = 1; // BID lock released after 1 hour if demand not matched
+const BID_LOCK_HOURS = 24; // Default demand expiry when caller does not supply expiresInHours
 const BUYER_TRIAL_DAYS = 7;
 
 /**
@@ -111,7 +111,7 @@ export class DemandsService {
         }
 
         // --- Create the demand ---
-        const expiresAt = new Date(Date.now() + (data.expiresInHours || 72) * 60 * 60 * 1000);
+        const expiresAt = new Date(Date.now() + (data.expiresInHours ?? BID_LOCK_HOURS) * 60 * 60 * 1000);
 
         const demand = await tx.buyerDemand.create({
           data: {
@@ -153,7 +153,7 @@ export class DemandsService {
             status: WalletLockStatus.ACTIVE,
             referenceId: demand.id,
             referenceType: 'buyer_demand',
-            expiresAt: new Date(Date.now() + BID_LOCK_HOURS * 60 * 60 * 1000),
+            expiresAt: new Date(Date.now() + BID_LOCK_MINUTES * 60 * 1000),
           },
         });
 
@@ -455,7 +455,7 @@ export class DemandsService {
             totalPrice: data.totalPrice,
             currency: 'USD',
             status: OfferStatus.PENDING,
-            expiresAt: new Date(Date.now() + 60 * 1000), // 1-minute offer window
+            expiresAt: new Date(Date.now() + BID_LOCK_MINUTES * 60 * 1000),
             items: {
               create: data.items.map(item => ({
                 variantId: item.variantId,
@@ -823,42 +823,45 @@ export class DemandsService {
    * 3. Records a BID_UNLOCK wallet transaction
    * 4. Marks the demand as EXPIRED if still OPEN
    */
-  /** Expire any PENDING offers whose 1-minute window has passed. Runs every minute. */
+  /**
+   * Unified expiry pass — runs every minute.
+   * Step 1 (atomic updateMany): expire pending offers and open demands past their window.
+   * Step 2 (per-lock transaction): release expired BID wallet locks and return funds.
+   * Step 2 also expires any demand tied to a released lock as a belt-and-suspenders guarantee.
+   */
   @Cron(CronExpression.EVERY_MINUTE)
-  async expirePendingOffers() {
+  async runExpiryPass() {
     const now = new Date();
-    const result = await this.prisma.sellerOffer.updateMany({
-      where: {
-        status: OfferStatus.PENDING,
-        expiresAt: { lt: now },
-      },
-      data: { status: OfferStatus.EXPIRED },
-    });
-    if (result.count > 0) {
-      this.logger.log(`Expired ${result.count} pending offer(s)`);
-    }
-  }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  async releaseExpiredBidLocks() {
+    // Step 1 — expire offers and open demands atomically in one transaction
+    const [offerResult, demandResult] = await this.prisma.$transaction([
+      this.prisma.sellerOffer.updateMany({
+        where: { status: OfferStatus.PENDING, expiresAt: { lt: now } },
+        data: { status: OfferStatus.EXPIRED },
+      }),
+      this.prisma.buyerDemand.updateMany({
+        where: { status: DemandStatus.OPEN, expiresAt: { lt: now } },
+        data: { status: DemandStatus.EXPIRED },
+      }),
+    ]);
+
+    if (offerResult.count > 0) this.logger.log(`Expired ${offerResult.count} pending offer(s)`);
+    if (demandResult.count > 0) this.logger.log(`Expired ${demandResult.count} open demand(s)`);
+
+    // Step 2 — release expired BID locks and return funds (each lock is its own financial transaction)
     const expiredLocks = await this.prisma.walletLock.findMany({
-      where: {
-        status: WalletLockStatus.ACTIVE,
-        reason: WalletLockReason.BID,
-        expiresAt: { lt: new Date() },
-      },
+      where: { status: WalletLockStatus.ACTIVE, reason: WalletLockReason.BID, expiresAt: { lt: now } },
       include: { wallet: true },
     });
 
     if (expiredLocks.length === 0) return;
-
     this.logger.log(`Releasing ${expiredLocks.length} expired BID lock(s)`);
 
     for (const lock of expiredLocks) {
       try {
         await this.prisma.$retryTransaction(
           async (tx) => {
-            const now = new Date();
+            const ts = new Date();
             const wallet = await tx.wallet.findUnique({ where: { id: lock.walletId } });
             if (!wallet) return;
 
@@ -867,14 +870,12 @@ export class DemandsService {
 
             await tx.walletLock.update({
               where: { id: lock.id },
-              data: { status: WalletLockStatus.RELEASED, releasedAt: now },
+              data: { status: WalletLockStatus.RELEASED, releasedAt: ts },
             });
-
             await tx.wallet.update({
               where: { id: wallet.id },
-              data: { availableBalance: newAvailable, lockedBalance: newLocked, lastActivityAt: now },
+              data: { availableBalance: newAvailable, lockedBalance: newLocked, lastActivityAt: ts },
             });
-
             await tx.walletTransaction.create({
               data: {
                 walletId: wallet.id,
@@ -886,11 +887,10 @@ export class DemandsService {
                 description: `BID lock expired — funds returned (demand ${lock.referenceId})`,
                 referenceId: lock.referenceId,
                 referenceType: 'buyer_demand',
-                completedAt: now,
+                completedAt: ts,
               },
             });
-
-            // Mark the demand as EXPIRED if still OPEN
+            // Belt-and-suspenders: ensure the demand is expired even if step 1 missed it
             if (lock.referenceId) {
               await tx.buyerDemand.updateMany({
                 where: { id: lock.referenceId, status: DemandStatus.OPEN },

@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { fetchMyChatRoomsSafe } from '@/lib/chat-api';
 import { fetchMyDemands, fetchOpenDemandsPage, type DemandListItem, type OpenDemandRow } from '@/lib/demands-api';
 import { formatMoney } from '@/lib/products';
+import { GuestSignInPrompt } from '@/components/GuestSignInPrompt';
 
 const cardShadow =
   Platform.OS === 'ios'
@@ -253,6 +254,18 @@ export default function DemandsScreen() {
         ListFooterComponent={activeQ.isFetchingNextPage ? <ActivityIndicator style={{ marginVertical: 16 }} color={Brand.blue} /> : null}
         ListEmptyComponent={<Text style={styles.empty}>No demands found.</Text>}
       />
+    );
+  }
+
+  if (!user) {
+    return (
+      <View style={styles.flex}>
+        {header}
+        <GuestSignInPrompt
+          title="My demands"
+          description="Sign in to post demands and receive offers from sellers."
+        />
+      </View>
     );
   }
 

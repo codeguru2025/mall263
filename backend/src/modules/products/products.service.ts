@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SearchService } from '../search/search.service';
-import { ProductStatus, StallAnalyticsEventType, WalletTransactionType, WalletTransactionStatus, Prisma } from '@prisma/client';
+import { ProductStatus, StallAnalyticsEventType, WalletTransactionType, WalletTransactionStatus, Prisma, UserRole } from '@prisma/client';
 import { containsContactInfo } from '../../common/contact-info.util';
 
 // Default boost pricing in USD — DB-overridable via AppSetting keys: product_boost_price_7, product_boost_price_14, product_boost_price_30
@@ -87,7 +87,7 @@ export class ProductsService {
     if (!stall) throw new NotFoundException('Stall not found');
 
     const requester = await this.prisma.user.findUnique({ where: { id: requesterId }, select: { role: true } });
-    const privilegedRoles = ['SUPER_ADMIN', 'ADMIN_OPS', 'FIELD_AGENT'];
+    const privilegedRoles: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN_OPS, UserRole.FIELD_AGENT];
     const isPrivileged = requester && privilegedRoles.includes(requester.role);
     const isOwner = stall.merchant.userId === requesterId;
     const isAttendant = stall.attendants.length > 0;

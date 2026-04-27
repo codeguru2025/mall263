@@ -63,6 +63,35 @@ async function main() {
   });
   console.log('Delivery radius setting seeded: DELIVERY_RADIUS_KM = 10');
 
+  // Default categories — idempotent upsert by slug
+  const defaultCategories = [
+    { name: 'Fashion & Clothing', slug: 'fashion-clothing', sortOrder: 1 },
+    { name: 'Beauty & Health', slug: 'beauty-health', sortOrder: 2 },
+    { name: 'Electronics', slug: 'electronics', sortOrder: 3 },
+    { name: 'Food & Groceries', slug: 'food-groceries', sortOrder: 4 },
+    { name: 'Home & Living', slug: 'home-living', sortOrder: 5 },
+    { name: 'Sports & Fitness', slug: 'sports-fitness', sortOrder: 6 },
+    { name: 'Agriculture', slug: 'agriculture', sortOrder: 7 },
+    { name: 'Services', slug: 'services', sortOrder: 8 },
+  ];
+  for (const cat of defaultCategories) {
+    // Match on either name or slug — whichever already exists in the DB
+    const existing = await prisma.category.findFirst({
+      where: { OR: [{ name: cat.name }, { slug: cat.slug }] },
+    });
+    if (existing) {
+      await prisma.category.update({
+        where: { id: existing.id },
+        data: { sortOrder: cat.sortOrder, isActive: true },
+      });
+    } else {
+      await prisma.category.create({
+        data: { name: cat.name, slug: cat.slug, sortOrder: cat.sortOrder, isActive: true },
+      });
+    }
+  }
+  console.log('Default categories seeded:', defaultCategories.map((c) => c.name).join(', '));
+
   console.log('Seed completed.');
 }
 

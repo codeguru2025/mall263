@@ -65,13 +65,13 @@ export default function DriverJobsScreen() {
             <Text style={styles.fee}>
               Item: ${Number(item.itemAmount).toFixed(2)}
             </Text>
-            {(item as any).distFromDriverKm != null && (
+            {item.distFromDriverKm != null && (
               <View style={styles.distBadge}>
-                <Text style={styles.distText}>📍 {(item as any).distFromDriverKm} km away</Text>
+                <Text style={styles.distText}>📍 {item.distFromDriverKm} km away</Text>
               </View>
             )}
             <View style={styles.radiusBadge}>
-              <Text style={styles.radiusText}>⬤ {(item as any).radiusKm ?? 10} km zone</Text>
+              <Text style={styles.radiusText}>⬤ {item.radiusKm ?? 10} km zone</Text>
             </View>
           </View>
           <Pressable

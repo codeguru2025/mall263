@@ -25,6 +25,32 @@ import { fetchShopFeedPage, fetchActiveAd, recordAdImpression, formatMoney, type
 import { fetchCategories } from '@/lib/seller-api';
 import { displayCity, fetchMalls } from '@/lib/stalls-api';
 import { MapPickerModal, type PickedLocation } from '@/components/MapPickerModal';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+
+function AdBanner({ ad }: { ad: { id: string; title?: string | null; imageUrl: string; linkUrl: string } }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <Pressable
+      style={[styles.adBanner, !loaded && styles.adBannerHidden]}
+      onPress={() => Linking.openURL(ad.linkUrl)}
+      activeOpacity={0.85}
+    >
+      <Image
+        source={{ uri: ad.imageUrl }}
+        style={styles.adBannerImg}
+        contentFit="cover"
+        transition={200}
+        onLoad={() => setLoaded(true)}
+      />
+      {loaded && ad.title ? (
+        <View style={styles.adLabel}>
+          <Text style={styles.adLabelText}>AD</Text>
+          <Text style={styles.adTitle} numberOfLines={1}>{ad.title}</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
 
 function useDebouncedValue<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -52,7 +78,9 @@ export default function ShopScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedMallId, setSelectedMallId] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [showMallFilter, setShowMallFilter] = useState(false);
+  const [showCityFilter, setShowCityFilter] = useState(false);
   const [nearLat, setNearLat] = useState<number | null>(null);
   const [nearLng, setNearLng] = useState<number | null>(null);
   const [radiusKm] = useState(10);
@@ -74,7 +102,14 @@ export default function ShopScreen() {
     setGeoLoading(true);
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission denied', 'Enable location access in Settings to filter by proximity.');
+      Alert.alert(
+        'Location permission denied',
+        'Enable location access in Settings to filter by proximity.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ],
+      );
       setGeoLoading(false);
       return;
     }
@@ -117,6 +152,16 @@ export default function ShopScreen() {
     enabled: !blockStaff,
   });
   const mallsQ = useQuery({ queryKey: ['malls'], queryFn: () => fetchMalls(), staleTime: 5 * 60_000, enabled: !blockStaff });
+
+  // Derive unique city names from loaded malls — no extra API call needed
+  const cityNames = useMemo(() => {
+    const names = new Set<string>();
+    (mallsQ.data ?? []).forEach((m) => {
+      const c = displayCity(m.city);
+      if (c) names.add(c);
+    });
+    return Array.from(names).sort();
+  }, [mallsQ.data]);
   const adQ = useQuery({
     queryKey: ['shop-ad', user?.role],
     queryFn: async () => {
@@ -130,8 +175,8 @@ export default function ShopScreen() {
   });
 
   const feedKey = useMemo(
-    () => `${debouncedQuery.trim()}|${selectedCategoryId ?? ''}|${selectedMallId ?? ''}|${nearLat ?? ''}|${nearLng ?? ''}|${radiusKm}`,
-    [debouncedQuery, selectedCategoryId, selectedMallId, nearLat, nearLng, radiusKm],
+    () => `${debouncedQuery.trim()}|${selectedCategoryId ?? ''}|${selectedMallId ?? ''}|${selectedCity ?? ''}|${nearLat ?? ''}|${nearLng ?? ''}|${radiusKm}`,
+    [debouncedQuery, selectedCategoryId, selectedMallId, selectedCity, nearLat, nearLng, radiusKm],
   );
 
   const query = useInfiniteQuery({
@@ -215,6 +260,8 @@ export default function ShopScreen() {
 
   const categories = categoriesQ.data ?? [];
   const malls = mallsQ.data ?? [];
+  // Filter malls by selected city for the dropdown
+  const visibleMalls = selectedCity ? malls.filter((m) => displayCity(m.city) === selectedCity) : malls;
   const selectedMall = malls.find((m) => m.id === selectedMallId);
   const ad = adQ.data;
   const locationActive = nearLat !== null;
@@ -275,7 +322,7 @@ export default function ShopScreen() {
         </ScrollView>
       )}
 
-      {/* Location + Mall filter row */}
+      {/* Location + City + Mall filter row */}
       <View style={styles.mallFilterRow}>
         {/* Near me GPS */}
         <Pressable
@@ -299,22 +346,39 @@ export default function ShopScreen() {
         >
           <Text style={styles.nearMeIcon}>🗺️</Text>
           <Text style={[styles.nearMePillText, locationActive && styles.nearMePillTextActive]}>
-            Pick on map
+            Map
           </Text>
         </Pressable>
 
+        {/* City filter */}
+        {cityNames.length > 0 && (
+          <Pressable
+            style={[styles.mallPill, selectedCity && styles.cityPillActive]}
+            onPress={() => { setShowCityFilter(!showCityFilter); setShowMallFilter(false); }}
+            disabled={locationActive}
+          >
+            <FontAwesome name="building" size={10} color={selectedCity ? '#fff' : Brand.navy} />
+            <Text style={[styles.mallPillText, selectedCity && styles.cityPillTextActive]}>
+              {selectedCity ?? 'City'}
+            </Text>
+            <Text style={[styles.mallPillCaret, selectedCity && styles.cityPillTextActive]}>▾</Text>
+          </Pressable>
+        )}
+
+        {/* Mall pill */}
         <Pressable
           style={[styles.mallPill, !nearLat && selectedMallId && styles.mallPillActive]}
           onPress={() => !nearLat && setShowMallFilter(!showMallFilter)}
           disabled={locationActive}
         >
           <Text style={[styles.mallPillText, !nearLat && selectedMallId && styles.mallPillTextActive]}>
-            {!nearLat && selectedMall ? `🏬 ${selectedMall.name}` : '🏬 All malls'}
+            {!nearLat && selectedMall ? `🏬 ${selectedMall.name}` : '🏬 Mall'}
           </Text>
           <Text style={[styles.mallPillCaret, !nearLat && selectedMallId && styles.mallPillTextActive]}>▾</Text>
         </Pressable>
-        {selectedMallId && (
-          <Pressable style={styles.clearMall} onPress={() => setSelectedMallId(null)}>
+
+        {(selectedCity || selectedMallId) && (
+          <Pressable style={styles.clearMall} onPress={() => { setSelectedCity(null); setSelectedMallId(null); }}>
             <Text style={styles.clearMallText}>× Clear</Text>
           </Pressable>
         )}
@@ -330,16 +394,41 @@ export default function ShopScreen() {
         </View>
       ) : null}
 
-      {/* Mall dropdown - expands inside the static header */}
-      {showMallFilter && malls.length > 0 && (
+      {/* City dropdown */}
+      {showCityFilter && cityNames.length > 0 && (
+        <View style={styles.mallDropdown}>
+          <Pressable
+            style={[styles.mallOption, !selectedCity && styles.mallOptionActive]}
+            onPress={() => { setSelectedCity(null); setSelectedMallId(null); setShowCityFilter(false); }}
+          >
+            <Text style={[styles.mallOptionText, !selectedCity && styles.mallOptionTextActive]}>All cities</Text>
+          </Pressable>
+          {cityNames.map((city) => (
+            <Pressable
+              key={city}
+              style={[styles.mallOption, selectedCity === city && styles.mallOptionActive]}
+              onPress={() => { setSelectedCity(city); setSelectedMallId(null); setShowCityFilter(false); }}
+            >
+              <Text style={[styles.mallOptionText, selectedCity === city && styles.mallOptionTextActive]}>
+                {city}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {/* Mall dropdown - shows malls filtered by selected city */}
+      {showMallFilter && visibleMalls.length > 0 && (
         <View style={styles.mallDropdown}>
           <Pressable
             style={[styles.mallOption, !selectedMallId && styles.mallOptionActive]}
             onPress={() => { setSelectedMallId(null); setShowMallFilter(false); }}
           >
-            <Text style={[styles.mallOptionText, !selectedMallId && styles.mallOptionTextActive]}>All malls</Text>
+            <Text style={[styles.mallOptionText, !selectedMallId && styles.mallOptionTextActive]}>
+              {selectedCity ? `All malls in ${selectedCity}` : 'All malls'}
+            </Text>
           </Pressable>
-          {malls.map((m) => {
+          {visibleMalls.map((m) => {
             const city = displayCity(m.city);
             return (
               <Pressable
@@ -348,7 +437,7 @@ export default function ShopScreen() {
                 onPress={() => { setSelectedMallId(m.id); setShowMallFilter(false); }}
               >
                 <Text style={[styles.mallOptionText, selectedMallId === m.id && styles.mallOptionTextActive]}>
-                  {m.name}{city ? ` · ${city}` : ''}
+                  {m.name}{!selectedCity && city ? ` · ${city}` : ''}
                 </Text>
               </Pressable>
             );
@@ -360,27 +449,10 @@ export default function ShopScreen() {
 
   const listHeader = (
     <View>
-      {/* Ad banner */}
-      {ad?.imageUrl && (
-        <Pressable
-          style={styles.adBanner}
-          onPress={() => ad.linkUrl && Linking.openURL(ad.linkUrl)}
-          activeOpacity={ad.linkUrl ? 0.85 : 1}
-        >
-          <Image
-            source={{ uri: ad.imageUrl }}
-            style={styles.adBannerImg}
-            contentFit="cover"
-            transition={200}
-          />
-          {ad.title ? (
-            <View style={styles.adLabel}>
-              <Text style={styles.adLabelText}>AD</Text>
-              <Text style={styles.adTitle} numberOfLines={1}>{ad.title}</Text>
-            </View>
-          ) : null}
-        </Pressable>
-      )}
+      {/* Ad banner — only shown when both image and link are present */}
+      {ad?.imageUrl && ad?.linkUrl ? (
+        <AdBanner ad={{ id: ad.id, title: ad.title, imageUrl: ad.imageUrl, linkUrl: ad.linkUrl }} />
+      ) : null}
       {typeof totalLoaded === 'number' && !debouncedQuery.trim() ? (
         <Text style={styles.countLine}>{totalLoaded} listing{totalLoaded === 1 ? '' : 's'}</Text>
       ) : null}
@@ -545,6 +617,8 @@ const styles = StyleSheet.create({
   mallPillText: { fontSize: 12, fontWeight: '700', color: Brand.navy },
   mallPillTextActive: { color: Brand.navy },
   mallPillCaret: { fontSize: 11, color: Brand.muted },
+  cityPillActive: { backgroundColor: Brand.blue, borderColor: Brand.blue },
+  cityPillTextActive: { color: '#fff' },
   clearMall: { paddingHorizontal: 10, paddingVertical: 7 },
   clearMallText: { fontSize: 12, fontWeight: '700', color: Brand.red },
 
@@ -577,8 +651,9 @@ const styles = StyleSheet.create({
 
   adBanner: {
     marginHorizontal: 14, marginTop: 10, borderRadius: 12, overflow: 'hidden',
-    height: 100, backgroundColor: Brand.border,
+    height: 100,
   },
+  adBannerHidden: { height: 0, marginTop: 0 },
   adBannerImg: { width: '100%', height: '100%' },
   adLabel: {
     position: 'absolute', bottom: 0, left: 0, right: 0,

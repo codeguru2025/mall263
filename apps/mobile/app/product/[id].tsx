@@ -82,7 +82,8 @@ export default function ProductDetailScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { isAuthenticated, user } = useAuth();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from, walkStallId } = useLocalSearchParams<{ id: string; from?: string; walkStallId?: string }>();
+  const fromVirtualWalk = from === 'virtual-walk' && !!walkStallId;
   const [hearted, setHearted] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -250,6 +251,16 @@ export default function ProductDetailScreen() {
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
+      {fromVirtualWalk && (
+        <Pressable
+          style={styles.walkBackBanner}
+          onPress={() => router.push({ pathname: '/virtual-walk/[stallId]' as never, params: { stallId: walkStallId! } })}
+        >
+          <FontAwesome name="arrow-left" size={13} color={Brand.primary} />
+          <Text style={styles.walkBackText}>Back to virtual walk</Text>
+        </Pressable>
+      )}
+
       {/* Image carousel */}
       <View style={styles.carouselWrap}>
         {images.length > 0 ? (
@@ -538,6 +549,12 @@ export default function ProductDetailScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: Brand.pageBg },
   body: { paddingBottom: 40 },
+  walkBackBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 16, paddingVertical: 11,
+    backgroundColor: Brand.primary + '12', borderBottomWidth: 1, borderBottomColor: Brand.primary + '30',
+  },
+  walkBackText: { fontSize: 13, fontWeight: '700', color: Brand.primary },
   centered: {
     flex: 1, justifyContent: 'center', alignItems: 'center',
     padding: 24, backgroundColor: Brand.pageBg,

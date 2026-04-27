@@ -262,6 +262,10 @@ export class AdminService {
     return this.prisma.stall.update({ where: { id: stallId }, data: { status: StallStatus.ACTIVE } });
   }
 
+  async updateStallLocation(stallId: string, latitude: number, longitude: number) {
+    return this.prisma.stall.update({ where: { id: stallId }, data: { latitude, longitude } });
+  }
+
   async suspendProduct(productId: string) {
     return this.prisma.product.update({ where: { id: productId }, data: { status: ProductStatus.SUSPENDED } });
   }

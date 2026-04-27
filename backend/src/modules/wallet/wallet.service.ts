@@ -1,10 +1,12 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WalletTransactionType, WalletTransactionStatus, WalletLockReason, WalletLockStatus, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class WalletService {
+  private readonly logger = new Logger(WalletService.name);
+
   constructor(
     private prisma: PrismaService,
     private audit: AuditService,
@@ -15,6 +17,7 @@ export class WalletService {
     if (row) {
       const n = parseFloat(row.value);
       if (Number.isFinite(n) && n >= 0 && n <= 1) return n;
+      this.logger.warn(`Commission rate "${row.value}" is out of bounds [0,1] — using default 2.5%`);
     }
     return 0.025; // 2.5% default
   }
@@ -162,7 +165,7 @@ export class WalletService {
             status: WalletLockStatus.ACTIVE,
             referenceId,
             referenceType: 'buyer_demand',
-            expiresAt: new Date(Date.now() + 1 * 60 * 60 * 1000), // 1 hour — matches BID_LOCK_HOURS in demands.service
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h — matches BID_LOCK_HOURS in demands.service
           },
         });
 

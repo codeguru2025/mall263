@@ -99,6 +99,10 @@ export async function activateStall(id: string): Promise<void> {
   await api.patch(`/api/v1/admin/stalls/${id}/activate`);
 }
 
+export async function adminUpdateStallLocation(stallId: string, latitude: number, longitude: number): Promise<void> {
+  await api.patch(`/api/v1/admin/stalls/${stallId}/location`, { latitude, longitude });
+}
+
 export async function fetchAdminSubscriptions(page = 1): Promise<AdminSubscriptionsPage> {
   const { data } = await api.get<AdminSubscriptionsPage>('/api/v1/admin/subscriptions', {
     params: { page, limit: 20 },

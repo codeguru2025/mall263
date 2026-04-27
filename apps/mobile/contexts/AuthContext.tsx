@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setOnAuthExpired(async () => {
       await clearTokens();
       setUser(null);
-      router.replace('/login');
+      router.replace('/(tabs)/shop');
     });
   }, []);
 
@@ -92,8 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(me);
     // Register push token now that we have a valid session
     registerForPushNotifications().then((token) => {
-      if (token) savePushTokenToBackend(token);
-    });
+      if (token) savePushTokenToBackend(token).catch(() => {});
+    }).catch(() => {});
     return me;
   }, []);
 
@@ -114,8 +114,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data: me } = await api.get<MeProfile>('/api/v1/users/me');
       setUser(me);
       registerForPushNotifications().then((token) => {
-        if (token) savePushTokenToBackend(token);
-      });
+        if (token) savePushTokenToBackend(token).catch(() => {});
+      }).catch(() => {});
     } else {
       // Backend didn't return tokens — fall back to a normal login.
       await login(normalized, payload.password);

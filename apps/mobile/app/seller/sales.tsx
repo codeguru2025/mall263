@@ -112,6 +112,14 @@ export default function SellerSalesScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <>
+            <Pressable
+              style={styles.newSaleBtn}
+              onPress={() => router.push({ pathname: '/pos/cart', params: { stallId, stallName: stallsQ.data?.[0]?.name ?? '' } })}
+            >
+              <FontAwesome name="plus" size={13} color="#fff" />
+              <Text style={styles.newSaleBtnText}>New Sale</Text>
+            </Pressable>
+
             <View style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>Revenue · {RANGES.find((r) => r.key === range)?.label}</Text>
               <Text style={styles.summaryAmount}>{fmt(totalRevenue)}</Text>
@@ -287,6 +295,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 16, fontWeight: '800', color: Brand.navy, marginTop: 6 },
   emptySub: { fontSize: 12, color: Brand.muted, textAlign: 'center', lineHeight: 17 },
+
+  newSaleBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, backgroundColor: Brand.green,
+    borderRadius: 14, paddingVertical: 15, marginBottom: 14,
+  },
+  newSaleBtnText: { color: '#fff', fontWeight: '900', fontSize: 15 },
 
   posBtn: {
     marginTop: 10,

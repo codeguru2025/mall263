@@ -162,7 +162,7 @@ export default function VirtualWalkScreen() {
 
           {/* Video player */}
           {currentShelf ? (
-            <VideoBlock video={currentShelf.video} />
+            <VideoBlock key={currentShelf.video.id} video={currentShelf.video} />
           ) : (
             <View style={styles.videoPlaceholder}>
               <FontAwesome name="play-circle" size={48} color={Brand.muted} />
@@ -174,7 +174,7 @@ export default function VirtualWalkScreen() {
             <View style={styles.hotspotSection}>
               <Text style={styles.sectionLabel}>Products in this view</Text>
               {currentShelf.video.hotspots.map((h) => (
-                <HotspotCard key={h.id} hotspot={h} />
+                <HotspotCard key={h.id} hotspot={h} stallId={resolved ?? ''} />
               ))}
             </View>
           )}
@@ -229,14 +229,13 @@ function VideoBlock({ video }: { video: ShelfVideo }) {
         style={styles.video}
         useNativeControls
         resizeMode={ResizeMode.CONTAIN}
-        posterSource={video.thumbnailUrl ? { uri: video.thumbnailUrl } : undefined}
-        usePoster={!!video.thumbnailUrl}
+        shouldPlay={false}
       />
     </View>
   );
 }
 
-function HotspotCard({ hotspot }: { hotspot: Hotspot }) {
+function HotspotCard({ hotspot, stallId }: { hotspot: Hotspot; stallId: string }) {
   const router = useRouter();
   const img = hotspot.product.images[0]?.cdnUrl || hotspot.product.images[0]?.url;
   const price = hotspot.product.minPrice ? parseFloat(String(hotspot.product.minPrice)) : null;
@@ -244,7 +243,7 @@ function HotspotCard({ hotspot }: { hotspot: Hotspot }) {
   return (
     <Pressable
       style={styles.hotspotCard}
-      onPress={() => router.push({ pathname: '/product/[id]', params: { id: hotspot.product.id } })}
+      onPress={() => router.push({ pathname: '/product/[id]', params: { id: hotspot.product.id, from: 'virtual-walk', walkStallId: stallId } })}
     >
       {img ? (
         <Image source={{ uri: img }} style={styles.hotspotImg} contentFit="contain" />

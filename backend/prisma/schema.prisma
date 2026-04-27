@@ -81,6 +81,10 @@ enum WalletTransactionType {
   FLOAT_RELEASE
   // Agent commissions
   AGENT_COMMISSION
+  // Multi-shop run delivery
+  RUN_ESCROW_LOCK
+  RUN_ESCROW_RELEASE
+  RUN_DRIVER_EARNING
 }
 
 enum WalletTransactionStatus {
@@ -194,6 +198,20 @@ enum NotificationType {
   DISPUTE_OPENED
   DISPUTE_RESOLVED
   AGENT_COMMISSION_CREDITED
+  // Multi-shop run delivery
+  RUN_BID_RECEIVED
+  RUN_BID_ACCEPTED
+  RUN_LOCKED
+  RUN_STOP_PICKED_UP
+  RUN_DELIVERED
+  RUN_COMPLETED
+  RUN_CANCELLED
+  RUN_COLLECTION_PROOF
+  RUN_DELIVERY_PROOF
+  DRIVER_DOC_VERIFIED
+  DRIVER_DOC_REJECTED
+  RUN_READY_FOR_COLLECTION
+  RUN_COLLECTED
 }
 
 enum AgentTaskType {
@@ -280,12 +298,17 @@ model User {
   sellerDeliveryJobs   DeliveryJob[]        @relation("SellerDeliveryJobs")
   buyerDeliveryJobs    DeliveryJob[]        @relation("BuyerDeliveryJobs")
   escrowAccounts       EscrowAccount[]      @relation("BuyerEscrow")
+  buyerRuns            Run[]                @relation("BuyerRuns")
+  buyerRunEscrows      RunEscrow[]          @relation("BuyerRunEscrows")
   disputesRaised       Dispute[]            @relation("DisputeRaisedBy")
   disputesResolved     Dispute[]            @relation("DisputeResolvedBy")
   agentCommissions     AgentCommission[]    @relation("AgentCommissions")
   productReviews       ProductReview[]
   addresses            UserAddress[]
-  createdDiscounts     Discount[]           @relation("DiscountCreator")
+  createdDiscounts      Discount[]           @relation("DiscountCreator")
+  reviewedDocuments     DriverDocument[]     @relation("DocReviewer")
+  usedQrTokens          RunQrToken[]         @relation("QrTokenUsedBy")
+  collectedRuns         Run[]                @relation("CollectedRuns")
 
   @@index([phone])
   @@index([role])
@@ -448,6 +471,7 @@ model Stall {
   followers         StallFollow[]
   virtualWalkVideos ShopVirtualWalkVideo[]
   discounts         Discount[]
+  runStops          RunStop[]                @relation("StallRunStops")
 
   @@unique([mallId, stallNumber])
   @@index([merchantId])
@@ -748,6 +772,7 @@ model ProductVariant {
   inventory     Inventory?
   posSaleItems  POSSaleItem[]
   offerVariants SellerOfferItem[]
+  runStopItems  RunStopItem[]  @relation("RunStopItems")
 
   @@unique([sku])
   @@index([productId])
@@ -1340,6 +1365,10 @@ model Driver {
   jobs              DeliveryJob[]
   floatTransactions DriverFloatTransaction[]
   codTransactions   CODTransaction[]
+  runs              Run[]
+  runBids           RunBid[]                 @relation("DriverRunBids")
+  documents         DriverDocument[]
+  qrTokens          RunQrToken[]             @relation("DriverQrTokens")
 
   @@index([isActive, tier])
   @@index([currentLat, currentLng])
@@ -1498,6 +1527,258 @@ model RiskReservePool {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("risk_reserve_pool")
+}
+
+// ============================================================
+// MULTI-SHOP RUN DELIVERY
+// ============================================================
+
+enum RunStatus {
+  OPEN              // Accepting driver bids
+  LOCKED            // Buyer accepted a bid; escrow held
+  IN_PROGRESS       // All stops picked up; driver en route to dropoff
+  DELIVERED         // Driver submitted proof; awaiting buyer confirmation
+  AT_PICKUP_POINT   // Delivered to pickup point; awaiting customer collection
+  COMPLETED         // Buyer confirmed or 24h auto-confirm
+  COLLECTED         // Customer collected from pickup point (terminal, like COMPLETED)
+  CANCELLED
+  DISPUTED
+}
+
+enum RunBidStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum RunStopStatus {
+  PENDING    // Awaiting pickup
+  PICKED_UP  // Driver confirmed pickup with PIN or QR scan
+}
+
+enum RunQrTokenType {
+  PICKUP    // Driver→stall handoff: stall owner scans driver's QR
+  DELIVERY  // Driver→buyer handoff: buyer scans driver's QR
+}
+
+enum DriverDocumentType {
+  DRIVERS_LICENSE
+  POLICE_CLEARANCE
+  PROOF_OF_RESIDENCE
+  CAR_REG_BOOK
+  INSURANCE
+  ZINARA
+  NATIONAL_ID
+}
+
+enum DriverDocumentStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+// Multi-shop delivery run — buyer picks items from N stalls, one driver does all stops
+model Run {
+  id              String    @id @default(uuid()) @db.Uuid
+  buyerId         String    @map("buyer_id") @db.Uuid
+  buyer           User      @relation("BuyerRuns", fields: [buyerId], references: [id])
+  driverId        String?   @map("driver_id") @db.Uuid
+  driver          Driver?   @relation(fields: [driverId], references: [id])
+  mode            DeliveryMode
+  status          RunStatus @default(OPEN)
+
+  // Drop-off (zone shown before lock; full address revealed to driver after lock)
+  dropZone        String    @map("drop_zone")
+  dropAddress     String?   @map("drop_address")
+  dropLat         Decimal?  @map("drop_lat") @db.Decimal(10, 8)
+  dropLng         Decimal?  @map("drop_lng") @db.Decimal(11, 8)
+
+  // Route totals — computed at creation
+  totalDistanceKm Decimal?  @map("total_distance_km") @db.Decimal(8, 2)
+  suggestedFee    Decimal?  @map("suggested_fee") @db.Decimal(14, 2)
+  maxBudget       Decimal?  @map("max_budget") @db.Decimal(14, 2)
+
+  // Financials — set when bid accepted
+  agreedFee       Decimal?  @map("agreed_fee") @db.Decimal(14, 2)
+  platformFee     Decimal?  @map("platform_fee") @db.Decimal(14, 2)
+  driverEarning   Decimal?  @map("driver_earning") @db.Decimal(14, 2)
+
+  // Delivery proof (submitted by driver)
+  deliveryPhotoUrl  String?   @map("delivery_photo_url")
+  deliveryVideoUrl  String?   @map("delivery_video_url")
+  deliveryTimestamp DateTime? @map("delivery_timestamp")
+  deliveryGpsLat    Decimal?  @map("delivery_gps_lat") @db.Decimal(10, 8)
+  deliveryGpsLng    Decimal?  @map("delivery_gps_lng") @db.Decimal(11, 8)
+
+  // Pickup point delivery (optional alternative to home drop-off)
+  pickupPointId    String?      @map("pickup_point_id") @db.Uuid
+  pickupPoint      PickupPoint? @relation(fields: [pickupPointId], references: [id])
+  collectionCode   String?      @map("collection_code")    // e.g. "SAM-4892" — shown to customer
+  collectionToken  String?      @unique @map("collection_token") @db.Uuid  // UUID in QR code
+  collectedAt      DateTime?    @map("collected_at")
+  collectedById    String?      @map("collected_by_id") @db.Uuid
+  collectedBy      User?        @relation("CollectedRuns", fields: [collectedById], references: [id])
+
+  lockedAt     DateTime? @map("locked_at")
+  completedAt  DateTime? @map("completed_at")
+  cancelReason String?   @map("cancel_reason")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  stops    RunStop[]
+  bids     RunBid[]
+  escrow   RunEscrow?
+  qrTokens RunQrToken[]
+
+  @@index([status])
+  @@index([buyerId])
+  @@index([driverId])
+  @@index([mode, status])
+  @@index([pickupPointId])
+  @@map("runs")
+}
+
+// Named collection point — admin-managed; customers choose one as their delivery destination
+model PickupPoint {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  address   String
+  latitude  Float?
+  longitude Float?
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  runs Run[]
+
+  @@index([isActive])
+  @@map("pickup_points")
+}
+
+// One pickup stop per stall within a run
+model RunStop {
+  id           String        @id @default(uuid()) @db.Uuid
+  runId        String        @map("run_id") @db.Uuid
+  run          Run           @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stallId      String        @map("stall_id") @db.Uuid
+  stall        Stall         @relation("StallRunStops", fields: [stallId], references: [id])
+  stopOrder    Int           @map("stop_order")
+  status       RunStopStatus @default(PENDING)
+  pickupPin    String        @map("pickup_pin")  // 4-digit, generated when run is LOCKED
+  pickedUpAt   DateTime?     @map("picked_up_at")
+  pickupGpsLat Decimal?      @map("pickup_gps_lat") @db.Decimal(10, 8)
+  pickupGpsLng Decimal?      @map("pickup_gps_lng") @db.Decimal(11, 8)
+  itemAmount         Decimal   @map("item_amount") @db.Decimal(14, 2)
+  collectionPhotoUrl String?   @map("collection_photo_url")
+  collectionVideoUrl String?   @map("collection_video_url")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  items    RunStopItem[]
+  qrTokens RunQrToken[]
+
+  @@index([runId])
+  @@index([stallId])
+  @@map("run_stops")
+}
+
+// Individual items at each pickup stop
+model RunStopItem {
+  id        String         @id @default(uuid()) @db.Uuid
+  stopId    String         @map("stop_id") @db.Uuid
+  stop      RunStop        @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  variantId String         @map("variant_id") @db.Uuid
+  variant   ProductVariant @relation("RunStopItems", fields: [variantId], references: [id])
+  quantity  Int
+  unitPrice Decimal        @map("unit_price") @db.Decimal(12, 2)
+  currency  String         @default("USD")
+
+  @@index([stopId])
+  @@map("run_stop_items")
+}
+
+// Driver's competitive bid on a run
+model RunBid {
+  id          String       @id @default(uuid()) @db.Uuid
+  runId       String       @map("run_id") @db.Uuid
+  run         Run          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  driverId    String       @map("driver_id") @db.Uuid
+  driver      Driver       @relation("DriverRunBids", fields: [driverId], references: [id])
+  fee         Decimal      @db.Decimal(14, 2)
+  message     String?
+  status      RunBidStatus @default(PENDING)
+  respondedAt DateTime?    @map("responded_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@unique([runId, driverId])
+  @@index([runId, status])
+  @@index([driverId])
+  @@map("run_bids")
+}
+
+// Escrow for SAFE_PAY mode runs — funds locked until delivery confirmed
+model RunEscrow {
+  id          String       @id @default(uuid()) @db.Uuid
+  runId       String       @unique @map("run_id") @db.Uuid
+  run         Run          @relation(fields: [runId], references: [id])
+  buyerId     String       @map("buyer_id") @db.Uuid
+  buyer       User         @relation("BuyerRunEscrows", fields: [buyerId], references: [id])
+  totalHeld   Decimal      @map("total_held") @db.Decimal(14, 2)
+  itemAmount  Decimal      @map("item_amount") @db.Decimal(14, 2)
+  deliveryFee Decimal      @map("delivery_fee") @db.Decimal(14, 2)
+  platformFee Decimal      @map("platform_fee") @db.Decimal(14, 2)
+  status      EscrowStatus @default(HELD)
+  releasedAt  DateTime?    @map("released_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([buyerId])
+  @@map("run_escrows")
+}
+
+// One-time QR token for driver→shop (PICKUP) and driver→buyer (DELIVERY) handoff
+model RunQrToken {
+  id        String         @id @default(uuid()) @db.Uuid
+  token     String         @unique @default(uuid()) @db.Uuid
+  type      RunQrTokenType
+  runId     String         @map("run_id") @db.Uuid
+  run       Run            @relation(fields: [runId], references: [id])
+  stopId    String?        @map("stop_id") @db.Uuid
+  stop      RunStop?       @relation(fields: [stopId], references: [id])
+  driverId  String         @map("driver_id") @db.Uuid
+  driver    Driver         @relation("DriverQrTokens", fields: [driverId], references: [id])
+  expiresAt DateTime       @map("expires_at")
+  usedAt    DateTime?      @map("used_at")
+  usedById  String?        @map("used_by_id") @db.Uuid
+  usedBy    User?          @relation("QrTokenUsedBy", fields: [usedById], references: [id])
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@index([token])
+  @@index([runId])
+  @@index([driverId])
+  @@map("run_qr_tokens")
+}
+
+// Driver onboarding KYC documents — all 7 must be APPROVED before driver is activated
+model DriverDocument {
+  id             String               @id @default(uuid()) @db.Uuid
+  driverId       String               @map("driver_id") @db.Uuid
+  driver         Driver               @relation(fields: [driverId], references: [id])
+  type           DriverDocumentType
+  fileUrl        String               @map("file_url")
+  status         DriverDocumentStatus @default(PENDING_REVIEW)
+  rejectedReason String?              @map("rejected_reason")
+  reviewedById   String?              @map("reviewed_by_id") @db.Uuid
+  reviewedBy     User?                @relation("DocReviewer", fields: [reviewedById], references: [id])
+  reviewedAt     DateTime?            @map("reviewed_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  @@unique([driverId, type])
+  @@index([driverId])
+  @@index([status])
+  @@map("driver_documents")
 }
 
 // ============================================================
