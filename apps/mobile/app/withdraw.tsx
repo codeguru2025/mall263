@@ -20,33 +20,35 @@ import { formatMoney } from '@/lib/products';
 import { Brand } from '@/constants/brand';
 import { useAuth } from '@/contexts/AuthContext';
 import { getStaffHomePath, isStaffAdminRole } from '@mall263/shared';
+import { parseMoneyInput } from '@/lib/money';
 
 export default function WithdrawScreen() {
   const qc = useQueryClient();
-  const { isAuthenticated, user } = useAuth();
+  const { isReady, isAuthenticated, user } = useAuth();
 
   useEffect(() => {
+    if (!isReady) return;
     if (!isAuthenticated) router.replace('/login');
     else if (user && isStaffAdminRole(user.role)) {
       router.replace((getStaffHomePath(user.role) ?? '/admin') as never);
     }
-  }, [isAuthenticated, user]);
+  }, [isReady, isAuthenticated, user]);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
 
   const balanceQ = useQuery({
     queryKey: ['wallet-balance'],
     queryFn: fetchWalletBalance,
-    enabled: isAuthenticated && !isStaffAdminRole(user?.role),
+    enabled: isReady && isAuthenticated && !isStaffAdminRole(user?.role),
   });
 
   const mutation = useMutation({
     mutationFn: () => {
-      const n = parseFloat(amount);
-      if (!Number.isFinite(n) || n <= 0) {
+      const parsedAmount = parseMoneyInput(amount);
+      if (!parsedAmount || parsedAmount.amount <= 0) {
         return Promise.reject(new Error('Enter a valid amount.'));
       }
-      return requestWalletWithdrawal(n, description);
+      return requestWalletWithdrawal(parsedAmount.amount, description);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['wallet-balance'] });
@@ -71,6 +73,22 @@ export default function WithdrawScreen() {
 
   const currency = balanceQ.data?.currency ?? 'USD';
   const available = balanceQ.data?.available ?? 0;
+
+  if (!isReady) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={Brand.blue} />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated || (user && isStaffAdminRole(user.role))) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={Brand.blue} />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -141,6 +159,7 @@ export default function WithdrawScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Brand.pageBg },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Brand.pageBg },
   scroll: { padding: 14, gap: 12, paddingBottom: 40 },
 
   balanceCard: {

@@ -261,14 +261,14 @@ export default function ProductDetailScreen() {
   );
   const rawPhone = sellerPhone ? sellerPhone.replace(/^\+/, '') : '';
 
-  const handleCall = useCallback(() => {
+  const handleCall = () => {
     if (!sellerPhone) return;
     Linking.openURL(`tel:${sellerPhone}`).catch(() =>
       Alert.alert('Cannot call', 'Your device could not open the dialler.'),
     );
-  }, [sellerPhone]);
+  };
 
-  const handleWhatsApp = useCallback(async () => {
+  const handleWhatsApp = async () => {
     if (!rawPhone) return;
     const waUrl = `whatsapp://send?phone=${rawPhone}&text=${contactMsg}`;
     const canOpen = await Linking.canOpenURL(waUrl).catch(() => false);
@@ -277,9 +277,9 @@ export default function ProductDetailScreen() {
     } else {
       Linking.openURL(`https://wa.me/${rawPhone}?text=${contactMsg}`);
     }
-  }, [rawPhone, contactMsg]);
+  };
 
-  const handleSms = useCallback(() => {
+  const handleSms = () => {
     if (!sellerPhone) return;
     const smsUrl =
       Platform.OS === 'ios'
@@ -288,9 +288,9 @@ export default function ProductDetailScreen() {
     Linking.openURL(smsUrl).catch(() =>
       Alert.alert('Cannot send SMS', 'Your device could not open messaging.'),
     );
-  }, [sellerPhone, contactMsg]);
+  };
 
-  const handleShare = useCallback(async () => {
+  const handleShare = async () => {
     const webUrl = `${getApiBaseUrl()}/marketplace/${id}`;
     try {
       await Share.share({
@@ -301,7 +301,7 @@ export default function ProductDetailScreen() {
     } catch {
       // user cancelled — ignore
     }
-  }, [id, name]);
+  };
 
   const walletBalance = walletQ.data?.available;
   const walletCurrency = walletQ.data?.currency ?? 'USD';

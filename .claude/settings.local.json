@@ -30,7 +30,20 @@
       "Bash(grep -n \"next.config\\\\|images.*domain\\\\|remotePattern\" /c/Users/ausiz/CascadeProjects/mall263/frontend/next.config.*)",
       "Bash(ls /c/Users/ausiz/CascadeProjects/mall263/frontend/next.config*)",
       "Bash(npm run *)",
-      "Bash(npx dotenv *)"
+      "Bash(npx dotenv *)",
+      "Bash(npx eas *)",
+      "Bash(eas build *)",
+      "Bash(eas build:list --platform android --limit 3 --non-interactive)",
+      "Bash(eas build:list *)",
+      "Bash(eas submit *)",
+      "Bash(eas build:cancel *)",
+      "Bash(doctl apps *)",
+      "Bash(PRISMA_MIGRATE_SKIP_GENERATE=false npx prisma migrate dev --name add_multi_shop_runs --skip-seed)",
+      "PowerShell(cd \"C:\\\\Users\\\\ausiz\\\\CascadeProjects\\\\mall263\\\\backend\"; $env:FORCE_COLOR = \"0\"; npx prisma migrate dev --name driver-onboarding-qr --skip-seed 2>&1)",
+      "Bash(export DATABASE_URL=$\\(grep DATABASE_URL .env)",
+      "Bash(grep -E \"^pg$|postgres|mysql\")",
+      "Bash(powershell *)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")"
     ]
   }
 }

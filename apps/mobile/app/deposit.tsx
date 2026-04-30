@@ -22,6 +22,7 @@ import {
   pollPaymentStatus,
   type MobileMethod,
 } from '@/lib/payments-api';
+import { parseMoneyInput } from '@/lib/money';
 
 type Mode = 'mobile' | 'web';
 type Step = 'form' | 'pending' | 'success' | 'failed';
@@ -40,15 +41,16 @@ const cardShadow =
 
 export default function DepositScreen() {
   const qc = useQueryClient();
-  const { isAuthenticated, user } = useAuth();
+  const { isReady, isAuthenticated, user } = useAuth();
 
   useEffect(() => {
+    if (!isReady) return;
     if (!isAuthenticated) router.replace('/login');
     else if (user && isStaffAdminRole(user.role)) {
       const p = getStaffHomePath(user.role) ?? '/admin';
       router.replace(p as never);
     }
-  }, [isAuthenticated, user]);
+  }, [isReady, isAuthenticated, user]);
 
   const [mode, setMode] = useState<Mode>('mobile');
   const [step, setStep] = useState<Step>('form');
@@ -121,8 +123,8 @@ export default function DepositScreen() {
   );
 
   const handleSubmitMobile = async () => {
-    const amt = parseFloat(amount);
-    if (!amt || amt < 1) {
+    const parsedAmount = parseMoneyInput(amount);
+    if (!parsedAmount || parsedAmount.amount < 1) {
       Alert.alert('Invalid amount', 'Minimum deposit is $1.00');
       return;
     }
@@ -132,7 +134,7 @@ export default function DepositScreen() {
     }
     setSubmitting(true);
     try {
-      const result = await initiateMobilePayment(amt, phone.trim(), method);
+      const result = await initiateMobilePayment(parsedAmount.amount, phone.trim(), method);
       setReference(result.reference);
       setInstructions(result.instructions);
       setStep('pending');
@@ -146,14 +148,14 @@ export default function DepositScreen() {
   };
 
   const handleSubmitWeb = async () => {
-    const amt = parseFloat(amount);
-    if (!amt || amt < 1) {
+    const parsedAmount = parseMoneyInput(amount);
+    if (!parsedAmount || parsedAmount.amount < 1) {
       Alert.alert('Invalid amount', 'Minimum deposit is $1.00');
       return;
     }
     setSubmitting(true);
     try {
-      const result = await initiateWebPayment(amt);
+      const result = await initiateWebPayment(parsedAmount.amount);
       setReference(result.reference);
       setInstructions('Complete payment in your browser. This screen will update automatically when done.');
       await Linking.openURL(result.redirectUrl);
@@ -182,6 +184,22 @@ export default function DepositScreen() {
 
   // ── Success ────────────────────────────────────────────────────────────────
 
+  if (!isReady) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={Brand.blue} />
+      </View>
+    );
+  }
+
+  if (!isAuthenticated || (user && isStaffAdminRole(user.role))) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={Brand.blue} />
+      </View>
+    );
+  }
+
   if (step === 'success') {
     return (
       <View style={styles.centered}>
@@ -189,7 +207,7 @@ export default function DepositScreen() {
           <Text style={styles.statusIcon}>✓</Text>
           <Text style={styles.statusTitle}>Deposit confirmed</Text>
           <Text style={styles.statusSub}>
-            ${parseFloat(amount || '0').toFixed(2)} has been added to your wallet.
+            ${parseMoneyInput(amount)?.canonical ?? '0.00'} has been added to your wallet.
           </Text>
           <Pressable style={[styles.btn, styles.btnSuccess]} onPress={handleDone}>
             <Text style={styles.btnText}>Back to wallet</Text>
