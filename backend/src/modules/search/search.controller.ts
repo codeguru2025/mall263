@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { SearchService } from './search.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -14,6 +15,7 @@ export class SearchController {
 
   @Get()
   @Public()
+  @Throttle({ global: { limit: 60, ttl: 60_000 } })
   @ApiOperation({ summary: 'Search products (fuzzy, typo-tolerant)' })
   async search(
     @Query('q') query: string,

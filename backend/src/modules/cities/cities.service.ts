@@ -28,6 +28,8 @@ export class CitiesService {
       data: {
         name,
         country: country || 'ZW',
+        province: createCityDto.province || null,
+        isActive: createCityDto.isActive ?? true,
       },
     });
   }
@@ -36,23 +38,18 @@ export class CitiesService {
     return this.prisma.city.findMany({
       where: country ? { country } : undefined,
       include: {
+        _count: { select: { malls: true } },
         malls: {
           select: {
             id: true,
             name: true,
             isActive: true,
-            _count: {
-              select: { stalls: true }
-            }
+            _count: { select: { stalls: true } },
           },
-          orderBy: {
-            name: 'asc'
-          }
-        }
+          orderBy: { name: 'asc' },
+        },
       },
-      orderBy: {
-        name: 'asc'
-      }
+      orderBy: { name: 'asc' },
     });
   }
 

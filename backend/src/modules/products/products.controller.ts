@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../../common/guards/optional-jwt-auth.guard';
@@ -26,6 +27,7 @@ export class ProductsController {
 
   @Get('browse')
   @Public()
+  @Throttle({ global: { limit: 60, ttl: 60_000 } })
   @ApiOperation({ summary: 'Browse products (public). Supports nearLat/nearLng/radiusKm for geo-proximity filtering.' })
   async browse(
     @Query('categoryId') categoryId?: string,

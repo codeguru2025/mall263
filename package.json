@@ -24,6 +24,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
+    "@anthropic-ai/claude-code": "^2.1.123",
     "expo-camera": "~17.0.10"
   }
 }

@@ -22,9 +22,7 @@ export default {
     updates: {
       url: 'https://u.expo.dev/25130720-2f49-4c52-b561-3aacac2d9a18',
     },
-    runtimeVersion: {
-      policy: 'appVersion',
-    },
+    runtimeVersion: base.version ?? '1.0.0',
     android: {
       ...(typeof base.android === 'object' && base.android ? base.android : {}),
       config: {
@@ -49,3 +47,4 @@ export default {
     },
   },
 };
+

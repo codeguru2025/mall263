@@ -3,7 +3,10 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
+import { CacheKeys } from '../../common/cache-keys';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { AuditService } from '../audit/audit.service';
 import {
   StallStatus, ProductStatus, POSSaleStatus,
   DemandStatus, WalletTransactionType, WalletTransactionStatus, UserStatus, UserRole,
@@ -15,6 +18,8 @@ export class AdminService {
   constructor(
     private prisma: PrismaService,
     private subscriptions: SubscriptionsService,
+    private audit: AuditService,
+    private redis: RedisService,
   ) {}
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
@@ -67,7 +72,7 @@ export class AdminService {
     if (existing) throw new ConflictException('A user with this phone number already exists');
 
     const passwordHash = await bcrypt.hash(data.password, 12);
-    return this.prisma.user.create({
+    const newUser = await this.prisma.user.create({
       data: {
         firstName: data.firstName.trim(),
         lastName: data.lastName.trim(),
@@ -77,6 +82,14 @@ export class AdminService {
       },
       select: { id: true, firstName: true, lastName: true, phone: true, role: true, status: true, createdAt: true },
     });
+    this.audit.log({
+      userId: actorId,
+      action: 'ADMIN_CREATE_USER',
+      entity: 'User',
+      entityId: newUser.id,
+      newValue: { role: data.role, phone: data.phone.trim() },
+    }).catch(() => {});
+    return newUser;
   }
 
   async listUsers(params: { search?: string; page?: number; limit?: number }) {
@@ -151,11 +164,13 @@ export class AdminService {
       throw new BadRequestException('No fields to update');
     }
 
-    return this.prisma.user.update({
+    const result = await this.prisma.user.update({
       where: { id: userId },
       data: updateData as any,
       select: { id: true, firstName: true, lastName: true, phone: true, role: true, status: true, avatarUrl: true, phoneVerified: true, updatedAt: true },
     });
+    try { await this.redis.del(CacheKeys.jwtUser(userId)); } catch {}
+    return result;
   }
 
   async softDeleteUser(actorId: string, actorRole: UserRole, userId: string) {
@@ -183,6 +198,7 @@ export class AdminService {
         data: { status: UserStatus.DEACTIVATED, phone: archivalPhone },
       });
     });
+    try { await this.redis.del(CacheKeys.jwtUser(userId)); } catch {}
 
     return { id: userId, status: UserStatus.DEACTIVATED };
   }
@@ -209,20 +225,23 @@ export class AdminService {
       select: { id: true, firstName: true, lastName: true, phone: true, role: true, status: true },
     });
 
-    // Role changes affect the plan used by subscriptions.getStatus (buyer $1 vs
-    // seller $5, feature entitlements, etc.). Bust the cache so the next call
-    // reflects the new role immediately instead of waiting for TTL.
+    // Role changes affect subscriptions and JWT cache — bust both immediately.
     this.subscriptions.invalidateStatusCache(userId).catch(() => {});
+    try { await this.redis.del(CacheKeys.jwtUser(userId)); } catch {}
 
     return updated;
   }
 
   async suspendUser(userId: string) {
-    return this.prisma.user.update({ where: { id: userId }, data: { status: UserStatus.SUSPENDED } });
+    const result = await this.prisma.user.update({ where: { id: userId }, data: { status: UserStatus.SUSPENDED } });
+    try { await this.redis.del(CacheKeys.jwtUser(userId)); } catch {}
+    return result;
   }
 
   async activateUser(userId: string) {
-    return this.prisma.user.update({ where: { id: userId }, data: { status: UserStatus.ACTIVE } });
+    const result = await this.prisma.user.update({ where: { id: userId }, data: { status: UserStatus.ACTIVE } });
+    try { await this.redis.del(CacheKeys.jwtUser(userId)); } catch {}
+    return result;
   }
 
   // ── Stalls ────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -49,6 +49,7 @@ export function MapPickerModal({
   );
   const [geocoding, setGeocoding] = useState(false);
   const [address, setAddress] = useState('');
+  const mapRef = useRef<any>(null);
 
   const initialRegion = pickedCoord
     ? { ...pickedCoord, latitudeDelta: 0.05, longitudeDelta: 0.05 }
@@ -107,6 +108,9 @@ export function MapPickerModal({
           const coord = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
           setPickedCoord(coord);
           reverseGeocode(coord.latitude, coord.longitude);
+          // Animate map to current location (overrides the HARARE default initial region)
+          const gpsRegion = { ...coord, latitudeDelta: 0.05, longitudeDelta: 0.05 };
+          setTimeout(() => mapRef.current?.animateToRegion?.(gpsRegion, 600), 100);
         } catch {
           if (pickedCoord) reverseGeocode(pickedCoord.latitude, pickedCoord.longitude);
         }
@@ -135,6 +139,7 @@ export function MapPickerModal({
         </View>
 
         <MapView
+          ref={mapRef}
           style={styles.map}
           initialRegion={initialRegion}
           onPress={handleMapPress}

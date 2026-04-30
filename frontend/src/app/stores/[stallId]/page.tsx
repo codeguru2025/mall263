@@ -15,6 +15,21 @@ async function fetchStallMeta(stallId: string) {
   }
 }
 
+async function fetchFirstProductImage(stallId: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/v1/products/browse?stallId=${stallId}&limit=1&sortBy=newest`,
+      { next: { revalidate: 300 } },
+    );
+    if (!res.ok) return null;
+    const body = await res.json();
+    const first = body?.data?.[0];
+    return first?.images?.[0]?.url ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ stallId: string }> }): Promise<Metadata> {
   const { stallId } = await params;
   const stall = await fetchStallMeta(stallId);
@@ -31,7 +46,10 @@ export async function generateMetadata({ params }: { params: Promise<{ stallId: 
   const mall = stall.mall?.name;
   const city = stall.mall?.city?.name ?? stall.mall?.city;
   const location = [mall, city].filter(Boolean).join(', ');
-  const logo = stall.merchant?.user?.avatarUrl || stall.logoUrl;
+
+  // Prefer store logo; fall back to merchant logo; fall back to first product image
+  const logo = stall.logoUrl || stall.merchant?.logoUrl;
+  const ogImage = logo || (await fetchFirstProductImage(stallId));
 
   const title = businessName ? `${storeName} – ${businessName}` : storeName;
   const description = [
@@ -48,14 +66,14 @@ export async function generateMetadata({ params }: { params: Promise<{ stallId: 
     openGraph: {
       title: `${title} | Mall263`,
       description,
-      ...(logo ? { images: [{ url: logo, width: 800, height: 800 }] } : {}),
+      ...(ogImage ? { images: [{ url: ogImage, width: 1200, height: 630 }] } : {}),
       type: 'website',
     },
     twitter: {
-      card: 'summary',
+      card: 'summary_large_image',
       title: `${title} | Mall263`,
       description,
-      ...(logo ? { images: [logo] } : {}),
+      ...(ogImage ? { images: [ogImage] } : {}),
     },
   };
 }

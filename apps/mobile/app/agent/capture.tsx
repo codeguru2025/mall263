@@ -30,31 +30,43 @@ export default function CaptureScreen() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'Allow photo access to capture a product image.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-      allowsEditing: false,
-      aspect: [1, 1],
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    setImageUri(asset.uri);
-    setUploadingImage(true);
-    try {
-      const url = await uploadImage(asset.uri, asset.mimeType ?? 'image/jpeg');
-      setImageUrl(url);
-    } catch {
-      Alert.alert('Upload failed', 'Image could not be uploaded. You can still save the task offline.');
-      setImageUri(null);
-    } finally {
-      setUploadingImage(false);
-    }
+  const pickImage = () => {
+    const launchPicker = async (fromCamera: boolean) => {
+      if (fromCamera) {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'Allow camera access to take photos.');
+          return;
+        }
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'Allow photo access to capture a product image.');
+          return;
+        }
+      }
+      const result = fromCamera
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8, allowsEditing: false, aspect: [1, 1] })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8, allowsEditing: false, aspect: [1, 1] });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      setImageUri(asset.uri);
+      setUploadingImage(true);
+      try {
+        const url = await uploadImage(asset.uri, asset.mimeType ?? 'image/jpeg');
+        setImageUrl(url);
+      } catch {
+        Alert.alert('Upload failed', 'Image could not be uploaded. You can still save the task offline.');
+        setImageUri(null);
+      } finally {
+        setUploadingImage(false);
+      }
+    };
+    Alert.alert('Add photo', 'Choose a source', [
+      { text: 'Take photo', onPress: () => launchPicker(true) },
+      { text: 'Choose from library', onPress: () => launchPicker(false) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const buildPayload = () => ({

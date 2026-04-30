@@ -1,10 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
+import { CacheKeys } from '../../common/cache-keys';
 import { UserRole, UserStatus } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+  ) {}
 
   async findById(id: string) {
     const user = await this.prisma.user.findUnique({
@@ -39,10 +44,12 @@ export class UsersService {
   }
 
   async updateStatus(userId: string, status: UserStatus) {
-    return this.prisma.user.update({
+    const result = await this.prisma.user.update({
       where: { id: userId },
       data: { status },
     });
+    try { await this.redis.del(CacheKeys.jwtUser(userId)); } catch {}
+    return result;
   }
 
   async listUsers(params: { role?: UserRole; status?: UserStatus; page?: number; limit?: number }) {

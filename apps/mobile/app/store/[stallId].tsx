@@ -6,6 +6,7 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -27,6 +28,7 @@ import {
 import { formatMoney } from '@/lib/products';
 import { fetchMeProfile } from '@/lib/me-profile';
 import { api } from '@/lib/api';
+import { getApiBaseUrl } from '@/lib/config';
 
 async function fetchVirtualWalkExists(stallId: string): Promise<boolean> {
   try {
@@ -143,6 +145,20 @@ export default function StoreScreen() {
     ? [stall.mall.name, displayCity(stall.mall.city)].filter(Boolean).join(' · ')
     : '';
 
+  const handleShare = useCallback(async () => {
+    if (!resolved) return;
+    const webUrl = `${getApiBaseUrl()}/stores/${resolved}`;
+    try {
+      await Share.share({
+        title: storeName,
+        message: Platform.OS === 'ios' ? storeName : `${storeName}\n${webUrl}`,
+        url: webUrl,
+      });
+    } catch {
+      // user cancelled — ignore
+    }
+  }, [resolved, storeName]);
+
   const header = (
     <View style={styles.headerBlock}>
       <View style={[styles.heroCard, cardShadow]}>
@@ -188,31 +204,37 @@ export default function StoreScreen() {
           />
         </View>
 
-        {isLoggedIn && (
-          <Pressable
-            style={[
-              styles.followBtn,
-              (optimisticFollowing ?? stall?.isFollowing) && styles.followBtnActive,
-              followMut.isPending && { opacity: 0.6 },
-            ]}
-            onPress={() => followMut.mutate()}
-            disabled={followMut.isPending}
-          >
-            <FontAwesome
-              name={(optimisticFollowing ?? stall?.isFollowing) ? 'heart' : 'heart-o'}
-              size={14}
-              color={(optimisticFollowing ?? stall?.isFollowing) ? '#fff' : Brand.blue}
-            />
-            <Text
+        <View style={styles.storeActions}>
+          {isLoggedIn && (
+            <Pressable
               style={[
-                styles.followBtnText,
-                (optimisticFollowing ?? stall?.isFollowing) && styles.followBtnTextActive,
+                styles.followBtn,
+                (optimisticFollowing ?? stall?.isFollowing) && styles.followBtnActive,
+                followMut.isPending && { opacity: 0.6 },
               ]}
+              onPress={() => followMut.mutate()}
+              disabled={followMut.isPending}
             >
-              {(optimisticFollowing ?? stall?.isFollowing) ? 'Following' : 'Follow store'}
-            </Text>
+              <FontAwesome
+                name={(optimisticFollowing ?? stall?.isFollowing) ? 'heart' : 'heart-o'}
+                size={14}
+                color={(optimisticFollowing ?? stall?.isFollowing) ? '#fff' : Brand.blue}
+              />
+              <Text
+                style={[
+                  styles.followBtnText,
+                  (optimisticFollowing ?? stall?.isFollowing) && styles.followBtnTextActive,
+                ]}
+              >
+                {(optimisticFollowing ?? stall?.isFollowing) ? 'Following' : 'Follow store'}
+              </Text>
+            </Pressable>
+          )}
+          <Pressable style={styles.shareBtn} onPress={handleShare}>
+            <FontAwesome name="share-alt" size={14} color={Brand.blue} />
+            <Text style={styles.shareBtnText}>Share</Text>
           </Pressable>
-        )}
+        </View>
 
         {virtualWalkQ.data && resolved && (
           <Pressable
@@ -426,12 +448,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
 
+  storeActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
   followBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 12,
     paddingVertical: 11,
     borderRadius: 12,
     borderWidth: 1.5,
@@ -441,6 +464,12 @@ const styles = StyleSheet.create({
   followBtnActive: { backgroundColor: Brand.blue, borderColor: Brand.blue },
   followBtnText: { fontSize: 14, fontWeight: '800', color: Brand.blue },
   followBtnTextActive: { color: '#fff' },
+  shareBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 11, paddingHorizontal: 18, borderRadius: 12,
+    borderWidth: 1.5, borderColor: Brand.blue, backgroundColor: 'transparent',
+  },
+  shareBtnText: { fontSize: 14, fontWeight: '800', color: Brand.blue },
   virtualWalkBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, marginTop: 10, paddingVertical: 11, borderRadius: 12,

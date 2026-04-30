@@ -41,8 +41,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     .join(' — ');
 
   const primaryImage =
-    product.images?.find((i: any) => i.isPrimary)?.cdnUrl ||
-    product.images?.[0]?.cdnUrl ||
+    product.images?.find((i: any) => i.isPrimary)?.url ||
     product.images?.[0]?.url;
 
   return {

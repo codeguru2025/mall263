@@ -78,7 +78,7 @@ export default function DemandsScreen() {
   const q = useQuery({
     queryKey: ['my-demands', statusParam ?? 'all'],
     queryFn: () => fetchMyDemands(statusParam),
-    enabled: tab === 'mine',
+    enabled: tab === 'mine' && !!user,
   });
 
   const rankedQ = useInfiniteQuery({
@@ -100,7 +100,8 @@ export default function DemandsScreen() {
   const chatRoomsQ = useQuery({
     queryKey: ['chat-rooms'],
     queryFn: fetchMyChatRoomsSafe,
-    refetchInterval: 10000,
+    enabled: !!user,
+    refetchInterval: !!user ? 10000 : false,
   });
 
   const unreadChatCount = useMemo(

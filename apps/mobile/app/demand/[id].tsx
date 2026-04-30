@@ -228,7 +228,10 @@ export default function DemandDetailScreen() {
         ))
       )}
 
-      <Pressable style={s.backBtn} onPress={() => router.back()}>
+      <Pressable
+        style={s.backBtn}
+        onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/demands' as never))}
+      >
         <Text style={s.backBtnText}>← Back to list</Text>
       </Pressable>
     </ScrollView>

@@ -1,0 +1,22 @@
+# EAS Build archive exclusions — strips non-mobile dirs from the upload.
+# EAS archives from the monorepo root (npm workspaces), so exclude everything
+# the mobile build doesn't need.
+
+# Backend NestJS — not needed for Expo builds
+backend/
+
+# Web frontend (Next.js) — not needed for Expo builds
+frontend/
+
+# Documentation
+docs/
+
+# Root-level dev scripts / infra files that aren't needed at build time
+docker-compose*.yml
+*.sql
+scripts/
+
+# Editor / OS noise
+.idea/
+*.md
+!apps/mobile/README.md

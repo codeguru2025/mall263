@@ -48,7 +48,9 @@ function randomPin(): string {
 
 function generateCollectionCode(name: string): string {
   const prefix = name.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3).padEnd(3, 'X');
-  return `${prefix}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+  // 8-char UUID hex suffix → ~4 billion combinations, collision-proof in practice
+  const suffix = randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
+  return `${prefix}-${suffix}`;
 }
 
 @Injectable()
@@ -223,30 +225,30 @@ export class RunsService {
         },
         bids: {
           orderBy: { fee: 'asc' },
-          include: { driver: { select: { id: true, tier: true, rating: true, completedJobs: true, user: { select: { firstName: true, lastName: true, avatarUrl: true } } } } },
+          include: { driver: { select: { id: true, tier: true, rating: true, completedJobs: true, user: { select: { id: true, firstName: true, lastName: true, avatarUrl: true } } } } },
         },
         escrow: true,
-        driver: { select: { id: true, tier: true, rating: true, currentLat: true, currentLng: true, user: { select: { firstName: true, lastName: true, phone: true } } } },
+        driver: { select: { id: true, tier: true, rating: true, currentLat: true, currentLng: true, user: { select: { id: true, firstName: true, lastName: true, phone: true } } } },
         pickupPoint: { select: { id: true, name: true, address: true } },
       },
     });
     if (!run) throw new NotFoundException('Run not found');
 
-    // Access control: buyer sees everything; driver only sees addresses after lock
-    const isDriver = run.driverId === requesterId;
+    // Compare by userId throughout — run.driverId is a driver-table PK, not a user PK.
+    // driver.user.id is included in the query so we can do the right comparison.
+    const assignedDriverUserId = run.driver?.user.id ?? null;
+    const isAssignedDriver = assignedDriverUserId === requesterId;
     const isBuyer = run.buyerId === requesterId;
-    const isDriverButNotLocked = isDriver && run.status === RunStatus.OPEN;
+    // A driver who bid but was not selected can see limited info (zone only, no address)
+    const isBiddingDriver =
+      !isAssignedDriver && run.bids.some((b) => b.driver.user.id === requesterId);
 
-    if (!isBuyer && !isDriver) {
-      // Check if requester placed a bid (drivers who bid can see limited info)
-      const hasBid = run.bids.some((b) => b.driver.id === requesterId);
-      if (!hasBid) throw new ForbiddenException('Access denied');
+    if (!isBuyer && !isAssignedDriver && !isBiddingDriver) {
+      throw new ForbiddenException('Access denied');
     }
 
-    // Hide PINs from everyone except the stall owners (handled at stop level by a separate endpoint)
-    // Hide full addresses from non-locked drivers
-    const hideAddresses = !isBuyer && isDriverButNotLocked;
-    if (hideAddresses) {
+    // Bidding-but-not-selected drivers: zone info only, no address or PINs
+    if (isBiddingDriver) {
       return {
         ...run,
         dropAddress: null,
@@ -256,7 +258,7 @@ export class RunsService {
       };
     }
 
-    // Hide PINs from buyer (they don't need them; sellers see them via seller endpoint)
+    // Buyer doesn't need PINs (sellers confirm via seller endpoint)
     if (isBuyer) {
       return {
         ...run,
@@ -623,13 +625,20 @@ export class RunsService {
           select: {
             id: true, buyerId: true, status: true, driverEarning: true, mode: true,
             stops: { select: { id: true, stallId: true, itemAmount: true } },
-            escrow: { select: { totalHeld: true, itemAmount: true, deliveryFee: true } },
+            escrow: { select: { totalHeld: true, itemAmount: true, deliveryFee: true, platformFee: true } },
             driver: { select: { userId: true } },
           },
         },
         stop: {
           include: {
-            stall: { select: { name: true, address: true } },
+            stall: {
+              select: {
+                name: true,
+                address: true,
+                merchant: { select: { userId: true } },
+                attendants: { where: { isActive: true }, select: { userId: true } },
+              },
+            },
             items: {
               include: {
                 variant: { select: { name: true, product: { select: { name: true } } } },
@@ -647,6 +656,12 @@ export class RunsService {
     if (qr.type === RunQrTokenType.PICKUP) {
       if (!qr.stopId || !qr.stop) throw new BadRequestException('Malformed pickup QR');
       if (qr.stop.status === RunStopStatus.PICKED_UP) throw new BadRequestException('Stop already marked as picked up');
+
+      // Only the stall's merchant or an active attendant may confirm collection
+      const isStallStaff =
+        scannerId === qr.stop.stall.merchant.userId ||
+        qr.stop.stall.attendants.some((a) => a.userId === scannerId);
+      if (!isStallStaff) throw new ForbiddenException('Only stall staff can confirm this pickup');
 
       await this.prisma.runQrToken.update({ where: { id: qr.id }, data: { usedAt: new Date(), usedById: scannerId } });
       await this.prisma.runStop.update({
@@ -741,8 +756,15 @@ export class RunsService {
 
     return this.prisma.$retryTransaction(
       async (tx) => {
+        // Re-read status inside the tx to close the TOCTOU window with acceptBid
+        const liveRun = await tx.run.findUnique({ where: { id: runId }, select: { status: true } });
+        if (!liveRun) throw new NotFoundException('Run not found');
+        if (liveRun.status !== RunStatus.OPEN && liveRun.status !== RunStatus.LOCKED) {
+          throw new BadRequestException('Run cannot be cancelled at this stage');
+        }
+
         // Refund escrow if locked
-        if (run.status === RunStatus.LOCKED && run.escrow && run.mode === DeliveryMode.SAFE_PAY) {
+        if (liveRun.status === RunStatus.LOCKED && run.escrow && run.mode === DeliveryMode.SAFE_PAY) {
           const wallet = await tx.wallet.findFirst({ where: { userId: buyerId } });
           if (wallet) {
             const held = run.escrow.totalHeld; // Already Prisma.Decimal
@@ -783,7 +805,7 @@ export class RunsService {
           data: { status: RunStatus.CANCELLED, cancelReason: 'Buyer cancelled' },
         });
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
   }
 
@@ -812,56 +834,98 @@ export class RunsService {
     id: string; buyerId: string; driverId: string | null; driverEarning: Prisma.Decimal | null;
     mode: DeliveryMode;
     stops: { stallId: string; itemAmount: Prisma.Decimal }[];
-    escrow: { totalHeld: Prisma.Decimal; itemAmount: Prisma.Decimal; deliveryFee: Prisma.Decimal } | null;
+    escrow: { totalHeld: Prisma.Decimal; itemAmount: Prisma.Decimal; deliveryFee: Prisma.Decimal; platformFee: Prisma.Decimal } | null;
     driver: { userId: string } | null;
   }) {
     return this.prisma.$retryTransaction(
       async (tx) => {
-        if (run.escrow && run.mode === DeliveryMode.SAFE_PAY) {
-          // Release buyer locked funds
+        const now = new Date();
+
+        // ── Idempotency guards (re-read inside Serializable tx) ─────────────────
+        // Prevents double-release when buyer manual confirm and auto-confirm cron race.
+        const liveRunStatus = await tx.run.findUnique({ where: { id: run.id }, select: { status: true } });
+        if (liveRunStatus?.status === RunStatus.COMPLETED) return liveRunStatus;
+
+        const liveEscrow = run.escrow
+          ? await tx.runEscrow.findUnique({ where: { runId: run.id } })
+          : null;
+
+        if (run.mode === DeliveryMode.SAFE_PAY && liveEscrow) {
+          if (liveEscrow.status !== EscrowStatus.HELD) {
+            // A concurrent tx already released — just mark run completed
+            return tx.run.update({ where: { id: run.id }, data: { status: RunStatus.COMPLETED, completedAt: now } });
+          }
+
+          // ── Buyer locked-balance debit (audit record) ──────────────────────
           const buyerWallet = await tx.wallet.findFirst({ where: { userId: run.buyerId } });
           if (buyerWallet) {
-            const held = run.escrow.totalHeld;
+            const held = liveEscrow.totalHeld;
             await tx.wallet.update({
               where: { id: buyerWallet.id },
               data: { lockedBalance: { decrement: held } },
             });
+            await tx.walletTransaction.create({
+              data: {
+                walletId: buyerWallet.id,
+                type: WalletTransactionType.RUN_ESCROW_RELEASE,
+                amount: held,
+                balanceBefore: buyerWallet.lockedBalance,
+                balanceAfter: Prisma.Decimal.max(new Prisma.Decimal(0), buyerWallet.lockedBalance.sub(held)),
+                status: WalletTransactionStatus.COMPLETED,
+                description: `Run escrow disbursed — payment released (run ${run.id})`,
+                referenceId: run.id,
+                referenceType: 'run',
+                completedAt: now,
+              },
+            });
           }
 
-          // Pay each seller their item amount share
+          // ── Batch-load all seller merchants + wallets (eliminates N+1 per stop)
+          const stopStallIds = run.stops.map((s) => s.stallId);
+          const stallMerchants = await tx.merchant.findMany({
+            where: { stalls: { some: { id: { in: stopStallIds } } } },
+            select: { userId: true, stalls: { where: { id: { in: stopStallIds } }, select: { id: true } } },
+          });
+          const stallToMerchantUserId = new Map<string, string>();
+          for (const m of stallMerchants) {
+            for (const s of m.stalls) stallToMerchantUserId.set(s.id, m.userId);
+          }
+          const sellerUserIds = [...new Set(stallMerchants.map((m) => m.userId))];
+          const sellerWallets = await tx.wallet.findMany({ where: { userId: { in: sellerUserIds } } });
+          const walletByUserId = new Map(sellerWallets.map((w) => [w.userId, w]));
+
+          // ── Credit each seller their item-amount share ─────────────────────
           for (const stop of run.stops) {
-            const sellerMerchant = await tx.merchant.findFirst({ where: { stalls: { some: { id: stop.stallId } } }, select: { userId: true } });
-            if (sellerMerchant) {
-              const sellerWallet = await tx.wallet.findFirst({ where: { userId: sellerMerchant.userId } });
-              if (sellerWallet) {
-                const amt = stop.itemAmount;
-                await tx.wallet.update({
-                  where: { id: sellerWallet.id },
-                  data: { availableBalance: { increment: amt } },
-                });
-                await tx.walletTransaction.create({
-                  data: {
-                    walletId: sellerWallet.id,
-                    type: WalletTransactionType.RUN_ESCROW_RELEASE,
-                    amount: amt,
-                    balanceBefore: sellerWallet.availableBalance,
-                    balanceAfter: sellerWallet.availableBalance.add(amt),
-                    status: WalletTransactionStatus.COMPLETED,
-                    description: `Run delivery — items sold (run ${run.id})`,
-                    referenceId: run.id,
-                    referenceType: 'run',
-                    completedAt: new Date(),
-                  },
-                });
-              }
-            }
+            const merchantUserId = stallToMerchantUserId.get(stop.stallId);
+            if (!merchantUserId) continue;
+            const sellerWallet = walletByUserId.get(merchantUserId);
+            if (!sellerWallet) continue;
+            const amt = stop.itemAmount;
+            await tx.wallet.update({
+              where: { id: sellerWallet.id },
+              data: { availableBalance: { increment: amt } },
+            });
+            await tx.walletTransaction.create({
+              data: {
+                walletId: sellerWallet.id,
+                type: WalletTransactionType.RUN_ESCROW_RELEASE,
+                amount: amt,
+                balanceBefore: sellerWallet.availableBalance,
+                balanceAfter: sellerWallet.availableBalance.add(amt),
+                status: WalletTransactionStatus.COMPLETED,
+                description: `Run delivery — items sold (run ${run.id})`,
+                referenceId: run.id,
+                referenceType: 'run',
+                completedAt: now,
+              },
+            });
           }
 
-          // Pay driver
+          // ── Credit driver their earning ────────────────────────────────────
           if (run.driver && run.driverEarning) {
             const driverUser = await tx.driver.findFirst({ where: { userId: run.driver.userId }, select: { id: true } });
             const driverWallet = await tx.wallet.findFirst({ where: { userId: run.driver.userId } });
-            if (driverWallet && run.driverEarning) {
+            if (driverWallet) {
               const earn = run.driverEarning;
               await tx.wallet.update({
                 where: { id: driverWallet.id },
@@ -878,7 +942,7 @@ export class RunsService {
                   description: `Run delivery earning (run ${run.id})`,
                   referenceId: run.id,
                   referenceType: 'run',
-                  completedAt: new Date(),
+                  completedAt: now,
                 },
               });
               if (driverUser) {
@@ -890,19 +954,49 @@ export class RunsService {
             }
           }
 
+          // ── Credit platform fee (if platform wallet is configured) ─────────
+          if (liveEscrow.platformFee.gt(0)) {
+            const platformSetting = await tx.appSetting.findUnique({ where: { key: 'platform_wallet_user_id' } });
+            if (platformSetting?.value) {
+              const platformWallet = await tx.wallet.findFirst({ where: { userId: platformSetting.value } });
+              if (platformWallet) {
+                await tx.wallet.update({
+                  where: { id: platformWallet.id },
+                  data: { availableBalance: { increment: liveEscrow.platformFee } },
+                });
+                await tx.walletTransaction.create({
+                  data: {
+                    walletId: platformWallet.id,
+                    type: WalletTransactionType.FEE,
+                    amount: liveEscrow.platformFee,
+                    balanceBefore: platformWallet.availableBalance,
+                    balanceAfter: platformWallet.availableBalance.add(liveEscrow.platformFee),
+                    status: WalletTransactionStatus.COMPLETED,
+                    description: `Platform delivery fee — run ${run.id}`,
+                    referenceId: run.id,
+                    referenceType: 'run',
+                    completedAt: now,
+                  },
+                });
+              } else {
+                this.logger.warn(`platform_wallet_user_id "${platformSetting.value}" wallet not found — run ${run.id} platform fee $${liveEscrow.platformFee} uncredited`);
+              }
+            }
+          }
+
           await tx.runEscrow.update({
             where: { runId: run.id },
-            data: { status: EscrowStatus.RELEASED_TO_SELLER, releasedAt: new Date() },
+            data: { status: EscrowStatus.RELEASED_TO_SELLER, releasedAt: now },
           });
         }
 
         const completed = await tx.run.update({
           where: { id: run.id },
-          data: { status: RunStatus.COMPLETED, completedAt: new Date() },
+          data: { status: RunStatus.COMPLETED, completedAt: now },
         });
 
         if (run.driver?.userId) {
-          await this.notifications.send(run.driver.userId, NotificationType.RUN_COMPLETED, 'Run completed — earnings released', `Your earnings for run ${run.id} have been released to your wallet.`, { runId: run.id },);
+          await this.notifications.send(run.driver.userId, NotificationType.RUN_COMPLETED, 'Run completed — earnings released', `Your earnings for run ${run.id} have been released to your wallet.`, { runId: run.id });
         }
 
         return completed;

@@ -51,6 +51,7 @@ export default function NotificationsScreen() {
     initialPageParam: 1,
     queryFn: ({ pageParam }) => fetchNotificationsPage(pageParam as number, 20, filter),
     getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
+    enabled: isAuthenticated,
   });
 
   const rows = query.data?.pages.flatMap((p) => p.data) ?? [];
@@ -147,6 +148,8 @@ export default function NotificationsScreen() {
     [onPressRow],
   );
 
+  if (!isAuthenticated) return <GuestSignInPrompt title="Notifications" description="Sign in to receive alerts about offers, demands, and order updates." />;
+
   if (query.isPending && !query.data) {
     return (
       <View style={styles.centered}>
@@ -166,8 +169,6 @@ export default function NotificationsScreen() {
       </View>
     );
   }
-
-  if (!isAuthenticated) return <GuestSignInPrompt title="Notifications" description="Sign in to receive alerts about offers, demands, and order updates." />;
 
   return (
     <FlatList

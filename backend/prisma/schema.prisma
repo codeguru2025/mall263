@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DATABASE_DIRECT_URL")
 }
 
 // ============================================================
@@ -2039,12 +2040,15 @@ model City {
   id        String   @id @default(uuid()) @db.Uuid
   name      String   @unique
   country   String   @default("ZW")
+  province  String?
+  isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   malls Mall[]
 
   @@index([country])
+  @@index([isActive])
   @@map("cities")
 }
 

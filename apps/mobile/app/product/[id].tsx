@@ -6,11 +6,13 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  Linking,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -27,6 +29,7 @@ import { recordView } from '@/lib/recently-viewed';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchWalletBalance } from '@/lib/wallet-api';
 import { displayCity } from '@/lib/stalls-api';
+import { getApiBaseUrl } from '@/lib/config';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -51,8 +54,13 @@ type ProductStall = {
   id?: string;
   name?: string;
   logoUrl?: string | null;
+  phone?: string | null;
   mall?: { name?: string; city?: string } | null;
-  merchant?: { businessName?: string; logoUrl?: string | null } | null;
+  merchant?: {
+    businessName?: string;
+    logoUrl?: string | null;
+    user?: { phone?: string | null } | null;
+  } | null;
 };
 
 type ProductDetail = {
@@ -246,6 +254,55 @@ export default function ProductDetailScreen() {
     : '';
   const storeLocked = (typeof storeName === 'string' && storeName.includes('Fund wallet')) || !!buyerGated;
 
+  const sellerPhone = (stall?.phone || stall?.merchant?.user?.phone) ?? null;
+  const canContact = isAuthenticated && !buyerGated && !!sellerPhone;
+  const contactMsg = encodeURIComponent(
+    `Hi, I want this: ${name}${description ? ` — ${description.slice(0, 120)}` : ''}`,
+  );
+  const rawPhone = sellerPhone ? sellerPhone.replace(/^\+/, '') : '';
+
+  const handleCall = useCallback(() => {
+    if (!sellerPhone) return;
+    Linking.openURL(`tel:${sellerPhone}`).catch(() =>
+      Alert.alert('Cannot call', 'Your device could not open the dialler.'),
+    );
+  }, [sellerPhone]);
+
+  const handleWhatsApp = useCallback(async () => {
+    if (!rawPhone) return;
+    const waUrl = `whatsapp://send?phone=${rawPhone}&text=${contactMsg}`;
+    const canOpen = await Linking.canOpenURL(waUrl).catch(() => false);
+    if (canOpen) {
+      Linking.openURL(waUrl);
+    } else {
+      Linking.openURL(`https://wa.me/${rawPhone}?text=${contactMsg}`);
+    }
+  }, [rawPhone, contactMsg]);
+
+  const handleSms = useCallback(() => {
+    if (!sellerPhone) return;
+    const smsUrl =
+      Platform.OS === 'ios'
+        ? `sms:${sellerPhone}&body=${contactMsg}`
+        : `sms:${sellerPhone}?body=${contactMsg}`;
+    Linking.openURL(smsUrl).catch(() =>
+      Alert.alert('Cannot send SMS', 'Your device could not open messaging.'),
+    );
+  }, [sellerPhone, contactMsg]);
+
+  const handleShare = useCallback(async () => {
+    const webUrl = `${getApiBaseUrl()}/marketplace/${id}`;
+    try {
+      await Share.share({
+        title: name,
+        message: Platform.OS === 'ios' ? name : `${name}\n${webUrl}`,
+        url: webUrl,
+      });
+    } catch {
+      // user cancelled — ignore
+    }
+  }, [id, name]);
+
   const walletBalance = walletQ.data?.available;
   const walletCurrency = walletQ.data?.currency ?? 'USD';
 
@@ -305,14 +362,24 @@ export default function ProductDetailScreen() {
         <View style={styles.pricePill}>
           <Text style={styles.pricePillText}>{displayPrice}</Text>
         </View>
-        <Pressable
-          style={styles.heartBtn}
-          onPress={onToggleWishlist}
-          hitSlop={8}
-          android_ripple={{ color: '#fee2e2', radius: 22, borderless: true }}
-        >
-          <FontAwesome name={hearted ? 'heart' : 'heart-o'} size={22} color={hearted ? Brand.red : Brand.muted} />
-        </Pressable>
+        <View style={styles.topActions}>
+          <Pressable
+            style={styles.actionBtn}
+            onPress={handleShare}
+            hitSlop={8}
+            android_ripple={{ color: '#e0f0ff', radius: 22, borderless: true }}
+          >
+            <FontAwesome name="share-alt" size={20} color={Brand.blue} />
+          </Pressable>
+          <Pressable
+            style={styles.actionBtn}
+            onPress={onToggleWishlist}
+            hitSlop={8}
+            android_ripple={{ color: '#fee2e2', radius: 22, borderless: true }}
+          >
+            <FontAwesome name={hearted ? 'heart' : 'heart-o'} size={20} color={hearted ? Brand.red : Brand.muted} />
+          </Pressable>
+        </View>
       </View>
 
       <View style={[styles.panel, cardShadow]}>
@@ -377,13 +444,8 @@ export default function ProductDetailScreen() {
               pathname: '/demand/new',
               params: {
                 title: name,
-                description: description || `Looking for "${name}" — see product for reference.`,
                 maxBudget: maxStr,
                 minBudget: minStr && minStr !== maxStr ? minStr : '',
-                productId: id,
-                brand: p.brand ?? '',
-                categoryId: p.categoryId ?? p.category?.id ?? '',
-                stallId: stallId ?? '',
               },
             });
           }}
@@ -395,6 +457,31 @@ export default function ProductDetailScreen() {
         <Text style={styles.wantHint}>
           Sellers across the mall will see your request and send offers.
         </Text>
+
+        {canContact ? (
+          <View style={styles.contactSection}>
+            <Text style={styles.contactLabel}>Contact seller directly</Text>
+            <View style={styles.contactBtns}>
+              <Pressable style={[styles.contactBtn, { backgroundColor: '#16a34a' }]} onPress={handleCall}>
+                <FontAwesome name="phone" size={15} color="#fff" />
+                <Text style={styles.contactBtnText}>Call</Text>
+              </Pressable>
+              <Pressable style={[styles.contactBtn, { backgroundColor: '#25D366' }]} onPress={handleWhatsApp}>
+                <FontAwesome name="whatsapp" size={15} color="#fff" />
+                <Text style={styles.contactBtnText}>WhatsApp</Text>
+              </Pressable>
+              <Pressable style={[styles.contactBtn, { backgroundColor: Brand.blue }]} onPress={handleSms}>
+                <FontAwesome name="comment" size={15} color="#fff" />
+                <Text style={styles.contactBtnText}>SMS</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.contactHint}>
+              Message pre-filled: "I want this: {name}"
+            </Text>
+          </View>
+        ) : isAuthenticated && buyerGated ? null : isAuthenticated ? null : (
+          <Text style={styles.wantHint}>Sign in to contact seller directly.</Text>
+        )}
       </View>
 
       {buyerGated && (
@@ -577,8 +664,11 @@ const styles = StyleSheet.create({
     backgroundColor: Brand.navy, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
   },
   pricePillText: { color: '#fff', fontWeight: '800', fontSize: 14, letterSpacing: 0.2 },
-  heartBtn: {
-    position: 'absolute', top: 14, right: 16,
+  topActions: {
+    position: 'absolute', top: 14, right: 14,
+    flexDirection: 'row', gap: 8,
+  },
+  actionBtn: {
     backgroundColor: Brand.card, padding: 10, borderRadius: 999,
     borderWidth: 1, borderColor: Brand.border,
   },
@@ -630,6 +720,19 @@ const styles = StyleSheet.create({
   wantBtnPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
   wantBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   wantHint: { marginTop: 8, fontSize: 11, color: Brand.muted, textAlign: 'center' },
+
+  contactSection: { marginTop: 16 },
+  contactLabel: {
+    fontSize: 11, fontWeight: '800', color: Brand.muted,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8,
+  },
+  contactBtns: { flexDirection: 'row', gap: 8 },
+  contactBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingVertical: 11, borderRadius: 10,
+  },
+  contactBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  contactHint: { marginTop: 6, fontSize: 10, color: Brand.muted, textAlign: 'center' },
 
   gateCard: {
     marginHorizontal: 16, marginTop: 14,

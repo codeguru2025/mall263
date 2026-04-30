@@ -9,6 +9,7 @@ import * as Notifications from 'expo-notifications';
 import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useRef } from 'react';
+import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -37,6 +38,37 @@ export const unstable_settings = {
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+function SafeBackButton({ canGoBack, tintColor }: { canGoBack?: boolean; tintColor?: string }) {
+  const router = useRouter();
+  const color = tintColor ?? Brand.blue;
+  if (!canGoBack) {
+    return (
+      <Pressable
+        onPress={() => router.replace('/(tabs)/shop' as never)}
+        style={navStyles.btn}
+        hitSlop={8}
+      >
+        <FontAwesome name="home" size={20} color={color} />
+      </Pressable>
+    );
+  }
+  return (
+    <Pressable onPress={() => router.back()} style={navStyles.btn} hitSlop={8}>
+      <FontAwesome
+        name={Platform.OS === 'ios' ? 'chevron-left' : 'arrow-left'}
+        size={Platform.OS === 'ios' ? 17 : 22}
+        color={color}
+      />
+      {Platform.OS === 'ios' && <Text style={[navStyles.backText, { color }]}>Back</Text>}
+    </Pressable>
+  );
+}
+
+const navStyles = StyleSheet.create({
+  btn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4 },
+  backText: { fontSize: 17, fontWeight: '400' },
+});
 
 export default Sentry.wrap(function RootLayout() {
   const [loaded, error] = useFonts({
@@ -107,7 +139,9 @@ function RootLayoutNav() {
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <Stack
             screenOptions={{
-              headerBackTitle: 'Back',
+              headerLeft: ({ canGoBack, tintColor }) => (
+                <SafeBackButton canGoBack={canGoBack} tintColor={tintColor} />
+              ),
               headerStyle: {
                 backgroundColor: '#ffffff',
                 borderBottomWidth: 1,
@@ -201,6 +235,8 @@ function RootLayoutNav() {
             <Stack.Screen name="dispute/[jobId]" options={{ title: 'Open Dispute' }} />
             <Stack.Screen name="wishlist" options={{ title: 'Wishlist' }} />
             <Stack.Screen name="for-you" options={{ title: 'For You' }} />
+            <Stack.Screen name="marketplace/[id]" options={{ headerShown: false }} />
+            <Stack.Screen name="stores/[stallId]" options={{ headerShown: false }} />
             <Stack.Screen name="referral" options={{ title: 'Referrals & Promo' }} />
             <Stack.Screen name="settings/notifications" options={{ title: 'Notification preferences' }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal' }} />

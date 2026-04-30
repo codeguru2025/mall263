@@ -187,7 +187,8 @@ export class DemandsService {
     page?: number;
     limit?: number;
   }) {
-    const { categoryId, mallId, cityId, urgency, page = 1, limit = 20 } = params;
+    const { categoryId, mallId, cityId, urgency, page = 1 } = params;
+    const limit = Math.min(100, params.limit ?? 20);
     const where: any = {
       status: DemandStatus.OPEN,
       expiresAt: { gt: new Date() },
@@ -250,7 +251,7 @@ export class DemandsService {
             },
             chatRoom: { select: { id: true } },
             deliveryRequest: { select: { id: true, status: true, deliveryFee: true, distanceKm: true } },
-            items: { include: { variant: { include: { product: { select: { name: true } } } } } },
+            items: { take: 50, include: { variant: { include: { product: { select: { name: true } } } } } },
           },
           orderBy: { totalPrice: 'asc' },
         },
@@ -682,11 +683,14 @@ export class DemandsService {
           });
         }
 
-        // Stock check + decrement: one pass per unique variant, using aggregated qty.
+        // Stock check + decrement: re-read inventory inside the Serializable tx.
+        // The outer demand/offer query is stale — a concurrent sale could have
+        // already decremented stock between that read and now.
         for (const [variantId, totalQty] of qtyByVariant) {
           const item = offer.items.find((i) => i.variantId === variantId && i.variant);
-          if (!item || !item.variant?.inventory) continue;
-          const inv = item.variant.inventory;
+          if (!item || !item.variant) continue;
+          const inv = await tx.inventory.findFirst({ where: { variantId } });
+          if (!inv) continue;
           const available = inv.quantity - inv.reservedQty;
           if (available < totalQty) {
             throw new BadRequestException(

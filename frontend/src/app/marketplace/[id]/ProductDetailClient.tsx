@@ -9,7 +9,7 @@ import { formatCurrency } from '@/lib/utils';
 import { resolveStoreLogo } from '@/lib/storeBranding';
 import { Logo } from '@/components/Logo';
 import { DeliveryCalculator } from '@/components/DeliveryCalculator';
-import { ArrowLeft, MapPin, Star, Package, Gavel, ShoppingBag, AlertCircle, ChevronLeft, ChevronRight, Wallet, Heart } from 'lucide-react';
+import { ArrowLeft, MapPin, Star, Package, Gavel, ShoppingBag, AlertCircle, ChevronLeft, ChevronRight, Wallet, Heart, Share2 } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import { recordProductEngagement } from '@/lib/forYouSignals';
 import { useAuthStore } from '@/lib/store';
@@ -58,6 +58,7 @@ export default function ProductDetailClient() {
     } catch { /* ignore */ }
   }, [id]);
 
+
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isBuyer = user?.role === 'BUYER' || !user;
@@ -67,6 +68,21 @@ export default function ProductDetailClient() {
     queryFn: () => api.get(`/api/v1/products/${id}`).then((r) => r.data),
     enabled: !!id,
   });
+
+  const [shareCopied, setShareCopied] = useState(false);
+  const handleShare = useCallback(async () => {
+    const url = window.location.href;
+    const title = (product as any)?.name ?? 'Check this out on Mall263';
+    if (navigator.share) {
+      try { await navigator.share({ title, url }); } catch { /* cancelled */ }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      } catch { /* ignore */ }
+    }
+  }, [(product as any)?.name]);
 
   const { data: walletData } = useQuery({
     queryKey: ['wallet-balance'],
@@ -210,6 +226,18 @@ export default function ProductDetailClient() {
             </Link>
             <Logo size={26} />
             <div className="flex-1" />
+            <button
+              type="button"
+              onClick={handleShare}
+              className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow hover:bg-white/30 transition-colors flex-shrink-0 relative"
+              aria-label="Share product"
+            >
+              {shareCopied ? (
+                <span className="text-[9px] font-black text-white">Copied!</span>
+              ) : (
+                <Share2 className="w-4 h-4 text-white" />
+              )}
+            </button>
             <button
               type="button"
               onClick={toggleWishlist}

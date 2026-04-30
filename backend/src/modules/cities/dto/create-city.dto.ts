@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNotEmpty, MaxLength } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, MaxLength, IsBoolean } from 'class-validator';
 
 export class CreateCityDto {
   @IsString()
@@ -8,6 +8,15 @@ export class CreateCityDto {
 
   @IsString()
   @IsOptional()
-  @MaxLength(2)
+  @MaxLength(100)
   country?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(100)
+  province?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }

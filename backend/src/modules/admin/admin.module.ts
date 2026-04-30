@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AdminController, AdsPublicController, PublicSettingsController } from './admin.controller';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [SubscriptionsModule],
+  imports: [SubscriptionsModule, AuditModule],
   controllers: [AdminController, AdsPublicController, PublicSettingsController],
   providers: [AdminService],
   exports: [AdminService],

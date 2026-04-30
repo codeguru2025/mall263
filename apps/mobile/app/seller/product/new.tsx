@@ -54,20 +54,7 @@ export default function NewProductScreen() {
   const categories: Category[] = categoriesQ.data ?? [];
   const selectedCategory = categories.find((c) => c.id === categoryId);
 
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'Allow photo access to add product images.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.92,
-      allowsEditing: true,
-      aspect: [1, 1],
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
+  const handleImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
     const entry: ImageEntry = { localUri: asset.uri, cdnUrl: null, uploading: true };
     setImages((prev) => [...prev, entry]);
     const idx = images.length;
@@ -78,6 +65,46 @@ export default function NewProductScreen() {
       Alert.alert('Upload failed', 'Could not upload image. Try again.');
       setImages((prev) => prev.filter((_, i) => i !== idx));
     }
+  };
+
+  const pickImage = () => {
+    Alert.alert('Add photo', 'Choose a source', [
+      {
+        text: 'Take photo',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permission required', 'Allow camera access to take photos.');
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ['images'],
+            quality: 0.92,
+            allowsEditing: true,
+            aspect: [1, 1],
+          });
+          if (!result.canceled && result.assets[0]) await handleImageAsset(result.assets[0]);
+        },
+      },
+      {
+        text: 'Choose from library',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permission required', 'Allow photo access to add product images.');
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            quality: 0.92,
+            allowsEditing: true,
+            aspect: [1, 1],
+          });
+          if (!result.canceled && result.assets[0]) await handleImageAsset(result.assets[0]);
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const removeImage = (idx: number) => {

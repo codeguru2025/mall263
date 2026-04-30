@@ -144,6 +144,9 @@ export default function WalletScreen() {
     [currency],
   );
 
+  if (!isAuthenticated) return <GuestSignInPrompt title="Your wallet" description="Sign in to view your balance, deposit funds, and see your transaction history." />;
+  if (staffPath) return <Redirect href={staffPath as never} />;
+
   if (txQ.isPending && !txQ.data && balanceQ.isPending) {
     return (
       <View style={styles.centered}>
@@ -163,9 +166,6 @@ export default function WalletScreen() {
       </View>
     );
   }
-
-  if (!isAuthenticated) return <GuestSignInPrompt title="Your wallet" description="Sign in to view your balance, deposit funds, and see your transaction history." />;
-  if (staffPath) return <Redirect href={staffPath as never} />;
 
   return (
     <FlatList

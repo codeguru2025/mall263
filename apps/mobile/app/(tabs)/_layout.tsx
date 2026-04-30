@@ -87,7 +87,7 @@ export default function TabLayout() {
         name="demands"
         options={{
           title: 'Demands',
-          href: showConsumerMoneyTabs ? undefined : null,
+          href: isAuthenticated && showConsumerMoneyTabs ? undefined : null,
           tabBarIcon: ({ color }) => <TabBarIcon name="list" color={color} />,
         }}
       />
@@ -95,6 +95,7 @@ export default function TabLayout() {
         name="notifications"
         options={{
           title: 'Alerts',
+          href: isAuthenticated ? undefined : null,
           tabBarIcon: ({ color }) => <TabBarIcon name="bell" color={color} />,
           tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
         }}
@@ -103,7 +104,7 @@ export default function TabLayout() {
         name="wallet"
         options={{
           title: 'Wallet',
-          href: showConsumerMoneyTabs ? undefined : null,
+          href: isAuthenticated && showConsumerMoneyTabs ? undefined : null,
           tabBarIcon: ({ color }) => <TabBarIcon name="money" color={color} />,
         }}
       />

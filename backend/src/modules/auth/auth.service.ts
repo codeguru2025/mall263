@@ -4,6 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuid } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../../redis/redis.service';
+import { CacheKeys } from '../../common/cache-keys';
 import { RegisterDto, LoginDto, AuthResponseDto } from './dto/auth.dto';
 import { UserRole, UserStatus } from '@prisma/client';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
@@ -17,6 +19,7 @@ export class AuthService {
     private config: ConfigService,
     private subscriptions: SubscriptionsService,
     private audit: AuditService,
+    private redis: RedisService,
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthResponseDto> {
@@ -204,6 +207,7 @@ export class AuthService {
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date(), revokedReason: 'LOGOUT' },
     });
+    try { await this.redis.del(CacheKeys.jwtUser(userId)); } catch {}
     this.audit.log({ userId, action: 'LOGOUT', entity: 'User', entityId: userId }).catch(() => {});
   }
 

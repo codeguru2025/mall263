@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["APPLE_TEAM_ID.com.mall263.mobile"],
+        "components": [
+          { "/": "/marketplace/*", "comment": "Product detail pages" },
+          { "/": "/stores/*", "comment": "Store pages" },
+          { "/": "/receipts/*", "comment": "Receipt pages" }
+        ]
+      }
+    ]
+  }
+}

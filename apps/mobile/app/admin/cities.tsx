@@ -54,7 +54,7 @@ export default function AdminCitiesScreen() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => api.delete(`/api/v1/cities/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-cities'] }),
-    onError: (err: any) => Alert.alert('Error', err?.response?.data?.message ?? 'Could not delete city.'),
+    onError: (err: any) => { const m = err?.response?.data?.message; Alert.alert('Error', Array.isArray(m) ? m.join('\n') : (m ?? 'Could not delete city.')); },
   });
 
   const onDelete = (city: City) => {
@@ -148,7 +148,7 @@ function CityForm({ existing, onDone, onCancel }: { existing: City | null; onDon
       return api.post('/api/v1/cities', body);
     },
     onSuccess: onDone,
-    onError: (err: any) => Alert.alert('Error', err?.response?.data?.message ?? 'Could not save city.'),
+    onError: (err: any) => { const m = err?.response?.data?.message; Alert.alert('Error', Array.isArray(m) ? m.join('\n') : (m ?? 'Could not save city.')); },
   });
 
   const onSubmit = () => {

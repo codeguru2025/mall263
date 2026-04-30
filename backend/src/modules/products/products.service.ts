@@ -2,13 +2,12 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SearchService } from '../search/search.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { ProductStatus, StallAnalyticsEventType, WalletTransactionType, WalletTransactionStatus, Prisma, UserRole } from '@prisma/client';
 import { containsContactInfo } from '../../common/contact-info.util';
 
 // Default boost pricing in USD — DB-overridable via AppSetting keys: product_boost_price_7, product_boost_price_14, product_boost_price_30
 const DEFAULT_BOOST_PRICES: Record<number, number> = { 7: 1.00, 14: 2.00, 30: 4.00 };
-
-const BUYER_TRIAL_DAYS = 7;
 
 /** Haversine great-circle distance in km between two WGS-84 coordinate pairs. */
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -40,6 +39,7 @@ export class ProductsService {
   constructor(
     private prisma: PrismaService,
     private searchService: SearchService,
+    private subscriptionsService: SubscriptionsService,
   ) {}
 
   private async getBoostPrice(days: number): Promise<number> {
@@ -198,21 +198,11 @@ export class ProductsService {
         .catch(() => {});
     }
 
-    // Trial users (first 7 days) and funded users see full seller details
+    // Show seller details to users with an active subscription or within their free trial
     let showSeller = false;
     if (userId) {
-      const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } });
-      if (user) {
-        const accountAgeDays = (Date.now() - user.createdAt.getTime()) / 86_400_000;
-        if (accountAgeDays < BUYER_TRIAL_DAYS) {
-          showSeller = true;
-        } else {
-          const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
-          if (wallet && parseFloat(wallet.availableBalance.toString()) > 0) {
-            showSeller = true;
-          }
-        }
-      }
+      const subStatus = await this.subscriptionsService.getStatus(userId);
+      showSeller = subStatus.fullyAccess;
     }
 
     if (!showSeller) {
@@ -223,11 +213,12 @@ export class ProductsService {
           name: '🔒 Fund wallet to see seller',
           stallNumber: '***',
           logoUrl: null,
+          phone: null,
           mall: product.stall.mall ? { city: product.stall.mall.city } : null,
           merchant: {
             businessName: '***',
             logoUrl: null,
-            user: { firstName: '***', lastName: '***', phone: '***' },
+            user: { firstName: '***', lastName: '***', phone: null },
           },
         },
       };
@@ -239,7 +230,7 @@ export class ProductsService {
   async findByStall(stallId: string, params: { status?: ProductStatus; page?: number; limit?: number; search?: string }) {
     const { status, search } = params;
     const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
-    const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
+    const limit = Math.min(100, Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20);
     const where: any = { stallId };
     if (status) where.status = status;
     if (search?.trim()) {
@@ -327,7 +318,7 @@ export class ProductsService {
     const { categoryId, mallId, stallId, sortBy } = params;
     // Guard against NaN — enableImplicitConversion can turn missing query params into NaN
     const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
-    const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
+    const limit = Math.min(100, Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20);
     const where: any = { status: ProductStatus.ACTIVE };
 
     if (categoryId) where.categoryId = categoryId;

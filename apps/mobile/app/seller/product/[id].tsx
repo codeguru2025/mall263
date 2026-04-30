@@ -66,33 +66,45 @@ export default function EditProductScreen() {
     }
   }, [product]);
 
-  const pickAndUploadImage = async () => {
-    const { status: perm } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (perm !== 'granted') {
-      Alert.alert('Permission required', 'Allow photo access to change the product image.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.92,
-      allowsEditing: true,
-      aspect: [1, 1],
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    setImageUri(asset.uri);
-    setUploadingImage(true);
-    try {
-      const url = await uploadImage(asset.uri, asset.mimeType ?? 'image/jpeg');
-      await updateProduct(id!, stallId!, { images: [{ url, isPrimary: true }] });
-      await qc.invalidateQueries({ queryKey: ['stall-products', stallId] });
-      Alert.alert('Done', 'Product image updated.');
-    } catch {
-      Alert.alert('Upload failed', 'Could not update image. Try again.');
-      setImageUri(null);
-    } finally {
-      setUploadingImage(false);
-    }
+  const pickAndUploadImage = () => {
+    const launchPicker = async (fromCamera: boolean) => {
+      if (fromCamera) {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'Allow camera access to take photos.');
+          return;
+        }
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'Allow photo access to change the product image.');
+          return;
+        }
+      }
+      const result = fromCamera
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.92, allowsEditing: true, aspect: [1, 1] })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.92, allowsEditing: true, aspect: [1, 1] });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      setImageUri(asset.uri);
+      setUploadingImage(true);
+      try {
+        const url = await uploadImage(asset.uri, asset.mimeType ?? 'image/jpeg');
+        await updateProduct(id!, stallId!, { images: [{ url, isPrimary: true }] });
+        await qc.invalidateQueries({ queryKey: ['stall-products', stallId] });
+        Alert.alert('Done', 'Product image updated.');
+      } catch {
+        Alert.alert('Upload failed', 'Could not update image. Try again.');
+        setImageUri(null);
+      } finally {
+        setUploadingImage(false);
+      }
+    };
+    Alert.alert('Add photo', 'Choose a source', [
+      { text: 'Take photo', onPress: () => launchPicker(true) },
+      { text: 'Choose from library', onPress: () => launchPicker(false) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const handleSaveProduct = async () => {

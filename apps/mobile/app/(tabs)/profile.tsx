@@ -37,6 +37,7 @@ export default function ProfileScreen() {
   const q = useQuery({
     queryKey: ['me-profile'],
     queryFn: fetchMeProfile,
+    enabled: isAuthenticated,
   });
 
   useEffect(() => {

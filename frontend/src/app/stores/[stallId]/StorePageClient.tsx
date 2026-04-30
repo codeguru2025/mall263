@@ -10,12 +10,13 @@ import { formatCurrency } from '@/lib/utils';
 import { resolveStoreLogo } from '@/lib/storeBranding';
 import { BLUR_DATA_URL } from '@/lib/image-placeholder';
 import { Logo } from '@/components/Logo';
-import { ArrowLeft, MapPin, ShoppingBag, Eye, Zap, Video, UserPlus, UserCheck } from 'lucide-react';
+import { ArrowLeft, MapPin, ShoppingBag, Eye, Zap, Video, UserPlus, UserCheck, Share2 } from 'lucide-react';
 
 export default function StorePageClient() {
   const { stallId } = useParams<{ stallId: string }>();
   const queryClient = useQueryClient();
   const visitOnce = useRef(false);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const { data: stall, isLoading: stallLoading, isError: stallError } = useQuery({
     queryKey: ['stall', stallId],
@@ -53,6 +54,20 @@ export default function StorePageClient() {
     if (isFollowing) unfollowMut.mutate();
     else followMut.mutate();
   }, [isFollowing, followMut, unfollowMut]);
+
+  const handleShare = useCallback(async () => {
+    const url = window.location.href;
+    const title = stall?.name ?? 'Check this store on Mall263';
+    if (navigator.share) {
+      try { await navigator.share({ title, url }); } catch { /* cancelled */ }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 2000);
+      } catch { /* ignore */ }
+    }
+  }, [stall?.name]);
 
   const { data: walkData } = useQuery({
     queryKey: ['virtual-walk-check', stallId],
@@ -191,6 +206,14 @@ export default function StorePageClient() {
                       ) : (
                         <><UserPlus className="w-3.5 h-3.5" /> Follow</>
                       )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleShare}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-blue bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5 hover:bg-blue-100 transition-colors"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      {shareCopied ? 'Link copied!' : 'Share store'}
                     </button>
                   </div>
                 </div>

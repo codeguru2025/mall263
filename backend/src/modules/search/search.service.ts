@@ -117,7 +117,7 @@ export class SearchService implements OnModuleInit {
   }) {
     const { categoryId, city, sortBy } = params;
     const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
-    const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
+    const limit = Math.min(100, Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20);
     const minPrice = Number.isFinite(params.minPrice) ? params.minPrice : undefined;
     const maxPrice = Number.isFinite(params.maxPrice) ? params.maxPrice : undefined;
     const inStock = params.inStock;
@@ -314,7 +314,7 @@ export class SearchService implements OnModuleInit {
   private async dbFallbackSearch(query: string, params: SearchParams) {
     const { categoryId, city } = params;
     const page = Number.isFinite(params.page) ? Math.max(1, params.page!) : 1;
-    const limit = Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20;
+    const limit = Math.min(100, Number.isFinite(params.limit) ? Math.max(1, params.limit!) : 20);
     const minPrice = Number.isFinite(params.minPrice) ? params.minPrice : undefined;
     const maxPrice = Number.isFinite(params.maxPrice) ? params.maxPrice : undefined;
 
