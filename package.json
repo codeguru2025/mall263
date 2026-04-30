@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^2.1.123",
+    "@ide/backoff": "^1.0.0",
     "expo-camera": "~17.0.10"
   }
 }
