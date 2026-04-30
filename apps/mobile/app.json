@@ -15,8 +15,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mall263.app",
-      "buildNumber": "18",
+      "bundleIdentifier": "com.mall263.mobile",
+      "buildNumber": "21",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -26,7 +26,7 @@
     },
     "android": {
       "package": "com.mall263.app",
-      "versionCode": 21,
+      "versionCode": 23,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
