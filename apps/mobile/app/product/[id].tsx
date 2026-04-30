@@ -136,7 +136,9 @@ export default function ProductDetailScreen() {
     enabled: isAuthenticated && isBuyer,
     staleTime: 60_000,
   });
-  const buyerGated = isAuthenticated && isBuyer && subStatusQ.data && !subStatusQ.data.fullyAccess;
+  const walletAvailable = Number(walletQ.data?.available ?? 0);
+  const hasWalletFunds = Number.isFinite(walletAvailable) && walletAvailable > 0;
+  const buyerGated = isAuthenticated && isBuyer && !!subStatusQ.data && !subStatusQ.data.fullyAccess && !hasWalletFunds;
 
   const submitReview = useMutation({
     mutationFn: async () => {

@@ -198,11 +198,18 @@ export class ProductsService {
         .catch(() => {});
     }
 
-    // Show seller details to users with an active subscription or within their free trial
+    // Show seller details to users with an active subscription/trial or a funded wallet.
+    // This matches the stall/service detail gates so product contacts are not stricter
+    // than the pages they link to.
     let showSeller = false;
     if (userId) {
       const subStatus = await this.subscriptionsService.getStatus(userId);
-      showSeller = subStatus.fullyAccess;
+      if (subStatus.fullyAccess) {
+        showSeller = true;
+      } else {
+        const wallet = await this.prisma.wallet.findUnique({ where: { userId } });
+        showSeller = !!wallet && parseFloat(wallet.availableBalance.toString()) > 0;
+      }
     }
 
     if (!showSeller) {
